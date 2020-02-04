@@ -79,14 +79,13 @@ if __name__ == '__main__':
     input_args = parse_input()
 
     # load a map and show
-    env_map = mapper.RoughMap(9, 19)
-    env_map.show_map('txt')
-    env_map.show_map('bw')
-    env_map.show_map('grid')
+    env_map = mapper.RoughMap(7, 15)
+    env_map.show_map('all')
 
-    # plan on it
-    env_map.generate_path()
+    # env_map.path2egoaction(env_map.path, 'left')
 
+    # print(env_map.path)
+    # obtain the egocentric
     # # run the agent
     # run_agent(input_args.maze_type, input_args.max_frame, input_args.width, input_args.height, input_args.fps, \
     #           input_args.level_script)
