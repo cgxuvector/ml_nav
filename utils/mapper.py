@@ -31,7 +31,7 @@ class RoughMap(object):
         # map parameters
         self.maze_size = m_size
         self.maze_seed = m_seed
-        self.distortion_factor = [4, 4, 3, 3]  # scaling along [horizon, vertical, goal, start]
+        self.distortion_factor = [1, 1, 1, 1]  # scaling along [horizon, vertical, goal, start]
 
         # maps
         self.map2d_txt = self.load_map('txt')
@@ -102,19 +102,21 @@ class RoughMap(object):
                             bw_img_data[(i * vertical_upscale + v)][j * horizon_upscale + h] = 0
 
                 if char == 'G':
+                    # goal is set to be darker: 0.2
                     pos['goal'] = [i, j]
                     for k in range(goal_upscale):
                         # mark goal with x
-                        bw_img_data[(i * vertical_upscale + k)][j * horizon_upscale + k] = 0.8
-                        bw_img_data[(i * vertical_upscale + goal_upscale - 1 - k)][j * horizon_upscale + k] = 0.8
+                        bw_img_data[(i * vertical_upscale + k)][j * horizon_upscale + k] = 0.2
+                        bw_img_data[(i * vertical_upscale + goal_upscale - 1 - k)][j * horizon_upscale + k] = 0.2
 
                 if char == 'P':
                     # init_pose.append()
+                    # initial is set to be lighter: 0.8
                     pos['init'] = [i, j]
                     for k in range(start_upscale):
                         # mark goal with x
-                        bw_img_data[(i * vertical_upscale + k)][j * horizon_upscale + k] = 0.4
-                        bw_img_data[(i * vertical_upscale + goal_upscale - 1 - k)][j * horizon_upscale + k] = 0.4
+                        bw_img_data[(i * vertical_upscale + k)][j * horizon_upscale + k] = 0.8
+                        bw_img_data[(i * vertical_upscale + goal_upscale - 1 - k)][j * horizon_upscale + k] = 0.8
         f.close()
 
         # rescale the init and goal positions and randomly sample them
@@ -198,8 +200,8 @@ class RoughMap(object):
         for pos in path:
             pos = list(pos)
             grid_map[pos[0], pos[1]] = 0.5
-        grid_map[path[0][0], path[0][1]] = 0.7
-        grid_map[path[-1][0], path[-1][1]] = 0.7
+        grid_map[path[0][0], path[0][1]] = 0.8
+        grid_map[path[-1][0], path[-1][1]] = 0.2
 
         return grid_map
 
@@ -282,7 +284,16 @@ class RoughMap(object):
             # update the local compass using the egocentric action
             self.rotate_compass(action_compass, ego_act)
 
-        return map_actions, ego_actions
+        # refine the ego actions:
+        # In 3D: left only rotates the agent. there for a left on the map equals to left and up in 3D
+        refined_ego_actions = []
+        for ego_act in ego_actions:
+            if ego_act == "left" or ego_act == "right":
+                refined_ego_actions.append(ego_act)
+                refined_ego_actions.append("up")
+            else:
+                refined_ego_actions.append(ego_act)
+        return map_actions, refined_ego_actions
 
 
 

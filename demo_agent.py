@@ -79,7 +79,7 @@ if __name__ == '__main__':
     input_args = parse_input()
 
     # load a map and show
-    env_map = mapper.RoughMap(7, 15)
+    env_map = mapper.RoughMap(13, 15)
     env_map.show_map('all')
 
     # env_map.path2egoaction(env_map.path, 'left')
