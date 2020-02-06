@@ -22,7 +22,7 @@ class RoughMap(object):
     """
 
     # init function
-    def __init__(self, m_size, m_seed):
+    def __init__(self, m_size, m_seed, loc_map_size):
         """
         Function is used to initialize the current maps
         :param m_size: size of the maze
@@ -31,6 +31,7 @@ class RoughMap(object):
         # map parameters
         self.maze_size = m_size
         self.maze_seed = m_seed
+        self.loc_map_size = loc_map_size
         self.distortion_factor = [1, 1, 1, 1]  # scaling along [horizon, vertical, goal, start]
 
         # maps
@@ -44,9 +45,9 @@ class RoughMap(object):
         self.path, self.map2d_path = self.generate_path()
         # egocentric actions
         self.map_act, self.ego_act = self.path2egoaction(self.path)
-        print(self.map_act)
-        print(self.ego_act)
         # egocentric local maps (size adjustable)
+        self.map2d_rough = np.ones(self.map2d_grid.shape) - self.map2d_grid
+        self.local_maps = self.crop_local_maps()
 
     # load txt map
     def load_map(self, m_type):
@@ -177,6 +178,8 @@ class RoughMap(object):
             fig_arr[0, 1].imshow(self.map2d_grid, cmap=plt.cm.gray)
             fig_arr[1, 0].set_title("Planned Path")
             fig_arr[1, 0].imshow(self.map2d_path, cmap=plt.cm.gray)
+            fig_arr[1, 1].set_title("Rough Map")
+            fig_arr[1, 1].imshow(self.map2d_rough, cmap=plt.cm.gray)
             plt.show()
             plt.close(fig)
         else:
@@ -294,6 +297,36 @@ class RoughMap(object):
             else:
                 refined_ego_actions.append(ego_act)
         return map_actions, refined_ego_actions
+
+    def crop_local_maps(self):
+        # store the local maps
+        local_maps = []
+        # padding the rough map based on crop size
+        pad_step = int((self.loc_map_size - 1) / 2)
+        # create background
+        pad_map_size = int(self.map2d_rough.shape[0] + 2 * pad_step)
+        pad_map = np.zeros((pad_map_size, pad_map_size))
+        # insert the rough map
+        pad_map[pad_step:pad_map_size-pad_step, pad_step:pad_map_size-pad_step] = self.map2d_rough
+
+        for idx, pos in enumerate(self.path):
+            pad_pos = pos + [pad_step, pad_step]
+            # crop one local map
+            loc_map = pad_map[(pad_pos[0] - pad_step):(pad_pos[0] + pad_step + 1), \
+                              (pad_pos[1] - pad_step):(pad_pos[1] + pad_step + 1)]
+            local_maps.append(loc_map)
+            # test draw the path on the padding map
+            # pad_map[pad_pos[0], pad_pos[1]] = 0.5
+
+            # rotate the local map
+
+        #     plt.imshow(loc_map, cmap=plt.cm.gray)
+        #     plt.show()
+        #
+        # plt.imshow(pad_map, cmap=plt.cm.gray)
+        # plt.show()
+
+        return local_maps
 
 
 

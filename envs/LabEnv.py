@@ -65,7 +65,7 @@ class LabEnv(object):
     def action_spec(self):
         return self.env.action_spec()
 
-    def reset(self):
+    def reset(self, episode):
         """
         Reset function, return the environment reset flag and the observations for the new episode
         """
@@ -75,7 +75,7 @@ class LabEnv(object):
                                                   episode: load the level in a specific episode.
                                                   seed: random seed for each episode.
         """
-        self.done = self.env.reset()
+        self.done = self.env.reset(episode=episode)
         self.observation = self.env.observations()['RGBD_INTERLEAVED']
 
         return self.observation, self.done
