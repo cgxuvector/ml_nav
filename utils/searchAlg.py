@@ -73,7 +73,7 @@ def A_star(maze, start, end):
                     euclidean dist: 8
     """
     # set the start and end points to be zero
-    print("A star search begin: Start {} - End {}".format(start, end))
+    # print("A star search begin: Start {} - End {}".format(start, end))
     maze[start[0]][start[1]] = 0
     maze[end[0]][end[1]] = 0
 

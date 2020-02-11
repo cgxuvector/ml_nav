@@ -35,6 +35,8 @@ class RoughMap(object):
         self.distortion_factor = [1, 1, 1, 1]  # scaling along [horizon, vertical, goal, start]
 
         # maps
+        self.valid_pos = []
+        self.raw_pos = {'init': None, 'goal': None}
         self.map2d_txt = self.load_map('txt')
         """ Note: the initial position and goal position is randomly sampled from the scaled range
         """
@@ -64,6 +66,16 @@ class RoughMap(object):
         if m_type == 'txt':
             with open(map_path, 'r') as f:
                 map_txt = f.readlines()
+                for i_idx, l in enumerate(map_txt):
+                    for j_idx, s in enumerate(l):
+                        if s == ' ':
+                            self.valid_pos.append([i_idx, j_idx])
+                tmp_pos = np.zeros(2)
+                while tmp_pos[0] == tmp_pos[1]:
+                    tmp_pos = np.random.randint(0, len(self.valid_pos), 2)
+                self.raw_pos['init'] = self.valid_pos[tmp_pos[0]]
+                self.raw_pos['goal'] = self.valid_pos[tmp_pos[1]]
+                # print('init pos = {}, goal pos = {}'.format(self.raw_pos['init'], self.raw_pos['goal']))
             return map_txt
         elif m_type == 'bw':
             map_bw = self.map_txt2bw(map_path, self.maze_size)
@@ -93,7 +105,6 @@ class RoughMap(object):
         bw_img_data = [[1.0 for _ in range(image_h_size)] for _ in range(image_v_size)]  # create a while background
         f = open(map_name, 'r')
         # initialize start and end position
-        pos = {'init': None, 'goal': None}
         for i, line in enumerate(f):
             for j, char in enumerate(line):
                 if char == '*':
@@ -102,18 +113,18 @@ class RoughMap(object):
                             # make walls black
                             bw_img_data[(i * vertical_upscale + v)][j * horizon_upscale + h] = 0
 
-                if char == 'G':
+                if i == self.raw_pos['goal'][0] and j == self.raw_pos['goal'][1]:
                     # goal is set to be darker: 0.2
-                    pos['goal'] = [i, j]
+                    # pos['goal'] = [i, j]
                     for k in range(goal_upscale):
                         # mark goal with x
                         bw_img_data[(i * vertical_upscale + k)][j * horizon_upscale + k] = 0.2
                         bw_img_data[(i * vertical_upscale + goal_upscale - 1 - k)][j * horizon_upscale + k] = 0.2
 
-                if char == 'P':
+                if i == self.raw_pos['init'][0] and j == self.raw_pos['init'][1]:
                     # init_pose.append()
                     # initial is set to be lighter: 0.8
-                    pos['init'] = [i, j]
+                    # pos['init'] = [i, j]
                     for k in range(start_upscale):
                         # mark goal with x
                         bw_img_data[(i * vertical_upscale + k)][j * horizon_upscale + k] = 0.8
@@ -121,10 +132,10 @@ class RoughMap(object):
         f.close()
 
         # rescale the init and goal positions and randomly sample them
-        rescaled_init = [pos['init'][0] * vertical_upscale + np.random.randint(start_upscale), \
-                         pos['init'][1] * horizon_upscale + np.random.randint(start_upscale)]
-        rescaled_goal = [pos['goal'][0] * vertical_upscale + np.random.randint(goal_upscale), \
-                         pos['goal'][1] * horizon_upscale + np.random.randint(goal_upscale)]
+        rescaled_init = [self.raw_pos['init'][0] * vertical_upscale + np.random.randint(start_upscale), \
+                         self.raw_pos['init'][1] * horizon_upscale + np.random.randint(start_upscale)]
+        rescaled_goal = [self.raw_pos['goal'][0] * vertical_upscale + np.random.randint(goal_upscale), \
+                         self.raw_pos['goal'][1] * horizon_upscale + np.random.randint(goal_upscale)]
 
         return [rescaled_init, rescaled_goal], np.asarray(bw_img_data)
 
@@ -318,11 +329,11 @@ class RoughMap(object):
             # test draw the path on the padding map
             # pad_map[pad_pos[0], pad_pos[1]] = 0.5
 
-            # rotate the local map
+            # # rotate the local map
+            #
+            # plt.imshow(loc_map, cmap=plt.cm.gray)
+            # plt.show()
 
-        #     plt.imshow(loc_map, cmap=plt.cm.gray)
-        #     plt.show()
-        #
         # plt.imshow(pad_map, cmap=plt.cm.gray)
         # plt.show()
 
