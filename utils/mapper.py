@@ -11,8 +11,8 @@ from utils import searchAlg
 class RoughMap(object):
     """
         Map coordinate system:
-            I adopt the image coordinates system as the map system. Particularly, X range is (0, columns) while
-            y range is (0, rows). The coordinate for one point on the image is (r, c) (i.e. adopting the same
+            I adopt the image coordinates system as the map system. Particularly, X range is (0, rows) while
+            y range is (0, columns). The coordinate for one point on the image is (r, c) (i.e. adopting the same
             inference in image coordinate system). In addition, the direction
             of the map is defined as follows:
                 - North: the up top
@@ -31,25 +31,28 @@ class RoughMap(object):
         # map parameters
         self.maze_size = m_size
         self.maze_seed = m_seed
-        self.loc_map_size = loc_map_size
         self.distortion_factor = [1, 1, 1, 1]  # scaling along [horizon, vertical, goal, start]
 
-        # maps
-        self.valid_pos = []
-        self.raw_pos = {'init': None, 'goal': None}
-        self.map2d_txt = self.load_map('txt')
-        """ Note: the initial position and goal position is randomly sampled from the scaled range
-        """
-        self.pos, self.map2d_bw = self.load_map('bw')
-        self.map2d_grid = self.load_map('grid')
+        # properties
+        self.loc_map_size = loc_map_size
 
-        # plan path (type: list of ndarray in numpy)
+        # txt map and primary valid positions and primary valid local maps
+        self.raw_pos = {'init': None, 'goal': None}
+        self.valid_pos = []  # walkable positions in the txt map
+        self.valid_loc_maps = []  # local map for the walkable positions
+        self.map2d_txt = self.load_map('txt')  # map represented as the raw txt file
+
+        # obtain bw map and randomly selected initial and target goals
+        self.pos, self.map2d_bw = self.load_map('bw')
+
+        # obtain the grid world map to do the planning
+        self.map2d_grid = self.load_map('grid')
         self.path, self.map2d_path = self.generate_path()
         # egocentric actions
         self.map_act, self.ego_act = self.path2egoaction(self.path)
         # egocentric local maps (size adjustable)
         self.map2d_rough = np.ones(self.map2d_grid.shape) - self.map2d_grid
-        self.local_maps = self.crop_local_maps()
+        self.local_maps, self.map2d_roughPadded = self.crop_local_maps(self.path)
 
     # load txt map
     def load_map(self, m_type):
@@ -58,18 +61,19 @@ class RoughMap(object):
         :param m_type: type of the map
         :return: Maps in type: txt, bw, grid
         """
-        # file name
+        # map name 'map_<size>_<seed>.txt'
         map_name = '_'.join(['map', str(self.maze_size), str(self.maze_seed)]) + '.txt'
-        # file path
+        # path to the maps folder
         map_path = str(Path(__file__).parent.parent) + '/maps/train/' + map_name
         # load map
-        if m_type == 'txt':
+        if m_type == 'txt':  # txt map
             with open(map_path, 'r') as f:
                 map_txt = f.readlines()
                 for i_idx, l in enumerate(map_txt):
                     for j_idx, s in enumerate(l):
                         if s == ' ':
                             self.valid_pos.append([i_idx, j_idx])
+                # random
                 tmp_pos = np.zeros(2)
                 while tmp_pos[0] == tmp_pos[1]:
                     tmp_pos = np.random.randint(0, len(self.valid_pos), 2)
@@ -309,7 +313,16 @@ class RoughMap(object):
                 refined_ego_actions.append(ego_act)
         return map_actions, refined_ego_actions
 
-    def crop_local_maps(self):
+    def cropper(self, map_img, pos):
+        # update the position based on padding
+        pad_step = int((self.loc_map_size - 1) / 2)
+        pad_pos = pos + [pad_step, pad_step]
+        # crop one local map
+        loc_map = map_img[(pad_pos[0] - pad_step):(pad_pos[0] + pad_step + 1), \
+                    (pad_pos[1] - pad_step):(pad_pos[1] + pad_step + 1)]
+        return loc_map
+
+    def crop_local_maps(self, path):
         # store the local maps
         local_maps = []
         # padding the rough map based on crop size
@@ -320,24 +333,20 @@ class RoughMap(object):
         # insert the rough map
         pad_map[pad_step:pad_map_size-pad_step, pad_step:pad_map_size-pad_step] = self.map2d_rough
 
-        for idx, pos in enumerate(self.path):
-            pad_pos = pos + [pad_step, pad_step]
-            # crop one local map
-            loc_map = pad_map[(pad_pos[0] - pad_step):(pad_pos[0] + pad_step + 1), \
-                              (pad_pos[1] - pad_step):(pad_pos[1] + pad_step + 1)]
-            local_maps.append(loc_map)
+        for idx, pos in enumerate(path):
+            local_maps.append(self.cropper(pad_map, pos))
             # test draw the path on the padding map
             # pad_map[pad_pos[0], pad_pos[1]] = 0.5
 
-            # # rotate the local map
-            #
-            # plt.imshow(loc_map, cmap=plt.cm.gray)
-            # plt.show()
+            # rotate the local map
 
+            # plt.imshow(local_maps[-1], cmap=plt.cm.gray)
+            # plt.show()
+        #
         # plt.imshow(pad_map, cmap=plt.cm.gray)
         # plt.show()
 
-        return local_maps
+        return local_maps, pad_map
 
 
 
