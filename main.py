@@ -10,6 +10,8 @@ import numpy as np
 from utils import save_data
 from model import DCNTrainer
 from model import DCNets
+from skimage import io
+import argparse
 
 
 def split_train_val_tst(data_num, trn_ratio, val_ratio, tst_ratio, seed, shuffle=False):
@@ -53,28 +55,69 @@ def eval_train(model, val_set_loader):
     return accurate_num / total_num
 
 
-def image_generation():
+def image_generation(dataLoader):
     # load the trained model
-    vae = DCNets.VAE(64)
-    vae.load_state_dict(torch.load("/mnt/sda/dataset/ml_nav/model/vae_vanilla_various_texture.pt"))
-    vae.eval()
+    cvae = DCNets.CVAE(64)
+    cvae.load_state_dict(torch.load("/mnt/sda/dataset/ml_nav/model/conditional_vae_vanilla_fixed_texture.pt"))
+    cvae.eval()
 
-    # sample one tensor
-    count = 10
-    while count > 0:
-        z = torch.randn(1, 64)
-        img, _ = vae.decoder(z)
-        img = img.squeeze(0).detach().numpy().transpose(1, 2, 0)
-        plt.imshow(img)
-        plt.show()
-        count -= 1
+    tmp_map = io.imread("/mnt/sda/dataset/ml_nav/loc_map_obs_fixed_texture/map_9_14_7_5.png")
+    tmp_img = io.imread("/mnt/sda/dataset/ml_nav/loc_map_obs_fixed_texture/obs_9_14_7_5_RGB.LOOK_NORTH_WEST.png")
+
+
+
+    fig, arr = plt.subplots(1, 2)
+    arr[0].set_title("Ground Truth", fontsize=12)
+    h1 = arr[0].imshow(tmp_img)
+    arr[1].set_title("Reconstructed", fontsize=12)
+    h2 = arr[1].imshow(tmp_img)
+    fig.canvas.set_window_title("VAE Reconstruction")
+    # plt.show()
+    for idx, batch in enumerate(dataLoader):
+        obs = batch["observation"].squeeze(0).detach().numpy().transpose(1, 2, 0)
+        ori = batch["orientation"].float()
+        loc_map = batch["loc_map"].float()
+
+        count = 100
+        while count > 0:
+            z = torch.randn(1, 64)
+            conditioned_z = torch.cat((z, loc_map.view(-1, 9), ori.view(-1, 8)), dim=1)
+            obs_reconstructed, _ = cvae.decoder(conditioned_z)
+            obs_reconstructed = obs_reconstructed.squeeze(0).detach().numpy().transpose(1, 2, 0)
+
+            error = np.power((obs_reconstructed - obs), 2).mean()
+            print("Error = ", error)
+
+            if error < 0.01:
+                break
+
+            count -= 1
+
+        h1.set_data(obs)
+        h2.set_data(obs_reconstructed)
+        fig.canvas.draw()
+        plt.pause(2)
+
+
+def input_parser():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--hidden_size", type=int, default=64)
+    parser.add_argument("--batch_size", type=int, default=8, help="Size of the mini-batch")
+    parser.add_argument("--epoch", type=int, default=10, help="Train using the overall dataset")
+    parser.add_argument("--worker_num", type=int, default=4, help="number of the worker for data loader")
+    parser.add_argument("--plot_save_name", type=str)
+    parser.add_argument("--model_save_name", type=str)
+
+    return parser.parse_args()
 
 
 if __name__ == '__main__':
+
+    input_args = input_parser()
     # load the dataset
-    transformed_dataset = Dataset.LocmapObsDataset(mode="cls-iid",
-                                                   dir_path='/mnt/sda/dataset/ml_nav/loc_map_obs_various_texture',
-                                                   transform=transforms.Compose([ToTensor("cls-iid")]))
+    transformed_dataset = Dataset.LocmapObsDataset(mode="cvae",
+                                                   dir_path='/mnt/sda/dataset/ml_nav/loc_map_obs_fixed_texture',
+                                                   transform=transforms.Compose([ToTensor("cvae")]))
 
     # split the dataset into training, validation and testing
     trn_ratio = 0.7
@@ -88,74 +131,20 @@ if __name__ == '__main__':
                                                                 trn_ratio,
                                                                 seed, shuffle=True)
     # construct training, validation, and testing sets
-    dataLoader_trn = DataLoader(transformed_dataset, batch_size=8, sampler=trn_sampler, num_workers=8)
+    dataLoader_trn = DataLoader(transformed_dataset, batch_size=input_args.batch_size, sampler=trn_sampler, num_workers=2)
     dataLoader_val = DataLoader(transformed_dataset, batch_size=1, sampler=val_sampler, num_workers=4)
     dataLoader_tst = DataLoader(transformed_dataset, batch_size=1, sampler=tst_sampler)
 
-    # # define a VAE trainer
-    # myTrainer = DCNTrainer.VAETrainer(64, [dataLoader_trn, dataLoader_val, dataLoader_tst], 10)
-    # myTrainer.train()
-    # save_data.save_loss(myTrainer.trn_loss_list, "VAE_Training_Loss_various_texture")
-    # save_data.save_model(myTrainer.model, "vae_vanilla_various_texture")
 
-    image_generation()
+    # define a classification trainer
+    myTrainer = DCNTrainer.CVAETrainer(input_args.hidden_size, [dataLoader_trn, dataLoader_val, dataLoader_tst], input_args.epoch)
+    myTrainer.train()
+    # # # # define a VAE trainer
+    # # # # myTrainer = DCNTrainer.VAETrainer(64, [dataLoader_trn, dataLoader_val, dataLoader_tst], 10)
+    # # # # myTrainer.train()
+    save_data.save_loss(myTrainer.trn_loss_list, input_args.plot_save_name)
+    save_data.save_model(myTrainer.model, input_args.model_save_name)
 
-
-    # # create the classifier
-    # # myClassifier = DCNets.Classifier_Conv4()
-    # myClassifier = DCNets.VAE(64)
-    # myClassifier.to(torch.device("cuda:0"))
-    # # create the loss function
-    # criterion = torch.nn.CrossEntropyLoss()
-    # # create optimizer
-    # optimizer = torch.optim.Adam(myClassifier.parameters(),
-    #                              lr=1e-4,
-    #                              weight_decay=5e-4)
-    # trn_loss_list = []
-    # val_acc_list = []
-    # for epoch in range(1):
-    #     running_loss = 0.0
-    #     for idx, batch in enumerate(dataLoader_trn):
-    #         # fig = transformed_dataset.show(batch)
-    #         # plt.show()
-    #         # load a mini-batch
-    #         # batch = batch.to(torch.device("cuda:0"))
-    #         x_data = batch["observations"].to(torch.device("cuda:0")).float()
-    #         y_label = batch["label"].to(torch.device("cuda:0")).long()
-    #
-    #         # feed forward
-    #         y_predict = myClassifier(x_data)
-    #         break
-            #
-            # # compute loss
-            # loss = criterion(y_predict, y_label)
-            #
-            # running_loss += loss.item()
-            #
-            # if idx == 0:
-            #     with torch.no_grad():
-            #         val_acc_list.append(eval_train(myClassifier, dataLoader_tst))
-            #     trn_loss_list.append(running_loss)
-            #     print("Batch Iter = {} : Loss = {} ; Val Acc = {}".format(idx, running_loss, val_acc_list[-1]))
-            #     # print("Batch Iter = {} : Loss = {} ".format(idx, running_loss / 20))
-            #
-            #     running_loss = 0.0
-            #
-            # if idx % 20 == 19:
-            #     with torch.no_grad():
-            #         val_acc_list.append(eval_train(myClassifier, dataLoader_val))
-            #     trn_loss_list.append(running_loss / 20)
-            #     print("Batch Iter = {} : Loss = {} ; Val Acc = {}".format(idx, running_loss / 20, val_acc_list[-1]))
-            #     # print("Batch Iter = {} : Loss = {} ".format(idx, running_loss / 20))
-            #
-            #     running_loss = 0.0
-            #
-            # # back propagation
-            # optimizer.zero_grad()
-            # loss.backward()
-            # optimizer.step()
-
-
-
+    # image_generation(dataLoader_tst)
 
 

@@ -39,15 +39,32 @@ class LocmapObsDataset(Dataset):
                                  "RGB.LOOK_SOUTH_WEST",
                                  "RGB.LOOK_SOUTH",
                                  "RGB.LOOK_SOUTH_EAST"]
+        # self.orientation_angle = {"LOOK_NORTH_WEST": np.pi * 3 / 4,
+        #                           "LOOK_NORTH": np.pi / 2,
+        #                           "LOOK_NORTH_EAST": np.pi / 4,
+        #                           "LOOK_WEST": np.pi,
+        #                           "LOOK_EAST": 0.0,
+        #                           "LOOK_SOUTH_WEST": np.pi * 5 / 4,
+        #                           "LOOK_SOUTH": np.pi * 3 / 2,
+        #                           "LOOK_SOUTH_EAST": np.pi * 7 / 4}
+
+        self.orientation_angle = {"LOOK_NORTH_WEST": np.array([1, 0, 0, 0, 0, 0, 0, 0]),
+                                  "LOOK_NORTH": np.array([0, 1, 0, 0, 0, 0, 0, 0]),
+                                  "LOOK_NORTH_EAST": np.array([0, 0, 1, 0, 0, 0, 0, 0]),
+                                  "LOOK_WEST": np.array([0, 0, 0, 1, 0, 0, 0, 0]),
+                                  "LOOK_EAST": np.array([0, 0, 0, 0, 1, 0, 0, 0]),
+                                  "LOOK_SOUTH_WEST": np.array([0, 0, 0, 0, 0, 1, 0, 0]),
+                                  "LOOK_SOUTH": np.array([0, 0, 0, 0, 0, 0, 1, 0]),
+                                  "LOOK_SOUTH_EAST": np.array([0, 0, 0, 0, 0, 0, 0, 1])}
 
     # obtain the length of the dataset
     def __len__(self):
-        if self.mode == "cls-iid":
+        if self.mode == "cls-iid" or self.mode == "cvae" or self.mode == "vae":
             return len(self.observation_frame_name)
         elif self.mode == "cls":
             return len(self.loc_map_name)
         else:
-            assert False, "Error Mode: Please select the mode (cls-iid or cls)"
+            assert False, "Error Mode: Please select the mode (cls-iid, cls, vae or cvae)"
 
     # get item
     def __getitem__(self, idx):
@@ -65,7 +82,7 @@ class LocmapObsDataset(Dataset):
                 obs_name = self.loc_map_name[idx].split('.')[0].replace('map_', 'obs_') + '_' + ori + '.png'
                 observations.append(io.imread(self.root_dir + '/' + obs_name))
             # create a sample
-            sample = {'observations': observations, 'localmap': loc_map}
+            sample = {'observation': observations, 'localmap': loc_map}
         elif self.mode == "cls-iid":
             # file name
             obs_name = self.observation_frame_name[idx]
@@ -74,8 +91,20 @@ class LocmapObsDataset(Dataset):
             obs_img = io.imread(self.root_dir + '/' + obs_name)
             loc_map = io.imread(self.root_dir + '/' + loc_map_name).flatten() / 255
             # construct sample
-            sample = {'observations': obs_img,
+            sample = {'observation': obs_img,
                       'label': loc_map[self.orientation_name.index('RGB.' + obs_name.split('.')[1])]}
+        elif self.mode == "cvae":
+            # file name
+            obs_name = self.observation_frame_name[idx]
+            loc_map_name = obs_name.replace("obs_", "map_").replace("_RGB." + obs_name.split('.')[1] + '.png', '.png')
+            # data
+            obs_img = io.imread(self.root_dir + '/' + obs_name)
+            loc_map = io.imread(self.root_dir + '/' + loc_map_name)
+            obs_ori = self.orientation_angle[obs_name.split(".")[1]]
+            # construct sample
+            sample = {'observation': obs_img,
+                      'loc_map': loc_map,
+                      'orientation': obs_ori}
         else:
             assert False, "Error Mode: Please select the mode (cls-iid or cls)"
 

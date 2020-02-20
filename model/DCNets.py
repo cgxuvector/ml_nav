@@ -1,52 +1,64 @@
+"""
+    This script contains the definition of several convolutional neural networks
+        - Convolutional Neural Classifier
+        - Variational Auto-Encoder
+
+    Note:
+        Define a convolutional layer:
+                nn.Conv2: in_channels, out_channels, kernel_size, padding=0, stride=1, dilation=1, padding_model="zeros"
+                nn.MaxPool2d:
+                nn.ReLU:
+        H_out = ([H_in + 2 x padding[0] - dilation[0] x (kernel_size[0] - 1) - 1] / stride[0]) + 1
+        W_out = ([W_in + 2 x padding[1] - dilation[1] x (kernel_size[1] - 1) - 1] / stride[1]) + 1
+
+        Define a de-convolutional layer:
+                nn.ConvTranspose2d:in_channels, out_channels, kernel_size, padding=0, stride=1
+                nn.MaxPool2d:
+                nn.ReLU:
+        H_out = (H_in - 1) x stride[0] - 2 x padding[0] + dilation[0] x (kernel_size[0] - 1) + out_put_padding[0] + 1
+        W_out = (W_in - 1) x stride[1] - 2 x padding[1] + dilation[1] x (kernel_size[1] - 1) + out_put_padding[1] + 1
+"""
 import torch
 from torch import nn
 
 
+"""
+    Convolutional Neural Network Classifier
+"""
+
 # a simple classifier with 3 convolutional layers
 class Classifier_Conv4(nn.Module):
-    # init function
+    """
+        This model is a convolutional neural classifier.
+
+    """
     def __init__(self):
         super(Classifier_Conv4, self).__init__()
 
-        """
-            Define a convolutional layer:
-                nn.Conv2:
-                nn.ReLU:
-                nn.MaxPool2d:
-            H_out = ([H_in + 2 x padding[0] - dilation[0] x (kernel_size[0] - 1)] / stride[0]) + 1
-            W_out = ([W_in + 2 x padding[1] - dilation[1] x (kernel_size[1] - 1)] / stride[1]) + 1
-        """
-        # Conv layer 1:
-        # Input: Batch x 3 x 64 x 64
-        # Output: Batch x 32 x 32 x 32
-        self.conv1 = nn.Sequential(
+        self.cnn = nn.Sequential(
+            # Input: Batch x 3 x 64 x 64
+            # Output: Batch x 32 x 32 x 32
             nn.Conv2d(in_channels=3, out_channels=32, kernel_size=3, stride=1, padding=1,
                       dilation=1, groups=1, bias=True, padding_mode='replicate'),
             nn.MaxPool2d(kernel_size=2, stride=2),
-            nn.ReLU(inplace=False)
-        )
-        # Conv layer 2:
-        # Input: Batch x 32 x 32 x 32
-        # Output: Batch x 64 x 16 x 16
-        self.conv2 = nn.Sequential(
+            nn.ReLU(inplace=False),
+
+            # Input: Batch x 32 x 32 x 32
+            # Output: Batch x 64 x 16 x 16
             nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, stride=1, padding=1,
                       padding_mode='replicate'),
             nn.MaxPool2d(2, 2),
-            nn.ReLU()
-        )
-        # Con layer 3:
-        # Input: Batch x 64 x 16 x 16
-        # Output: Batch x 128 x 8 x 8
-        self.conv3 = nn.Sequential(
+            nn.ReLU(),
+
+            # Input: Batch x 64 x 16 x 16
+            # Output: Batch x 128 x 8 x 8
             nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3, stride=1, padding=1,
                       padding_mode='replicate'),
             nn.MaxPool2d(2, 2),
-            nn.ReLU()
-        )
-        # Con layer 4:
-        # Input: Batch x 128 x 8 x 8
-        # Output: Batch x 256 x 4 x 4
-        self.conv4 = nn.Sequential(
+            nn.ReLU(),
+
+            # Input: Batch x 128 x 8 x 8
+            # Output: Batch x 256 x 4 x 4
             nn.Conv2d(in_channels=128, out_channels=256, kernel_size=3, stride=1, padding=1,
                       padding_mode='replicate'),
             nn.MaxPool2d(2, 2),
@@ -62,18 +74,21 @@ class Classifier_Conv4(nn.Module):
 
     # forward
     def forward(self, x):
-        x = self.conv1(x)
-        x = self.conv2(x)
-        x = self.conv3(x)
-        x = self.conv4(x)
+        x = self.cnn(x)
         x = x.view(-1, 4 * 4 * 256)
         x = self.fc(x)
 
         return x
 
 
+"""
+    Variational Auto-Encoder
+"""
+
+
 # VAE encoder
 class VAEEncoder(nn.Module):
+    """ This is the convolutional encoder of VAE """
     def __init__(self, z_dim):
         super(VAEEncoder, self).__init__()
 
@@ -113,9 +128,9 @@ class VAEEncoder(nn.Module):
 
     # forward function
     def forward(self, x):
-        # visual embedding
+        # cnn embedding
         x = self.conv_layer(x)
-        # flatten
+        # flatten the tensor
         x = x.view(-1, 2 * 2 * 256)
         # compute mean and variance
         x_mu = self.mu_layer(x)
@@ -125,6 +140,7 @@ class VAEEncoder(nn.Module):
 
 # VAE decoder
 class VAEDecoder(nn.Module):
+    """ This is the deconvolutional decoder of VAE """
     def __init__(self, z_dim):
         super(VAEDecoder, self).__init__()
         # dense layer
@@ -142,8 +158,11 @@ class VAEDecoder(nn.Module):
         )
 
     def forward(self, x):
+        # resize the input
         x = self.fc(x)
+        # reshape from 2d 1024 x 1 to 3d 1024 x 1 x 1
         x = x.unsqueeze(2).unsqueeze(3)
+        # deconvolution
         x = self.deconv_layer(x)
         return x, [x.view(-1, 3 * 64 * 64), torch.ones_like(x.view(-1, 3 * 64 * 64))]
 
@@ -179,3 +198,122 @@ class VAE(nn.Module):
         return x_reconstruction, x_distribution_params, [z_mu, z_log_var]
 
 
+"""
+    Conditional Auto-Encoder
+"""
+
+
+class CVAEEncoder(nn.Module):
+    def __init__(self, z_dim):
+        super(CVAEEncoder, self).__init__()
+
+        self.obs_conv_layer = nn.Sequential(
+            # 3 x 64 x 64 --> 32 x 31 x 31
+            nn.Conv2d(in_channels=3, out_channels=32, kernel_size=3),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.ReLU(),
+
+            # 32 x 31 x 31 --> 64 x 14 x 14
+            nn.Conv2d(in_channels=32, out_channels=64, kernel_size=4),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.ReLU(),
+
+            # 64 x 14 x 14 --> 128 x 6 x 6
+            nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.ReLU(),
+
+            # 128 x 6 x 6 --> 256 x 2 x 2
+            nn.Conv2d(in_channels=128, out_channels=256, kernel_size=3),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.ReLU(),
+
+            # 256 x 2 x 2 --> 512 x 1 x 1
+            nn.Conv2d(in_channels=256, out_channels=512, kernel_size=2),
+            nn.ReLU()
+        )
+
+        # self.map_conv_layer = nn.Sequential(
+        #     # 1 x 3 x 3 --> 32 x 3 x 3
+        #     nn.Conv2d(in_channels=1, out_channels=32, kernel_size=1),
+        #     nn.ReLU(),
+        #
+        #     # 32 x 3 x 3 --> 64 x 3 x 3
+        #     nn.Conv2d(in_channels=32, out_channels=64, kernel_size=1),
+        #     nn.ReLU(),
+        #
+        #     # 64 x 3 x 3 --> 128 x 3 x 3
+        #     nn.Conv2d(in_channels=64, out_channels=128, kernel_size=1),
+        #     nn.ReLU(),
+        #
+        #     # 128 x 6 x 6 --> 256 x 2 x 2
+        #     nn.Conv2d(in_channels=128, out_channels=256, kernel_size=2),
+        #     nn.ReLU()
+        # )
+
+        self.mu_layer = nn.Linear(512 + 17, z_dim)
+        self.log_var_layer = nn.Linear(512 + 17, z_dim)
+
+    def forward(self, x_obs, y_map, z_ori):
+        # compute the mu and log variance
+        x_obs = self.obs_conv_layer(x_obs)
+        x_obs = x_obs.view(-1, 1 * 1 * 512)
+        y_map = y_map.view(-1, 1 * 3 * 3)
+        z_ori = z_ori.view(-1, 8)
+        conditioned_rep = torch.cat((x_obs, y_map, z_ori), dim=1)
+        z_mu = self.mu_layer(conditioned_rep)
+        z_log_var = self.log_var_layer(conditioned_rep)
+
+        return z_mu, z_log_var, y_map, z_ori
+
+
+# VAE decoder
+class CVAEDecoder(nn.Module):
+    """ This is the deconvolutional decoder of conditional VAE """
+    def __init__(self, z_dim):
+        super(CVAEDecoder, self).__init__()
+        # dense layer
+        self.fc = nn.Linear(z_dim + 17, 1024)
+        # deconvolutional layer
+        self.deconv_layer = nn.Sequential(
+            nn.ConvTranspose2d(in_channels=1024, out_channels=128, kernel_size=5, stride=1),
+            nn.ReLU(),
+            nn.ConvTranspose2d(in_channels=128, out_channels=64, kernel_size=5, stride=2),
+            nn.ReLU(),
+            nn.ConvTranspose2d(in_channels=64, out_channels=32, kernel_size=6, stride=2),
+            nn.ReLU(),
+            nn.ConvTranspose2d(in_channels=32, out_channels=3, kernel_size=6, stride=2),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x):
+        # resize the input
+        x = self.fc(x)
+        # reshape from 2d 1024 x 1 to 3d 1024 x 1 x 1
+        x = x.unsqueeze(2).unsqueeze(3)
+        # deconvolution
+        x = self.deconv_layer(x)
+        return x, [x.view(-1, 3 * 64 * 64), torch.ones_like(x.view(-1, 3 * 64 * 64))]
+
+
+class CVAE(nn.Module):
+    def __init__(self, z_dim):
+        super(CVAE, self).__init__()
+
+        self.encoder = CVAEEncoder(z_dim)
+        self.decoder = CVAEDecoder(z_dim)
+
+    def reparameterized(self, mu, log_var):
+        eps = torch.randn_like(log_var)
+        z = mu + torch.exp((0.5 * log_var)) * eps
+        return z
+
+    def forward(self, x_obs, y_map, z_ori):
+        # visual embedding
+        z_mu, z_log_var, y_map, z_ori = self.encoder(x_obs, y_map, z_ori)
+        # reparameterized latent representation
+        z = self.reparameterized(z_mu, z_log_var)
+        # addition conditioned vector
+        conditioned_z = torch.cat((z, y_map, z_ori), dim=1)
+        x_reconstruction, x_distribution_params = self.decoder(conditioned_z)
+        return x_reconstruction, x_distribution_params, [z_mu, z_log_var]

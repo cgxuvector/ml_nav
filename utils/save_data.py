@@ -32,7 +32,7 @@ def save_loss(loss_list, loss_name):
     arr.set_title(" ".join(loss_name.split("_")))
     arr.set_xlabel("Batch Iteration")
     arr.set_ylabel("Loss")
-    arr.plot(list(range(len(loss_list))), loss_list, '*r', markersize=24)
+    # arr.plot(list(range(len(loss_list))), loss_list, '*r', markersize=24)
     arr.plot(list(range(len(loss_list))), loss_list, '-r', linewidth=4)
     fig.savefig(root_dir + loss_name + '.png', dpi=100)
     np.save(root_dir + loss_name + '.npy', np.array(loss_list))
