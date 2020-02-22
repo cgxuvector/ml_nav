@@ -37,7 +37,7 @@ def save_loss(loss_list, loss_name):
     fig.savefig(root_dir + loss_name + '.png', dpi=100)
     np.save(root_dir + loss_name + '.npy', np.array(loss_list))
     print("Loss data is saved.")
-    plt.show()
+    # plt.show()
 
 
 def save_metric(metric_list, metric_name):

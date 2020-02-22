@@ -2,8 +2,10 @@
     Script for training different neural network
 """
 import torch
+from model import VAE
 from model import DCNets
 from model import LossFunction
+from tqdm import tqdm
 
 
 class CNNClassifierTrainer(object):
@@ -64,7 +66,7 @@ class VAETrainer(object):
         self.trn_loss_list = []
 
     def train(self):
-        for ep in range(self.epoch):
+        for ep in tqdm(range(self.epoch)):
             running_loss = 0.0
             for idx, batch in enumerate(self.dataLoader_trn):
                 x_data = batch["observation"].to(self.device).float()
@@ -94,7 +96,7 @@ class CVAETrainer(object):
         self.device = device
         self.epoch = epoch
         # define model
-        self.model = DCNets.CVAE(latent_dim).to(device)
+        self.model = VAE.CVAE(latent_dim).to(device)
 
         # training the model
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=learning_rate, weight_decay=weight_decay)
@@ -104,7 +106,7 @@ class CVAETrainer(object):
         self.trn_loss_list = []
 
     def train(self):
-        for ep in range(self.epoch):
+        for ep in tqdm(range(self.epoch)):
             running_loss = 0.0
             for idx, batch in enumerate(self.dataLoader_trn):
                 x_obs = batch["observation"].to(self.device).float()
@@ -128,7 +130,7 @@ class CVAETrainer(object):
                 self.optimizer.step()
 
                 if idx % 20 == 19:
-                    print("Batch Iter = {} : Loss = {}".format(idx, running_loss / 20))
+                    # print("Batch Iter = {} : Loss = {}".format(idx, running_loss / 20))
                     self.trn_loss_list.append(running_loss / 20)
                     running_loss = 0.0
 

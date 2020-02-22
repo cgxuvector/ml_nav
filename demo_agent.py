@@ -56,7 +56,7 @@ def run_agent(max_frame, win_width, win_height, frame_fps, level_name):
 
     maze_size_list = [5, 7, 9, 11, 13]
     maze_seed_list = list(range(19))
-    fig, arr = plt.subplots(1, 3)
+    fig, arr = plt.subplots(1, 3, figsize=(12, 4))
 
     # fig1, arr1 = plt.subplots(1, 4)
     # fig1.canvas.set_window_title("360 view")
@@ -102,7 +102,7 @@ def run_agent(max_frame, win_width, win_height, frame_fps, level_name):
             image_artist_map.set_data(env_map.map2d_bw)
 
             fig.canvas.draw()
-            plt.pause(0.0001)
+            plt.pause(0.001)
             if reward == 10:
                 break
         plt.cla()
