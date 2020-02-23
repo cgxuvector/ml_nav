@@ -89,7 +89,7 @@ class LocmapObsDataset(Dataset):
         if self.mode == "group":
             # load the image of the local map
             loc_map = io.imread(self.root_dir + '/' + self.loc_map_name[idx])
-            loc_map = resize(loc_map, (64, 64))
+            # loc_map = resize(loc_map, (64, 64))
             # load observations
             observations = []
             for ori in self.orientation_name:
@@ -164,8 +164,8 @@ class LocmapObsDataset(Dataset):
         return trn_sample, val_sample, tst_sample
 
     # display
-    def visualize_batch(self, sample):
-        if self.mode == "group":
+    def visualize_batch(self, sample, mode):
+        if mode == "group":
             fig, arrs = plt.subplots(3, 3, figsize=(12, 12))
             fig.canvas.set_window_title("Panoramic Observations")
             count = 0
@@ -187,7 +187,7 @@ class LocmapObsDataset(Dataset):
                             arrs[i, j].imshow(sample['observation'][count])
                         count += 1
             return fig
-        elif self.mode == "iid":
+        elif mode == "iid":
             image_num = sample["label"].size(0)  # obtain number of images in a mini-batch
             assert image_num >= 4, "Number of image should be even number and bigger than 4. " \
                                    "However, current is {}".format(image_num)
@@ -199,7 +199,7 @@ class LocmapObsDataset(Dataset):
                 arr[row, col].set_title("label : " + str(sample["label"][idx].item()))
                 arr[row, col].imshow(sample["observation"][idx].squeeze(0).numpy().transpose(1, 2, 0))
             return fig
-        elif self.mode == "conditional-iid":
+        elif mode == "conditional-iid":
             assert sample["orientation"].size(0) == 1, "Batch size should be 1"
             # get the orientation
             orientation = sample["orientation"]
