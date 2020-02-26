@@ -12,8 +12,7 @@ from scipy import ndimage
 
 from utils import mapper
 
-import gym
-import gym_deepmindlab
+from envs import LabEnv
 
 
 def parse_input():
@@ -48,26 +47,25 @@ def run_agent(max_frame, win_width, win_height, frame_fps, level_name):
     :return: None
     """
     # create the environment)
-    myEnv = gym.make('DeepmindLabRandomMazeCustomViewVariousTexture-v0',
-                     width=win_width, height=win_height,
-                     observations=["RGBD_INTERLEAVED", "RGB.LOOK_TOP_DOWN"])
+    observations = ["RGBD_INTERLEAVED", "RGB.LOOK_TOP_DOWN"]
+    myEnv = LabEnv.LabEnv(observations, win_width, win_height, frame_fps, True, True)
 
+    # episodes
     episode_num = 100
 
+    # maze size and seeds
     maze_size_list = [5, 7, 9, 11, 13]
     maze_seed_list = list(range(19))
     fig, arr = plt.subplots(1, 3, figsize=(12, 4))
 
-    # fig1, arr1 = plt.subplots(1, 4)
-    # fig1.canvas.set_window_title("360 view")
     for ep in tqdm(range(episode_num), desc='Episode loop'):
 
         # randomly select a maze size and a seed
         maze_size = np.random.choice(maze_size_list)
         maze_seed = np.random.choice(maze_seed_list)
+
         # load map
         env_map = mapper.RoughMap(maze_size, maze_seed, 3)
-        # env_map.show_map('all')
 
         # # reset the environment using the size and seed
         pos_params = [env_map.raw_pos['init'][0] + 1,
@@ -75,12 +73,10 @@ def run_agent(max_frame, win_width, win_height, frame_fps, level_name):
                       env_map.raw_pos['goal'][0] + 1,
                       env_map.raw_pos['goal'][1] + 1,
                       0]  # [init_pos, goal_pos, init_orientation]
-        print(maze_size, maze_seed)
-        print(pos_params)
+
         print("Init : ({}, {})".format((pos_params[1] - 1) * 100 + 50, (maze_size - pos_params[0]) * 100 + 50))
         print("Goal : ({}, {})".format((pos_params[3] - 1) * 100 + 50, (maze_size - pos_params[2]) * 100 + 50))
 
-        # init_obs = myEnv.reset(maze_size, maze_seed, pos_params)["RGBD_INTERLEAVED"]
         init_obs = myEnv.reset(maze_size, maze_seed, pos_params)
 
         # show the observation in rgb and depth

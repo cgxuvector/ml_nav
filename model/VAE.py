@@ -17,32 +17,43 @@ class CNNEncoder(nn.Module):
             # 3 x 64 x 64 --> 32 x 31 x 31
             nn.Conv2d(in_channels=3, out_channels=32, kernel_size=3),
             nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.BatchNorm2d(32),
             nn.ReLU(),
 
             # 32 x 31 x 31 --> 64 x 14 x 14
             nn.Conv2d(in_channels=32, out_channels=64, kernel_size=4),
             nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.BatchNorm2d(64),
             nn.ReLU(),
 
             # 64 x 14 x 14 --> 128 x 6 x 6
             nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3),
             nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.BatchNorm2d(128),
             nn.ReLU(),
 
             # 128 x 6 x 6 --> 256 x 2 x 2
             nn.Conv2d(in_channels=128, out_channels=256, kernel_size=3),
             nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.BatchNorm2d(256),
             nn.ReLU(),
 
             # 256 x 2 x 2 --> 512 x 1 x 1
             nn.Conv2d(in_channels=256, out_channels=512, kernel_size=2),
+            nn.BatchNorm2d(512),
             nn.ReLU()
         )
 
         # mean linear layer
-        self.mu_layer = nn.Linear(512 + 34, latent_dim)
+        self.mu_layer = nn.Sequential(
+            nn.Linear(512 + 34, latent_dim),
+            nn.BatchNorm1d(latent_dim)
+        )
         # logarithm linear layer
-        self.log_var_layer = nn.Linear(512 + 34, latent_dim)
+        self.log_var_layer = nn.Sequential(
+            nn.Linear(512 + 34, latent_dim),
+            nn.BatchNorm1d(latent_dim)
+        )
 
     def forward(self, x_obs, y_map, z_ori):
         # compute the visual embedding
@@ -65,17 +76,23 @@ class CNNDecoder(nn.Module):
     def __init__(self, latent_dim):
         super(CNNDecoder, self).__init__()
         # dense layer
-        self.fc = nn.Linear(latent_dim + 34, 1024)
-
+        self.fc = nn.Sequential(
+            nn.Linear(latent_dim + 34, 1024),
+            nn.BatchNorm1d(1024),
+        )
         # deconvolutional layer
         self.de_cnn_layer = nn.Sequential(
             nn.ConvTranspose2d(in_channels=1024, out_channels=128, kernel_size=5, stride=1),
+            nn.BatchNorm2d(128),
             nn.ReLU(),
             nn.ConvTranspose2d(in_channels=128, out_channels=64, kernel_size=5, stride=2),
+            nn.BatchNorm2d(64),
             nn.ReLU(),
             nn.ConvTranspose2d(in_channels=64, out_channels=32, kernel_size=6, stride=2),
+            nn.BatchNorm2d(32),
             nn.ReLU(),
             nn.ConvTranspose2d(in_channels=32, out_channels=3, kernel_size=6, stride=2),
+            nn.BatchNorm2d(3),
             nn.Sigmoid()
         )
 

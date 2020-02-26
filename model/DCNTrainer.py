@@ -6,6 +6,7 @@ from model import VAE
 from model import DCNets
 from model import LossFunction
 from tqdm import tqdm
+from utils import ml_schedule
 
 
 class CNNClassifierTrainer(object):
@@ -89,12 +90,13 @@ class VAETrainer(object):
 
 
 class CVAETrainer(object):
-    def __init__(self, latent_dim, data_loaders, epoch, device=torch.device("cuda:0"), learning_rate=1e-3, weight_decay=5e-4):
+    def __init__(self, latent_dim, data_loaders, epoch, device=torch.device("cuda:0"), learning_rate=1e-3, weight_decay=5e-4, warm_up=False):
         self.dataLoader_trn = data_loaders[0]
         self.dataLoader_val = data_loaders[1]
         self.dataLoader_tst = data_loaders[2]
         self.device = device
         self.epoch = epoch
+        self.wp = warm_up
         # define model
         self.model = VAE.CVAE(latent_dim).to(device)
 
@@ -104,10 +106,16 @@ class CVAETrainer(object):
 
         # training statistic data
         self.trn_loss_list = []
+        self.trn_recon_list = []
+        self.trn_kl_list = []
 
     def train(self):
-        for ep in tqdm(range(self.epoch)):
+        beta_schedule = ml_schedule.LinearSchedule(0, 1, self.epoch)
+        # for ep in tqdm(range(self.epoch)):
+        for ep in range(self.epoch):
             running_loss = 0.0
+            running_recon_loss = 0.0
+            running_kl_loss = 0.0
             for idx, batch in enumerate(self.dataLoader_trn):
                 x_obs = batch["observation"].to(self.device).float()
                 y_map = batch["loc_map"].to(self.device).float()
@@ -121,16 +129,33 @@ class CVAETrainer(object):
                 )
 
                 # compute loss
-                loss = self.criterion(x_obs, x_reconstruct, x_distribution_params, z_distribution_params)
+                beta = beta_schedule.get_value(ep) if self.wp else None
+                loss, recon_loss, kl_loss = self.criterion(x_obs, x_reconstruct, x_distribution_params, z_distribution_params, ep)
 
                 running_loss += loss.item()
+                running_recon_loss += recon_loss
+                running_kl_loss += kl_loss
                 # optimize
                 self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()
 
                 if idx % 20 == 19:
-                    # print("Batch Iter = {} : Loss = {}".format(idx, running_loss / 20))
-                    self.trn_loss_list.append(running_loss / 20)
+                    run_loss = running_loss / 20
+                    run_recon = running_recon_loss / 20
+                    run_kl = running_kl_loss / 20
+                    print("Epoch = {} Batch Iter = {} : ELBO = {}, Recon Loss = {}, KL = {}, Beta = {}".format(ep,
+                                                                                                               idx,
+                                                                                                               run_loss,
+                                                                                                               run_recon,
+                                                                                                               run_kl,
+                                                                                                               beta))
+                    self.trn_loss_list.append(run_loss)
+                    self.trn_recon_list.append(run_recon)
+                    self.trn_kl_list.append(run_kl)
                     running_loss = 0.0
+                    running_recon_loss = 0.0
+                    running_kl_loss = 0.0
+
+
 

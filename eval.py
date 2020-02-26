@@ -35,7 +35,8 @@ def eval_train(model, val_set_loader):
 def image_generation(dataLoader):
     # load the trained model
     cvae = VAE.CVAE(64)
-    cvae.load_state_dict(torch.load("/mnt/sda/dataset/ml_nav/model/cvae_model_h64_c34_L2_b1_ep100_id_3.pt"))
+    cvae.load_state_dict(torch.load("/mnt/sda/dataset/ml_nav/model/cvae_model_h64_c34_L2_b1_ep100_id_1.pt"))
+    # cvae.load_state_dict(torch.load("/mnt/sda/dataset/ml_nav/model/test_1.pt"))
     cvae.eval()
 
     # generate the name of orientations
@@ -58,6 +59,7 @@ def image_generation(dataLoader):
                     arr[h_idx].set_title("GT")
                 else:
                     z = torch.randn(1, 64)
+                    z = torch.zeros(1, 64)
                     tmp_map = torch.cat(2 * [loc_map.view(-1, 1 * 3 * 3)], dim=1)
                     tmp_ori = torch.cat(2 * [ori.view(-1, 1 * 1 * 8)], dim=1)
                     conditioned_z = torch.cat((z, tmp_map, tmp_ori), dim=1)
@@ -70,14 +72,15 @@ def image_generation(dataLoader):
                     h[h_idx].set_data(obs)
                 else:
                     z = torch.randn(1, 64)
+                    z = torch.zeros(1, 64)
                     tmp_map = torch.cat(2 * [loc_map.view(-1, 1 * 3 * 3)], dim=1)
                     tmp_ori = torch.cat(2 * [ori.view(-1, 1 * 1 * 8)], dim=1)
                     conditioned_z = torch.cat((z, tmp_map, tmp_ori), dim=1)
                     obs_reconstructed, _ = cvae.decoder(conditioned_z)
                     h[h_idx].set_data(obs_reconstructed.squeeze(0).detach().numpy().transpose(1, 2, 0))
         fig.canvas.draw()
-        plt.savefig("/mnt/sda/dataset/ml_nav/cvae_reconstruction/variance/{}_val.png".format(idx+1), dpi=50)
-        plt.pause(0.001)
+        # plt.savefig("/mnt/sda/dataset/ml_nav/cvae_reconstruction/variance/{}_val.png".format(idx+1), dpi=50)
+        plt.pause(1)
 
 
         # print("----------------")
@@ -182,5 +185,5 @@ if __name__ == '__main__':
     dataLoader_val = DataLoader(transformed_dataset, batch_size=1, sampler=val_sampler, num_workers=input_args.worker_num)
     dataLoader_tst = DataLoader(transformed_dataset, batch_size=1, sampler=tst_sampler, num_workers=input_args.worker_num)
 
-    image_generation(dataLoader_val)
+    image_generation(dataLoader_trn)
     # generate_panoramic_observations(input_args, [dataLoader_trn, dataLoader_val, dataLoader_tst])
