@@ -35,8 +35,8 @@ def eval_train(model, val_set_loader):
 def image_generation(dataLoader):
     # load the trained model
     cvae = VAE.CVAE(64)
-    cvae.load_state_dict(torch.load("/mnt/sda/dataset/ml_nav/model/cvae_model_h64_c34_L2_b1_ep100_id_1.pt"))
-    # cvae.load_state_dict(torch.load("/mnt/sda/dataset/ml_nav/model/test_1.pt"))
+    # cvae.load_state_dict(torch.load("/mnt/sda/dataset/ml_nav/model/cvae_model_h64_c34_L2_b1_ep100_id_1.pt"))
+    cvae.load_state_dict(torch.load("/mnt/sda/dataset/ml_nav/model/cvae_BN_variance_b2_1.pt"))
     cvae.eval()
 
     # generate the name of orientations

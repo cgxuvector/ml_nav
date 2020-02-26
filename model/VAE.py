@@ -1,7 +1,7 @@
 """
-    VAE Model
+    Conditional VAE Model is fixed
         - Architecture:
-                1. encoder:
+
 """
 import torch
 import torch.nn as nn
@@ -13,6 +13,7 @@ class CNNEncoder(nn.Module):
         super(CNNEncoder, self).__init__()
 
         # cnn layer to encode the observations
+        # adding BatchNorm layer before ReLU
         self.cnn_layer = nn.Sequential(
             # 3 x 64 x 64 --> 32 x 31 x 31
             nn.Conv2d(in_channels=3, out_channels=32, kernel_size=3),
@@ -45,14 +46,13 @@ class CNNEncoder(nn.Module):
         )
 
         # mean linear layer
+        # no BatchNorm layer
         self.mu_layer = nn.Sequential(
-            nn.Linear(512 + 34, latent_dim),
-            nn.BatchNorm1d(latent_dim)
+            nn.Linear(512 + 34, latent_dim)
         )
         # logarithm linear layer
         self.log_var_layer = nn.Sequential(
-            nn.Linear(512 + 34, latent_dim),
-            nn.BatchNorm1d(latent_dim)
+            nn.Linear(512 + 34, latent_dim)
         )
 
     def forward(self, x_obs, y_map, z_ori):
@@ -77,10 +77,10 @@ class CNNDecoder(nn.Module):
         super(CNNDecoder, self).__init__()
         # dense layer
         self.fc = nn.Sequential(
-            nn.Linear(latent_dim + 34, 1024),
-            nn.BatchNorm1d(1024),
+            nn.Linear(latent_dim + 34, 1024)
         )
         # deconvolutional layer
+        # adding batch norm layer except the output layer
         self.de_cnn_layer = nn.Sequential(
             nn.ConvTranspose2d(in_channels=1024, out_channels=128, kernel_size=5, stride=1),
             nn.BatchNorm2d(128),
@@ -92,7 +92,6 @@ class CNNDecoder(nn.Module):
             nn.BatchNorm2d(32),
             nn.ReLU(),
             nn.ConvTranspose2d(in_channels=32, out_channels=3, kernel_size=6, stride=2),
-            nn.BatchNorm2d(3),
             nn.Sigmoid()
         )
 
