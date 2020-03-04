@@ -47,6 +47,7 @@ def image_generation(dataLoader):
     fig, arr = plt.subplots(1, 5, figsize=(10, 2))
     fig.canvas.set_window_title("VAE Reconstruction")
     h = []
+    last_z = None
     for idx, batch in enumerate(dataLoader):
         obs = batch["observation"].squeeze(0).detach().numpy().transpose(1, 2, 0)
         ori = batch["orientation"].float()
@@ -59,7 +60,6 @@ def image_generation(dataLoader):
                     arr[h_idx].set_title("GT")
                 else:
                     z = torch.randn(1, 64)
-                    z = torch.zeros(1, 64)
                     tmp_map = torch.cat(2 * [loc_map.view(-1, 1 * 3 * 3)], dim=1)
                     tmp_ori = torch.cat(2 * [ori.view(-1, 1 * 1 * 8)], dim=1)
                     conditioned_z = torch.cat((z, tmp_map, tmp_ori), dim=1)
@@ -72,7 +72,6 @@ def image_generation(dataLoader):
                     h[h_idx].set_data(obs)
                 else:
                     z = torch.randn(1, 64)
-                    z = torch.zeros(1, 64)
                     tmp_map = torch.cat(2 * [loc_map.view(-1, 1 * 3 * 3)], dim=1)
                     tmp_ori = torch.cat(2 * [ori.view(-1, 1 * 1 * 8)], dim=1)
                     conditioned_z = torch.cat((z, tmp_map, tmp_ori), dim=1)
@@ -80,7 +79,7 @@ def image_generation(dataLoader):
                     h[h_idx].set_data(obs_reconstructed.squeeze(0).detach().numpy().transpose(1, 2, 0))
         fig.canvas.draw()
         # plt.savefig("/mnt/sda/dataset/ml_nav/cvae_reconstruction/variance/{}_val.png".format(idx+1), dpi=50)
-        plt.pause(1)
+        plt.pause(2)
 
 
         # print("----------------")
@@ -152,6 +151,48 @@ def generate_panoramic_observations(input_params, dataLoader):
         plt.close(fig_recon)
 
 
+def is_seen(loc_map, dataLoader):
+    loc_map = loc_map.view(-1, 9)
+    seen_flag = False
+    for idx, batch in enumerate(dataLoader):
+        map = torch.round(batch["loc_map"].float().squeeze(0).squeeze(0).view(-1, 9))
+        if not torch.sum((loc_map - map)**2, dim=1):
+            seen_flag = True
+            print(map.view(3, 3))
+            break
+    return seen_flag
+
+
+def generate_panoramic_observations_test(dataLoader):
+    # load the trained model
+    cvae = VAE.CVAE(64)
+    cvae.load_state_dict(torch.load("/mnt/sda/dataset/ml_nav/model/cvae_BN_variance_b2_1.pt"))
+    cvae.eval()
+
+    # generate the name of orientations
+    tmp_ori = transformed_dataset.orientation_angle
+    orientations = [torch.from_numpy(tmp_ori[key]).float() for key in tmp_ori.keys()]
+
+    # generation
+    loc_map = torch.tensor([[1, 1, 0],
+                            [1, 1, 0],
+                            [0, 0, 0]]).float()
+    if not is_seen(loc_map, dataLoader):
+        reconstructed_batch = {"observation": [], "loc_map": loc_map}
+        for ori in orientations:
+            z = torch.randn(1, 64)
+            tmp_map = torch.cat(2 * [loc_map.view(-1, 1 * 3 * 3)], dim=1)
+            tmp_ori = torch.cat(2 * [ori.view(-1, 1 * 1 * 8)], dim=1)
+            conditioned_z = torch.cat((z, tmp_map, tmp_ori), dim=1)
+            obs_reconstructed, _ = cvae.decoder(conditioned_z)
+            obs_reconstructed = obs_reconstructed.detach()
+            reconstructed_batch["observation"].append(obs_reconstructed)
+        fig_recon = transformed_dataset.visualize_batch(reconstructed_batch, "group")
+        plt.show()
+    else:
+        assert False, "The map is seen in the training."
+
+
 def input_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument("--worker_num", type=int, default=4, help="number of the worker for data loader")
@@ -185,5 +226,6 @@ if __name__ == '__main__':
     dataLoader_val = DataLoader(transformed_dataset, batch_size=1, sampler=val_sampler, num_workers=input_args.worker_num)
     dataLoader_tst = DataLoader(transformed_dataset, batch_size=1, sampler=tst_sampler, num_workers=input_args.worker_num)
 
-    image_generation(dataLoader_trn)
+    # image_generation(dataLoader_val)
     # generate_panoramic_observations(input_args, [dataLoader_trn, dataLoader_val, dataLoader_tst])
+    generate_panoramic_observations_test(dataLoader_trn)

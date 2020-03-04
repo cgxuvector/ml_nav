@@ -348,6 +348,9 @@ class RoughMap(object):
 
         return local_maps, pad_map
 
+    def sample_start_goal(self):
+        return
+
 
 
 

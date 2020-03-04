@@ -244,8 +244,8 @@ class LocmapObsDataset(Dataset):
 # # dataLoader = DataLoader(transformed_dataset, batch_size=8, shuffle=True)
 #
 # # loading test
-# transformed_dataset = LocmapObsDataset(mode="group", transform=transforms.Compose([Transform.ToTensor("group")]))
-# dataLoader = DataLoader(transformed_dataset, batch_size=1, shuffle=True)
+# transformed_dataset = LocmapObsDataset(mode="iid", transform=transforms.Compose([Transform.ToTensor("iid")]))
+# dataLoader = DataLoader(transformed_dataset, batch_size=4, shuffle=True)
 #
 # # test for first 50 elements
 # for idx, batch in enumerate(dataLoader):
@@ -253,7 +253,7 @@ class LocmapObsDataset(Dataset):
 #     # y = batch["loc_map"]
 #     # z = batch["orientation"]
 #     # print("Idx = ", idx+1, type(x), x.dtype, y.dtype, x.size(), y.size(), z.dtype, z.size())
-#     fig = transformed_dataset.visualize_batch(batch)
+#     fig = transformed_dataset.visualize_batch(batch, "iid")
 #     plt.show()
 #     if idx == 10:
 #         break
