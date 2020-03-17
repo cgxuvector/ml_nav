@@ -11,6 +11,8 @@ from collections import deque
 from collections import namedtuple
 import tqdm
 from utils import ml_schedule
+from utils import mapper
+import IPython.terminal.debugger as Debug
 DEFAULT_TRANSITION = namedtuple("transition", ["state", "action", "next_state", "reward", "done"])
 
 
@@ -85,38 +87,64 @@ class DeepQNet(nn.Module):
             - No image / image feature input: fully-connected (3 layer implemented)
             - Image input: convolutional (not implemented)
     """
-    def __init__(self, state_dim, action_num, hidden_dim=512):
+
+    def __init__(self):
         super(DeepQNet, self).__init__()
 
-        # Q network fc layers configs
-        self.input_dim = state_dim
-        self.hidden_dim = hidden_dim
-        self.output_dim = action_num
-
-        # define the q network
-        self.qNet = nn.Sequential(
-            nn.Linear(self.input_dim, self.hidden_dim),
+        # if the convolutional flag is enabled.
+        self.conv_qNet = nn.Sequential(
+            # 3 x 64 x 64 --> 32 x 31 x 31
+            nn.Conv2d(in_channels=3, out_channels=32, kernel_size=3),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.BatchNorm2d(32),
             nn.ReLU(),
 
-            nn.Linear(self.hidden_dim, self.hidden_dim),
+            # 32 x 31 x 31 --> 64 x 14 x 14
+            nn.Conv2d(in_channels=32, out_channels=64, kernel_size=4),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.BatchNorm2d(64),
             nn.ReLU(),
 
-            nn.Linear(self.hidden_dim, self.hidden_dim),
+            # 64 x 14 x 14 --> 128 x 6 x 6
+            nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.BatchNorm2d(128),
             nn.ReLU(),
 
-            nn.Linear(self.hidden_dim, self.output_dim)
+            # 128 x 6 x 6 --> 256 x 2 x 2
+            nn.Conv2d(in_channels=128, out_channels=256, kernel_size=3),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.BatchNorm2d(256),
+            nn.ReLU(),
+
+            # 256 x 2x 2 --> 256 x 1 x 1
+            nn.Conv2d(in_channels=256, out_channels=256, kernel_size=2),
+            nn.BatchNorm2d(256),
+            nn.ReLU()
         )
 
-    def forward(self, state):
-        return self.qNet(state)
+        # define the q network
+        self.fcNet = nn.Sequential(
+            nn.Linear(4096, 2048),
+            nn.ReLU(),
+            nn.Linear(2048, 1024),
+            nn.ReLU(),
+            nn.Linear(1024, 4)
+        )
+
+    def forward(self, state, goal):
+        # compute state embedding
+        state_fea = self.conv_qNet(state).view(-1, 1 * 8 * 256)
+        goal_fea = self.conv_qNet(goal).view(-1, 1 * 8 * 256)
+        # concatenate the goal with state
+        state_goal = torch.cat((state_fea, goal_fea), dim=1)
+        x = self.fcNet(state_goal)
+        return x
 
 
 class DQN(object):
     def __init__(self,
                  env,
-                 state_dim,  # Q network configs
-                 action_num,
-                 hidden_dim,
                  buffer_size,  # replay memory configs
                  batch_size,
                  max_time_steps,  # training params
@@ -140,8 +168,8 @@ class DQN(object):
         self.env = env
         """ DQN configurations"""
         # create the policy network and target network
-        self.policy_net = DeepQNet(state_dim, action_num, hidden_dim)
-        self.target_net = DeepQNet(state_dim, action_num, hidden_dim)
+        self.policy_net = DeepQNet()
+        self.target_net = DeepQNet()
         self.target_net.load_state_dict(self.policy_net.state_dict())
         # create the replay buffer
         self.TRANSITION = transition_config
@@ -150,7 +178,9 @@ class DQN(object):
         # DQN mode: vanilla or double
         self.dqn_mode = dqn_mode
         # Epsilon schedule
-        self.schedule = ml_schedule.LinearSchedule(eps_start, eps_end, max_time_steps) if eps_schedule == "linear" else ml_schedule.ConstantSchedule(eps_start)
+        self.schedule = ml_schedule.LinearSchedule(eps_start, eps_end,
+                                                   max_time_steps) if eps_schedule == "linear" else ml_schedule.ConstantSchedule(
+            eps_start)
 
         """ Training configurations """
         self.gamma = gamma
@@ -222,128 +252,185 @@ class DQN(object):
         self.optimizer.step()
 
     # select an action based on epsilon greedy
-    def select_action(self, input_state, eps):
+    def select_action(self, input_state, goal_state, eps):
         # select a random action with probability epsilon
         if np.random.sample() < eps:
             action = self.env.action_space.sample()
         else:
             with torch.no_grad():
-                q_values = self.policy_net(input_state)
+                q_values = self.policy_net(input_state, goal_state)
                 action = q_values.max(0)[1].item()
         return action
 
+    @staticmethod
+    def toTensor(state, goal):
+        state = torch.tensor(np.array(state).transpose(0, 3, 1, 2))
+        goal = torch.tensor(np.array(goal).transpose(0, 3, 1, 2))
+        return state, goal
+
+    @staticmethod
+    def map_sampling(env_map, maze_list, seed_list, sample_pos=False):
+        if not sample_pos:
+            size = np.random.choice(maze_list)
+            seed = np.random.choice(seed_list)
+            env_map = mapper.RoughMap(size, seed, 3)
+            # positions
+            pos_params = [env_map.raw_pos['init'][0],
+                          env_map.raw_pos['init'][1],
+                          env_map.raw_pos['goal'][0],
+                          env_map.raw_pos['goal'][1],
+                          0]  # [init_pos, goal_pos, init_orientation]
+        else:
+            size = env_map.maze_size
+            seed = env_map.maze_seed
+            start_idx, end_idx = np.random.choice(len(env_map.valid_pos), 2).tolist()
+            start_pos = env_map.valid_pos[start_idx]
+            end_pos = env_map.valid_pos[end_idx]
+            # positions
+            pos_params = [start_pos[0],
+                          start_pos[1],
+                          end_pos[0],
+                          end_pos[1],
+                          0]  # [init_pos, goal_pos, init_orientation]
+
+        return size, seed, pos_params
+
     def train(self):
+
         # episode params
         episode_idx = 0
         episode_t = 0
         rewards = []
+        # create a mapper
+        maze_list = [5]
+        maze_seed = np.arange(20).tolist()
+        env_map = mapper.RoughMap(5, 0, 3)
+        # positions
+        pos_params = [env_map.raw_pos['init'][0],
+                      env_map.raw_pos['init'][1],
+                      env_map.raw_pos['goal'][0],
+                      env_map.raw_pos['goal'][1],
+                      0]  # [init_pos, goal_pos, init_orientation]
         # reset the environment
-        state = self.env.reset()
+        state, goal = self.env.reset(5, 0, pos_params)
         # loop all time steps
         pbar = tqdm.trange(self.max_time_steps)
         for t in pbar:
-            # obtain the epsilon
-            eps = self.schedule.get_value(t)
-            # select an action using epsilon greedy strategy
-            action = self.select_action(torch.tensor(state).float(), eps)
+            state, goal = self.toTensor(state, goal)
             # interact with the environment
+            action = self.env.action_space.sample()
             next_state, reward, done, _ = self.env.step(action)
-            # add the sample into the replay buffer
+            next_state, goal = self.toTensor(next_state, goal)
             sample = self.TRANSITION(state=state,
                                      action=action,
-                                     next_state=next_state,
                                      reward=reward,
+                                     next_state=next_state,
+                                     goal=goal,
                                      done=done)
+
             self.replay_buffer.add(sample)
 
-            # collecting samples
-            if t < self.step_update_start:
-                if done:
-                    state = self.env.reset()
-                else:
-                    state = next_state
-                continue
+            if t % 1000 == 0:
+                done = True
 
-            # update the policy network
-            if not np.mod(t+1, self.freq_update_policy):
-                # sample a batch to train policy net
-                sampled_batch = self.replay_buffer.sample(self.batch_size)
-                self.update_policy_net(sampled_batch)
-
-            # update the target network
-            if np.mod(t, self.freq_update_target):
-                self.update_target_net()
-
-            # compute the training statistics
             if done:
-                # compute the returns
-                G = 0
-                for r in reversed(rewards):
-                    G = r + self.gamma * G
-                self.returns.append(G)
-                # compute the length
-                self.lengths.append(episode_t)
-                # track the number of episodes
-                episode_idx += 1
-
-                pbar.set_description(
-                    f'Episode: {episode_idx} | Steps: {episode_t} | Return: {self.returns[-1]} | Epsilon: {eps}'
-                )
-                # reset
-                rewards = []
-                episode_t = 0
-                state = self.env.reset()
+                size, seed, pos_params = self.map_sampling(env_map, maze_list, maze_seed, True)
+                state, goal = self.env.reset(size, seed, pos_params)
             else:
-                # record rewards
-                rewards.append(reward)
-                # increase time step for one episode
-                episode_t += 1
-                # next state
                 state = next_state
 
-        np.save("./results/return/" + self.save_name + "_return.npy", np.array(self.returns))
-        np.save("./results/return/" + self.save_name + "_length.npy", np.array(self.lengths))
-        torch.save(self.policy_net.state_dict(), "./results/model/" + self.save_name + ".pt")
+            pbar.set_description(
+                f'Buffer size: {len(self.replay_buffer)} | Steps: {t} | Return: {reward}'
+            )
 
-    def eval(self, eval_mode, model_name):
-        # evaluation offline: evaluate the policy after training
-        if eval_mode == "offline":
-            self.policy_net.load_state_dict(torch.load(model_name))
-            self.policy_net.eval()
-
-        episode_num = 1
-        step_num = 100_000
-
-        for ep in range(episode_num):
-            state = self.env.reset()
-            for t in range(step_num):
-                self.env.render()
-                act = self.select_action(torch.tensor(state).float(), 0)
-                next_state, _, done, _ = self.env.step(act)
-                if done:
-                    break
-                state = next_state
-
-    @staticmethod
-    def convert2tensor(batch):
-        state = torch.tensor(batch.state).float()
-        action = torch.tensor(batch.action).view(-1, 1).long()
-        reward = torch.tensor(batch.reward).float()
-        next_state = torch.tensor(batch.next_state).float()
-        done = torch.tensor(batch.done).float()
-        return state, action, next_state, reward, done
-
-    @staticmethod
-    def rolling_average(data, window_size):
-        assert data.ndim == 1
-        kernel = np.ones(window_size)
-        smooth_data = np.convolve(data, kernel) / np.convolve(np.ones_like(data), kernel)
-        return smooth_data[: -window_size + 1]
-
-
-
-
-
-
-
-
+    #         # collecting samples
+    #         if t < self.step_update_start:
+    #             if done:
+    #                 state = self.env.reset()
+    #             else:
+    #                 state = next_state
+    #             continue
+    #
+    #         # update the policy network
+    #         if not np.mod(t + 1, self.freq_update_policy):
+    #             # sample a batch to train policy net
+    #             sampled_batch = self.replay_buffer.sample(self.batch_size)
+    #             self.update_policy_net(sampled_batch)
+    #
+    #         # update the target network
+    #         if np.mod(t, self.freq_update_target):
+    #             self.update_target_net()
+    #
+    #         # compute the training statistics
+    #         if done:
+    #             # compute the returns
+    #             G = 0
+    #             for r in reversed(rewards):
+    #                 G = r + self.gamma * G
+    #             self.returns.append(G)
+    #             # compute the length
+    #             self.lengths.append(episode_t)
+    #             # track the number of episodes
+    #             episode_idx += 1
+    #
+    #             pbar.set_description(
+    #                 f'Episode: {episode_idx} | Steps: {episode_t} | Return: {self.returns[-1]} | Epsilon: {eps}'
+    #             )
+    #             # reset
+    #             rewards = []
+    #             episode_t = 0
+    #             state = self.env.reset()
+    #         else:
+    #             # record rewards
+    #             rewards.append(reward)
+    #             # increase time step for one episode
+    #             episode_t += 1
+    #             # next state
+    #             state = next_state
+    #
+    #     np.save("./results/return/" + self.save_name + "_return.npy", np.array(self.returns))
+    #     np.save("./results/return/" + self.save_name + "_length.npy", np.array(self.lengths))
+    #     torch.save(self.policy_net.state_dict(), "./results/model/" + self.save_name + ".pt")
+    #
+    # def eval(self, eval_mode, model_name):
+    #     # evaluation offline: evaluate the policy after training
+    #     if eval_mode == "offline":
+    #         self.policy_net.load_state_dict(torch.load(model_name))
+    #         self.policy_net.eval()
+    #
+    #     episode_num = 1
+    #     step_num = 100_000
+    #
+    #     for ep in range(episode_num):
+    #         state = self.env.reset()
+    #         for t in range(step_num):
+    #             self.env.render()
+    #             act = self.select_action(torch.tensor(state).float(), 0)
+    #             next_state, _, done, _ = self.env.step(act)
+    #             if done:
+    #                 break
+    #             state = next_state
+    #
+    # @staticmethod
+    # def convert2tensor(batch):
+    #     state = torch.tensor(batch.state).float()
+    #     action = torch.tensor(batch.action).view(-1, 1).long()
+    #     reward = torch.tensor(batch.reward).float()
+    #     next_state = torch.tensor(batch.next_state).float()
+    #     done = torch.tensor(batch.done).float()
+    #     return state, action, next_state, reward, done
+    #
+    # @staticmethod
+    # def rolling_average(data, window_size):
+    #     assert data.ndim == 1
+    #     kernel = np.ones(window_size)
+    #     smooth_data = np.convolve(data, kernel) / np.convolve(np.ones_like(data), kernel)
+    #     return smooth_data[: -window_size + 1]
+    #
+    #
+    #
+    #
+    #
+    #
+    #
+    #

@@ -73,6 +73,7 @@ class RoughMap(object):
                     for j_idx, s in enumerate(l):
                         if s == ' ':
                             self.valid_pos.append([i_idx, j_idx])
+                            # self.valid_pos.append([i_idx + 1, j_idx + 1])
                 # random
                 tmp_pos = np.zeros(2)
                 while tmp_pos[0] == tmp_pos[1]:
@@ -213,6 +214,7 @@ class RoughMap(object):
         Function is used to print path on the binary map
         """
         # flip the grid_map to be binary map
+        assert len(path) > 0
         grid_map = np.array(grid_map)
         grid_map = np.ones(grid_map.shape) - grid_map
         for pos in path:
