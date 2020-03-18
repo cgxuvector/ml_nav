@@ -350,6 +350,14 @@ class RoughMap(object):
 
         return local_maps, pad_map
 
+    def get_start_goal_pos(self):
+        pos_params = [self.raw_pos['init'][0],
+                      self.raw_pos['init'][1],
+                      self.raw_pos['goal'][0],
+                      self.raw_pos['goal'][1],
+                      0]  # [init_pos, goal_pos, init_orientation]
+        return pos_params
+
     def sample_start_goal(self):
         return
 

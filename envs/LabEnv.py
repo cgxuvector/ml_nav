@@ -25,11 +25,11 @@ def _action(*entries):
 
 # actions in Deepmind
 ACTION_LIST = [
-    _action(-20, 0, 0, 0, 0, 0, 0),  # look_left
-    _action(20, 0, 0, 0, 0, 0, 0),  # look_right
-    _action(0, 0, 0, 1, 0, 0, 0),  # forward
-    _action(0, 0, 0, -1, 0, 0, 0),  # backward
-    _action(0, 0, 0, 0, 0, 0, 0),  # NOOP
+        _action(-20, 0, 0, 0, 0, 0, 0),  # look_left
+        _action(20, 0, 0, 0, 0, 0, 0),  # look_right
+        _action(0, 0, 0, 1, 0, 0, 0),  # forward
+        _action(0, 0, 0, -1, 0, 0, 0),  # backward
+        _action(0, 0, 0, 0, 0, 0, 0),  # NOOP
 ]
 
 # Valid observations
@@ -87,6 +87,7 @@ class RandomMaze(gym.Env):
         # check the validation of the observations
         assert set(observations) <= set(VALID_OBS), f"Observations contain invalid observations. Please check the " \
                                                     f"valid list here {VALID_OBS}."
+        self.observation_names = observations
         self._lab = deepmind_lab.Lab(self._level_name,
                                      [obs for obs in observations],
                                      self._level_configs)
@@ -108,6 +109,8 @@ class RandomMaze(gym.Env):
         self.orientations = np.arange(0, 360, 45)
         # map info
         self.maze_size = 0
+        # debug
+        self.top_down_obs = None
 
     # reset function
     def reset(self, maze_size=5, maze_seed=0, params=None):
@@ -137,6 +140,7 @@ class RandomMaze(gym.Env):
         # record the current observation
         self._current_state = self._lab.observations()
         self._last_observation = [self._current_state[key] for key in self._current_state.keys()][0:8]
+        self.top_down_obs = self._current_state['RGB.LOOK_TOP_DOWN']
         return self._last_observation, self.goal_observation
 
     # step function
@@ -147,16 +151,21 @@ class RandomMaze(gym.Env):
         if self._lab.is_running():
             # get the current observations
             self._current_state = self._lab.observations()
-            # get the current position and orientation
-            pos_x, pos_y, pos_z = self._current_state['DEBUG.POS.TRANS'].tolist()
-            pos_pitch, pos_yaw, pos_roll = self._current_state['DEBUG.POS.ROT'].tolist()
-            # get the terminal flag
-            terminal = self.reach_goal([pos_x, pos_y, pos_yaw])
+            # # get the current position and orientation
+            # pos_x, pos_y, pos_z = self._current_state['DEBUG.POS.TRANS'].tolist()
+            # pos_pitch, pos_yaw, pos_roll = self._current_state['DEBUG.POS.ROT'].tolist()
+            # # get the terminal flag
+            # terminal = self.reach_goal([pos_x, pos_y, pos_yaw])
+            if reward == 10:
+                terminal = True
+            else:
+                terminal = False
             # get the reward
             reward = 0.0 if terminal else self.compute_reward()
             # get the next
             next_obs = None if terminal else [self._current_state[key] for key in self._current_state.keys()][0:8]
             self._last_observation = next_obs if next_obs is not None else np.copy(self._last_observation)
+            self.top_down_obs = self._current_state['RGB.LOOK_TOP_DOWN'] if not terminal else np.copy(self.top_down_obs)
         else:
             # set the terminal observations
             next_obs = None
@@ -165,6 +174,7 @@ class RandomMaze(gym.Env):
             # set the terminal flag
             terminal = True
             self._last_observation = np.copy(self._last_observation)
+            self.top_down_obs = np.copy(self.top_down_obs)
 
         return self._last_observation, reward, terminal, dict()
 

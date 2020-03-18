@@ -7,13 +7,14 @@ from __future__ import print_function
 import argparse
 from tqdm import tqdm
 import matplotlib.pyplot as plt
-plt.rcParams.update({'font.size': 8})
+from envs.LabEnv import RandomMaze
 import numpy as np
 from utils import mapper
 import gym
-import gym_deepmindlab
-
 from utils import save_data
+import IPython.terminal.debugger as Debug
+
+plt.rcParams.update({'font.size': 8})
 
 
 def parse_input():
@@ -47,17 +48,20 @@ def run_agent(max_frame, win_width, win_height, frame_fps, level_name):
     :param level_name: name of the level script
     :return: None
     """
+    # observations
+    observations = ['RGB.LOOK_NORTH_WEST',
+                    'RGB.LOOK_NORTH',
+                    'RGB.LOOK_NORTH_EAST',
+                    'RGB.LOOK_WEST',
+                    'RGB.LOOK_EAST',
+                    'RGB.LOOK_SOUTH_WEST',
+                    'RGB.LOOK_SOUTH',
+                    'RGB.LOOK_SOUTH_EAST',
+                    'RGB.LOOK_RANDOM',
+                    'DEBUG.POS.TRANS',
+                    'DEBUG.POS.ROT']
     # create the environment)
-    myEnv = gym.make('DeepmindLabRandomMazeCustomViewNoGoalVariousTexture-v0', width=win_width, height=win_height, \
-                     observations=["RGBD_INTERLEAVED", \
-                                   "RGB.LOOK_EAST", \
-                                   "RGB.LOOK_NORTH_EAST", \
-                                   "RGB.LOOK_NORTH", \
-                                   "RGB.LOOK_NORTH_WEST", \
-                                   "RGB.LOOK_WEST", \
-                                   "RGB.LOOK_SOUTH_WEST", \
-                                   "RGB.LOOK_SOUTH", \
-                                   "RGB.LOOK_SOUTH_EAST"])
+    myEnv = RandomMaze(observations, 64, 64, 60, True, False)
 
     # set the plotting
     pano_fig, pano_arr = plt.subplots(3, 3, figsize=(9, 9))
@@ -82,34 +86,30 @@ def run_agent(max_frame, win_width, win_height, frame_fps, level_name):
             print('Maze size : {} - {}'.format(maze_size, maze_seed))
             for pos in env_map.valid_pos:
                 env_map.raw_pos['init'] = pos
-            # for s in range(len(env_map.valid_pos)):
-            #     # load map
-            #     env_map.raw_pos['init'] = env_map.valid_pos[np.random.randint(len(env_map.valid_pos))]
-                print(env_map.raw_pos['init'])
-
-                # env_map.show_map("all")
 
                 # reset the environment using the size and seed
-                pos_params = [env_map.raw_pos['init'][0] + 1,
-                              env_map.raw_pos['init'][1] + 1,
-                              env_map.raw_pos['goal'][0] + 1,
-                              env_map.raw_pos['goal'][1] + 1,
+                pos_params = [env_map.raw_pos['init'][0],
+                              env_map.raw_pos['init'][1],
+                              env_map.raw_pos['goal'][0],
+                              env_map.raw_pos['goal'][1],
                               0]  # [init_pos, goal_pos, init_orientation]
 
-                init_obs = myEnv.reset(maze_size, maze_seed, pos_params)
+                init_obs, goal_obs = myEnv.reset(maze_size, maze_seed, pos_params)
                 # construct artists for plotting
-                tmp_loc_map = env_map.cropper(env_map.map2d_roughPadded, np.array(env_map.raw_pos['init']))
+                tmp_loc_map = env_map.cropper(env_map.map2d_roughPadded, np.array(env_map.raw_pos['goal']))
 
                 pano_artists = []
+                k = 0
                 for i in range(3):
                     for j in range(3):
                         pano_arr[i, j].set_title(pano_view_title[i * 3 + j])
                         if i == 1 and j == 1:
                             pano_artists.append(pano_arr[i, j].imshow(tmp_loc_map))
                         else:
-                            pano_artists.append(pano_arr[i, j].imshow(init_obs[pano_view_name[i * 3 + j]]))
-                # # plt.show()
-                # plt.pause(0.0001)
+                            pano_artists.append(pano_arr[i, j].imshow(goal_obs[k]))
+                            k += 1
+                plt.show()
+                plt.pause(0.0001)
 
                 # one episode starts
                 total_reward = 0
@@ -123,12 +123,12 @@ def run_agent(max_frame, win_width, win_height, frame_fps, level_name):
                                 pano_artists[m * 3 + n].set_data(tmp_loc_map)
                             else:
                                 pano_artists[m * 3 + n].set_data(current_obs[pano_view_name[m * 3 + n]])
-                    # pano_fig.canvas.draw()
-                    # plt.pause(0.0001)
+                    pano_fig.canvas.draw()
+                    plt.pause(0.0001)
                     if reward == 10:
                         break
                 # plt.savefig("./figures/local_map_obs/maze_{}_{}_{}.png".format(maze_size, maze_seed, env_map.raw_pos['init']), dpi=100)
-                save_data.save_loc_maps_and_observations(maze_size, maze_seed, env_map.raw_pos['init'], tmp_loc_map, current_obs, pano_view_name, "random")
+                # save_data.save_loc_maps_and_observations(maze_size, maze_seed, env_map.raw_pos['init'], tmp_loc_map, current_obs, pano_view_name, "random")
                 # save the images
 
 

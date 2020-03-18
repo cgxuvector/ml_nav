@@ -334,7 +334,7 @@ class DQN(object):
                 done = True
 
             if done:
-                size, seed, pos_params = self.map_sampling(env_map, maze_list, maze_seed, True)
+                size, seed, pos_params = self.map_sampling(env_map, maze_list, maze_seed, False)
                 state, goal = self.env.reset(size, seed, pos_params)
             else:
                 state = next_state
