@@ -131,7 +131,7 @@ class Experiment(object):
             # train the agent
             if t > self.start_train_step:
                 sampled_batch = self.replay_buffer.sample(self.batch_size)
-                self.agent.train_one_batch(sampled_batch)
+                self.agent.train_one_batch(t, sampled_batch)
 
         # save the model and the statics
         model_save_path = os.path.join(self.save_dir, self.model_name) + ".pt"

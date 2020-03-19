@@ -89,9 +89,12 @@ class DQNAgent(object):
         """
         """
         """ DQN configurations"""
+        self.device=torch.device("cpu")
         # create the policy network and target network
         self.policy_net = DeepQNet()
+        self.policy_net = self.policy_net.to(self.device)
         self.target_net = DeepQNet()
+        self.target_net = self.target_net.to(self.device)
         self.target_net.load_state_dict(self.policy_net.state_dict())
         # DQN mode: vanilla or double
         self.dqn_mode = dqn_mode
@@ -123,6 +126,8 @@ class DQNAgent(object):
     def update_policy_net(self, batch_data):
         # convert the batch from numpy to tensor
         state, action, next_state, goal, reward, done = self.convert2tensor(batch_data)
+        state = state.to(self.device)
+        goal = goal.to(self.device)
         # compute the Q_policy(s, a)
         state_q_values = self.policy_net(state, goal).gather(dim=1, index=action)
         # compute the TD target r + gamma * max_a' Q_target(s', a')
@@ -215,9 +220,9 @@ class DQNAgent(object):
             return state, action, next_state, reward, done
         elif len(batch._fields) == 6:
             state = torch.cat(batch.state, dim=0)
-            action = torch.cat(batch.actionm, dim=0)
+            action = torch.cat(batch.action, dim=0)
             reward = torch.cat(batch.reward, dim=0)
-            next_state = torch.cat(batch.next_batch, dim=0)
+            next_state = torch.cat(batch.next_state, dim=0)
             goal = torch.cat(batch.goal, dim=0)
             done = torch.cat(batch.done, dim=0)
             return state, action, next_state, goal, reward, done
