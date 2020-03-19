@@ -32,7 +32,7 @@ class LocmapObsDataset(Dataset):
                 - Customized dataset
     """
     # initialize the dataset
-    def __init__(self, mode='iid', dir_path='/mnt/sda/dataset/ml_nav/loc_map_obs_fixed_texture', transform=None):
+    def __init__(self, mode='iid', dir_path='/mnt/sda/dataset/ml_nav/global_map_obs_fixed_texture', transform=None):
         self.mode = mode
         self.root_dir = dir_path
         self.transform = transform
@@ -89,7 +89,6 @@ class LocmapObsDataset(Dataset):
         if self.mode == "group":
             # load the image of the local map
             loc_map = io.imread(self.root_dir + '/' + self.loc_map_name[idx])
-            # loc_map = resize(loc_map, (64, 64))
             # load observations
             observations = []
             for ori in self.orientation_name:
@@ -244,8 +243,8 @@ class LocmapObsDataset(Dataset):
 # # dataLoader = DataLoader(transformed_dataset, batch_size=8, shuffle=True)
 #
 # # loading test
-# transformed_dataset = LocmapObsDataset(mode="iid", transform=transforms.Compose([Transform.ToTensor("iid")]))
-# dataLoader = DataLoader(transformed_dataset, batch_size=4, shuffle=True)
+# transformed_dataset = LocmapObsDataset(mode="group", transform=transforms.Compose([Transform.ToTensor("group")]))
+# dataLoader = DataLoader(transformed_dataset, batch_size=1, shuffle=True)
 #
 # # test for first 50 elements
 # for idx, batch in enumerate(dataLoader):
@@ -253,8 +252,8 @@ class LocmapObsDataset(Dataset):
 #     # y = batch["loc_map"]
 #     # z = batch["orientation"]
 #     # print("Idx = ", idx+1, type(x), x.dtype, y.dtype, x.size(), y.size(), z.dtype, z.size())
-#     fig = transformed_dataset.visualize_batch(batch, "iid")
+#     fig = transformed_dataset.visualize_batch(batch, "group")
 #     plt.show()
 #     if idx == 10:
 #         break
-
+#

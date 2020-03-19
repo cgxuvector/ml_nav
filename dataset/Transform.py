@@ -39,7 +39,8 @@ class ToTensor(object):
             ori = sample["orientation"]
             # note: image is convert between [0, 1]
             obs_image = resize(obs_image, (64, 64, 3)).transpose(2, 0, 1)
-            map_image = resize(map_image, (3, 3))
+            map_image = resize(map_image, (3, 3))  # local map
+            # map_image = resize(map_image, (21, 21))  # global map
             sample = {"observation": torch.from_numpy(obs_image).float(),
                       "loc_map": torch.tensor(map_image).unsqueeze(0).float(),
                       "orientation": torch.from_numpy(ori).unsqueeze(0).float()}

@@ -47,29 +47,30 @@ def run_DQN():
                 replay_buffer_size,
                 batch_size,
                 transition_config=transition_config,
-                max_time_steps=501_000,
+                max_time_steps=51_000,
                 learning_rate=1e-3,
                 start_update_step=1000,
-                target_update_frequency=10_000,
+                target_update_frequency=8,
                 policy_update_frequency=4,
                 gamma=0.99,
                 eps_start=1.0,
                 dqn_mode=input_args.dqn_mode,
                 gradient_clip=input_args.clip_grad,
-                save_name=input_args.save_name
+                save_name=input_args.save_name,
+                soft_target_update=True
                 )
 
     # train the DQN
     myDQN.train()
     # myDQN.eval("offline", "results/model/dqn_vanilla_clip_new.pt")
-    #
-    # # dqn_return = np.load("results/return/dqn_double_correct_return.npy")
-    # # smooth_data = DQN.rolling_average(dqn_return, 25)
-    # #
-    # # x = np.arange(dqn_return.shape[0])
-    # # plt.plot(x, dqn_return, 'salmon')
-    # # plt.plot(x, smooth_data, 'r')
-    # # plt.show()
+
+    dqn_return = np.load("results/return/dqn_vanilla_return.npy")
+    smooth_data = DQN.rolling_average(dqn_return, 25)
+
+    x = np.arange(dqn_return.shape[0])
+    plt.plot(x, dqn_return, 'salmon')
+    plt.plot(x, smooth_data, 'r')
+    plt.show()
 
 
 def run_TD3():
@@ -114,4 +115,5 @@ def run_TD3():
 
 
 if __name__ == "__main__":
-    run_TD3()
+    run_DQN()
+    # run_TD3()

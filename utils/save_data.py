@@ -8,9 +8,9 @@ plt.rcParams.update({'font.size': 15})
 
 def save_loc_maps_and_observations(size, seed, pos, loc_map, observations, observations_names, obs_type):
     if obs_type == "random":
-        default_path = "/mnt/sda/dataset/ml_nav/loc_map_obs_various_texture/"
+        default_path = "/mnt/sda/dataset/ml_nav/global_map_obs_various_texture/"
     elif obs_type == 'uniform':
-        default_path = "/mnt/sda/dataset/ml_nav/loc_map_obs_fixed_texture/"
+        default_path = "/mnt/sda/dataset/ml_nav/global_map_obs_fixed_texture/"
     else:
         assert False, "Obs Type Error: Please input either 'various' or 'uniform'"
     common_str = '_'.join([str(size), str(seed), str(pos[0]), str(pos[1])])

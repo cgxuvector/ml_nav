@@ -123,6 +123,7 @@ class DQN(object):
                  start_update_step,
                  target_update_frequency,
                  policy_update_frequency,
+                 soft_target_update=False,
                  transition_config=DEFAULT_TRANSITION,  # other params with default values
                  learning_rate=1e-3,
                  dqn_mode="vanilla",
@@ -156,6 +157,8 @@ class DQN(object):
         self.max_time_steps = max_time_steps
         self.learning_rate = learning_rate
         self.step_update_start = start_update_step
+        self.tau = 0.01  # parameters for soft target update
+        self.soft_update = soft_target_update  # flag for soft update
         self.freq_update_target = target_update_frequency
         self.freq_update_policy = policy_update_frequency
         self.optimizer = torch.optim.Adam(self.policy_net.parameters(),
@@ -171,7 +174,12 @@ class DQN(object):
 
     # update the target network
     def update_target_net(self):
-        self.target_net.load_state_dict(self.policy_net.state_dict())
+        # hard update
+        if not self.soft_update:
+            self.target_net.load_state_dict(self.policy_net.state_dict())
+        else:
+            for param, target_param in zip(self.policy_net.parameters(), self.target_net.parameters()):
+                target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
 
     # update the policy network
     def update_policy_net(self, batch_data):

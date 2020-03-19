@@ -36,7 +36,8 @@ def image_generation(dataLoader):
     # load the trained model
     cvae = VAE.CVAE(64)
     # cvae.load_state_dict(torch.load("/mnt/sda/dataset/ml_nav/model/cvae_model_h64_c34_L2_b1_ep100_id_1.pt"))
-    cvae.load_state_dict(torch.load("/mnt/sda/dataset/ml_nav/model/cvae_BN_variance_b2_1.pt"))
+    # cvae.load_state_dict(torch.load("/mnt/sda/dataset/ml_nav/model/cvae_BN_variance_b2_1.pt"))
+    cvae.load_state_dict(torch.load("/mnt/sda/dataset/ml_nav/model/cvae_global_map_warm_1.pt"))
     cvae.eval()
 
     # generate the name of orientations
@@ -60,7 +61,8 @@ def image_generation(dataLoader):
                     arr[h_idx].set_title("GT")
                 else:
                     z = torch.randn(1, 64)
-                    tmp_map = torch.cat(2 * [loc_map.view(-1, 1 * 3 * 3)], dim=1)
+                    # tmp_map = torch.cat(2 * [loc_map.view(-1, 1 * 3 * 3)], dim=1)
+                    tmp_map = loc_map.view(-1, 1 * 21 * 21)
                     tmp_ori = torch.cat(2 * [ori.view(-1, 1 * 1 * 8)], dim=1)
                     conditioned_z = torch.cat((z, tmp_map, tmp_ori), dim=1)
                     obs_reconstructed, _ = cvae.decoder(conditioned_z)
@@ -72,7 +74,8 @@ def image_generation(dataLoader):
                     h[h_idx].set_data(obs)
                 else:
                     z = torch.randn(1, 64)
-                    tmp_map = torch.cat(2 * [loc_map.view(-1, 1 * 3 * 3)], dim=1)
+                    # tmp_map = torch.cat(2 * [loc_map.view(-1, 1 * 3 * 3)], dim=1)
+                    tmp_map = loc_map.view(-1, 1 * 21 * 21)
                     tmp_ori = torch.cat(2 * [ori.view(-1, 1 * 1 * 8)], dim=1)
                     conditioned_z = torch.cat((z, tmp_map, tmp_ori), dim=1)
                     obs_reconstructed, _ = cvae.decoder(conditioned_z)
@@ -129,12 +132,16 @@ def generate_panoramic_observations(input_params, dataLoader):
 
     # generate the panoramic observations
     for idx, batch in enumerate(dataLoader):
+        # generation
+        loc_map = batch["loc_map"].float()
+        print(loc_map.size())
+        if loc_map.size(3) != 21:
+            continue
         # ground truth plot
         fig_gt = transformed_dataset.visualize_batch(batch, "group")
         fig_gt_name = save_path + str(idx + 1) + "_gt.png"
         plt.savefig(fig_gt_name, dpi=50)
-        # generation
-        loc_map = batch["loc_map"].float()
+
         reconstructed_batch = {"observation": [], "loc_map": loc_map}
         for ori in orientations:
             z = torch.randn(1, 64)
@@ -149,6 +156,7 @@ def generate_panoramic_observations(input_params, dataLoader):
         plt.savefig(fig_recon_name, dpi=50)
         plt.close(fig_gt)
         plt.close(fig_recon)
+        plt.cla
 
 
 def is_seen(loc_map, dataLoader):
@@ -174,8 +182,8 @@ def generate_panoramic_observations_test(dataLoader):
     orientations = [torch.from_numpy(tmp_ori[key]).float() for key in tmp_ori.keys()]
 
     # generation
-    loc_map = torch.tensor([[1, 1, 0],
-                            [1, 1, 0],
+    loc_map = torch.tensor([[0, 0, 0],
+                            [0, 0, 0],
                             [0, 0, 0]]).float()
     if not is_seen(loc_map, dataLoader):
         reconstructed_batch = {"observation": [], "loc_map": loc_map}
@@ -226,6 +234,8 @@ if __name__ == '__main__':
     dataLoader_val = DataLoader(transformed_dataset, batch_size=1, sampler=val_sampler, num_workers=input_args.worker_num)
     dataLoader_tst = DataLoader(transformed_dataset, batch_size=1, sampler=tst_sampler, num_workers=input_args.worker_num)
 
-    # image_generation(dataLoader_val)
+    # trainer
+
+    # image_generation(dataLoader_trn)
     # generate_panoramic_observations(input_args, [dataLoader_trn, dataLoader_val, dataLoader_tst])
     generate_panoramic_observations_test(dataLoader_trn)
