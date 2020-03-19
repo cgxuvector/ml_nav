@@ -223,9 +223,9 @@ class RandomMaze(gym.Env):
         #       f" Err = ({dist:.2f}, {angle_error:.2f})")
         # print(dist)
         if dist < 20 and angle_error < 10:
-            return True, dist
+            return 1, dist
         else:
-            return False, dist
+            return 0, dist
 
     @staticmethod
     def compute_reward(dist):

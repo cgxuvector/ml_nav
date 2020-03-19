@@ -60,7 +60,7 @@ if __name__ == '__main__':
         my_agent = DQNAgent(target_update_frequency=100,
                             policy_update_frequency=4,
                             soft_target_update=False,
-                            dqn_mode="vanilla",
+                            dqn_mode="double",
                             gamma=0.99,
                             gradient_clip=False
                             )

@@ -129,12 +129,12 @@ class DQNAgent(object):
         if self.dqn_mode == "vanilla":  # update the policy network using vanilla DQN
             with torch.no_grad():
                 # compute the : max_a' Q_target(s', a')
-                max_next_state_q_values = self.target_net(next_state, goal).max(1)[0]
+                max_next_state_q_values = self.target_net(next_state, goal).max(1)[0].view(-1, 1)
                 # if s' is terminal, then change Q(s', a') = 0
                 terminal_mask = (torch.ones(done.size()) - done)
                 max_next_state_q_values = max_next_state_q_values * terminal_mask
                 # compute the r + gamma * max_a' Q_target(s', a')
-                td_target = (reward + self.gamma * max_next_state_q_values).view(-1, 1)
+                td_target = (reward + self.gamma * max_next_state_q_values)
         else:  # update the policy network using double DQN
             with torch.no_grad():
                 # select the maximal actions using greedy policy network: argmax_a Q_policy(S_t+1)
@@ -143,10 +143,10 @@ class DQNAgent(object):
                 # compute the Q_target(s', argmax_a)
                 next_state_q_values = self.target_net(next_state, goal).gather(dim=1, index=next_action_data)
                 # convert the value of the terminal states to be zero
-                terminal_mask = (torch.ones(done.size()) - done).view(-1, 1)
+                terminal_mask = (torch.ones(done.size()) - done)
                 max_next_state_q_values = next_state_q_values * terminal_mask
                 # compute the TD target
-                td_target = reward.view(-1, 1) + self.gamma * max_next_state_q_values
+                td_target = reward + self.gamma * max_next_state_q_values
 
         # compute the loss using MSE error: TD error
         loss = self.criterion(state_q_values, td_target)
@@ -215,9 +215,9 @@ class DQNAgent(object):
             return state, action, next_state, reward, done
         elif len(batch._fields) == 6:
             state = torch.cat(batch.state, dim=0)
-            action = torch.cat(batch.actionm, dim=0)
+            action = torch.cat(batch.action, dim=0)
             reward = torch.cat(batch.reward, dim=0)
-            next_state = torch.cat(batch.next_batch, dim=0)
+            next_state = torch.cat(batch.next_state, dim=0)
             goal = torch.cat(batch.goal, dim=0)
             done = torch.cat(batch.done, dim=0)
             return state, action, next_state, goal, reward, done
