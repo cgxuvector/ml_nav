@@ -20,7 +20,7 @@ class Experiment(object):
                  agent,
                  max_time_steps,
                  max_time_steps_per_episode=100,
-                 start_train_step=100,
+                 start_train_step=10,
                  buffer_size=None,
                  transition=DEFAULT_TRANSITION,
                  learning_rate=1e-3,
