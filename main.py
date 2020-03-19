@@ -21,6 +21,8 @@ def parse_input():
     parser.add_argument("--sampled_goal", type=int, default=5, help="number of sampled goals in each maze")
     parser.add_argument("--eval_frequency", type=int, default=100, help="frequency of evaluating the agent")
 
+    parser.add_argument("--model_idx", type=str, default=None, help="model index")
+    parser.add_argument("--save_dir", type=str, default=None, help="saving folder")
     return parser.parse_args()
 
 
@@ -77,6 +79,8 @@ if __name__ == '__main__':
         use_replay=inputs.use_replay_buffer,
         sampled_goal=inputs.sampled_goal,
         gamma=0.99,
-        start_train_step=100
+        start_train_step=100,
+        model_name=inputs.model_idx,
+        save_dir=inputs.save_dir
     )
     my_experiment.run()

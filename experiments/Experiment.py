@@ -1,14 +1,12 @@
-from utils import ml_schedule
 from utils import mapper
 import numpy as np
 from collections import namedtuple
 import tqdm
 from utils import memory
 from utils import ml_schedule
-import matplotlib.pyplot as plt
-from scipy import ndimage
 import random
 import torch
+import os
 import IPython.terminal.debugger as Debug
 
 DEFAULT_TRANSITION = namedtuple("transition", ["state", "action", "reward", "next_state", "goal", "done"])
@@ -79,15 +77,9 @@ class Experiment(object):
         seed = np.random.choice(self.seed_list)
         env_map = mapper.RoughMap(size, seed, 3)
         pos_params = env_map.get_start_goal_pos()
-        # print("Init pos = {}, {}".format(pos_params[0] + 1, pos_params[1] + 1))
-        # print("Goal pos = {}, {}".format(pos_params[2] + 1, pos_params[3] + 1))
         # reset the environment
         state, goal = self.env.reset(size, seed, pos_params)
         pbar = tqdm.trange(self.max_time_steps)
-        # fig, arr = plt.subplots(1, 2)
-        # arr[0].set_title("Init: {}, Goal:{}".format(pos_params[0:2], pos_params[2:4]))
-        # img_art = arr[0].imshow(ndimage.rotate(self.env.top_down_obs, -90))
-        # map_art = arr[1].imshow(env_map.map2d_path)
         for t in pbar:
             # compute the epsilon
             eps = self.schedule.get_value(t)
@@ -95,12 +87,9 @@ class Experiment(object):
                 action = self.env.action_space.sample()
             else:
                 # get action from the agent
-                action = self.agent.get_action(state, goal)
+                action = self.agent.get_action(self.toTensor(state), self.toTensor(goal))
             # apply the action
             next_state, reward, done, dist, _ = self.env.step(action)
-            # img_art.set_data(ndimage.rotate(self.env.top_down_obs, -90))
-            # fig.canvas.draw()
-            # plt.pause(0.0001)
             # store the replay buffer and convert the data to tensor
             if self.use_relay_buffer:
                 trans = self.TRANSITION(state=self.toTensor(state),
@@ -133,11 +122,6 @@ class Experiment(object):
                 else:
                     size, seed, pos_params, env_map = self.map_sampling(env_map, self.maze_list, self.seed_list, False)
                     sampled_goal_count = self.sampled_goal
-                # print("sampled count = {}".format(sampled_goal_count))
-                # print("Init pos = {}, {}".format(pos_params[0] + 1, pos_params[1] + 1))
-                # print("Goal pos = {}, {}".format(pos_params[2] + 1, pos_params[3] + 1))
-                # arr[0].set_title("Init: {}, Goal:{}".format(pos_params[0:2], pos_params[2:4]))
-                # map_art = arr[1].imshow(env_map.map2d_path)
                 state, goal = self.env.reset(size, seed, pos_params)
             else:
                 state = next_state
@@ -148,6 +132,13 @@ class Experiment(object):
             if t > self.start_train_step:
                 sampled_batch = self.replay_buffer.sample(self.batch_size)
                 self.agent.train_one_batch(sampled_batch)
+
+        # save the model and the statics
+        model_save_path = os.path.join(self.save_dir, self.model_name) + ".pt"
+        distance_save_path = os.path.join(self.save_dir, self.model_name + "_distance.npy")
+        torch.save(self.agent.policy_net.state_dict(), model_save_path)
+        np.save(distance_save_path, self.distance)
+
 
     @staticmethod
     def map_sampling(env_map, maze_list, seed_list, sample_pos=False):
@@ -178,6 +169,7 @@ class Experiment(object):
 
     @staticmethod
     def toTensor(obs_list):
-        state = torch.tensor(np.array(obs_list).transpose(0, 3, 1, 2))
-        return state
+        state_obs = torch.tensor(np.array(obs_list).transpose(0, 3, 1, 2)).float()
+        # print(state_obs.size())
+        return state_obs
 

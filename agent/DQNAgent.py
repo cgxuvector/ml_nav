@@ -160,10 +160,11 @@ class DQNAgent(object):
         self.optimizer.step()
 
     # select an action based on the policy network
-    def select_action(self, input_state, goal_state):
+    def get_action(self, input_state, goal_state):
         with torch.no_grad():
             q_values = self.policy_net(input_state, goal_state)
-            action = q_values.max(0)[1].item()
+            # action = q_values.max(0)[1].item()
+            action = q_values.max(1)[1].item()
         return action
 
     @staticmethod
