@@ -88,7 +88,7 @@ class DeepQNet(nn.Module):
     def __init__(self, state_dim, action_num, hidden_dim=512):
         super(DeepQNet, self).__init__()
 
-        # Q network configs
+        # Q network fc layers configs
         self.input_dim = state_dim
         self.hidden_dim = hidden_dim
         self.output_dim = action_num

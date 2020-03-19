@@ -1,7 +1,14 @@
 """
-    We define this package to include the scripts for interaction of environments.
-    e.g. the LabEnv.py can be used to interact with the DeepMind Lab environment.
-
-    Currently, it contains the following environments
-        - DeepMind Lab : First level
+    This is the script to register the customized environment to OpenAI gym
+        - id: name of the environment, e.g. LabRandomMaze-v0
+        - entry_point: package name.python script name:class name e.g. envs.LabEnv:RandomMaze
 """
+from gym.envs.registration import register
+
+
+register(
+    id="LabRandomMaze-v0",
+    entry_point="envs.LabEnv:RandomMaze"
+)
+
+

@@ -1,119 +1,86 @@
-"""
-    Script to train a RL agent
-"""
+from experiments import Experiment
+from envs.LabEnv import RandomMaze
+from agent.RandomAgent import RandomAgent
+from agent.DQNAgent import DQNAgent
 import argparse
-from model.DQN import DQN
-from model.TD3 import TD3
-from collections import namedtuple
-import gym
 import numpy as np
-import matplotlib.pyplot as plt
-gym.logger.set_level(40)
 
 
-def dqn_parse_input():
+def parse_input():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dqn_mode", type=str, default="vanilla", help="Mode of the DQN: vanilla or double")
-    parser.add_argument("--clip_grad", type=bool, default=False, help="whether enable the grad clip")
-    parser.add_argument("--save_name", type=str)
+    parser.add_argument("--agent", type=str, default="random", help="Type of the agent. (random, dqn, actor-critic)")
+    parser.add_argument("--experiment_type", type=str, default="trn", help="Type of the experiment. "
+                                                                           "(training or testing)")
+    parser.add_argument("--rnd_seed", type=int, default=1234, help="random seed")
+    parser.add_argument("--buffer_size", type=int, default=20_000, help="size of the replay buffer")
+    parser.add_argument("--batch_size", type=int, default=64, help="size of the mini-batches")
+    parser.add_argument("--max_total_time_steps", type=int, default=1_000_000, help="maximal number of time steps")
+    parser.add_argument("--max_episode_time_steps", type=int, default=2_000, help="maximal time steps per episode")
+    parser.add_argument("--use_replay_buffer", type=bool, default=True, help="whether use the replay buffer")
+
+    parser.add_argument("--sampled_goal", type=int, default=5, help="number of sampled goals in each maze")
+    parser.add_argument("--eval_frequency", type=int, default=100, help="frequency of evaluating the agent")
+
+    parser.add_argument("--model_idx", type=str, default=None, help="model index")
+    parser.add_argument("--save_dir", type=str, default=None, help="saving folder")
     return parser.parse_args()
 
 
-def td3_parse_input():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--save_name", type=str)
-    return parser.parse_args()
-
-
-def run_DQN():
-    # input params
-    input_args = dqn_parse_input()
-
-    # load the CarPole environment
-    env = gym.make('CartPole-v1')
-    # obtain the params for training
-    state_dim = env.observation_space.shape[0]
-    action_num = env.action_space.n
-    hidden_dim = 512
-    transition_config = namedtuple("transition", ["state", "action", "next_state", "reward", "done"])
-    batch_size = 64
-    replay_buffer_size = 200_000
-
-    # create a DQN
-    myDQN = DQN(env,
-                state_dim,
-                action_num,
-                hidden_dim,
-                replay_buffer_size,
-                batch_size,
-                transition_config=transition_config,
-                max_time_steps=51_000,
-                learning_rate=1e-3,
-                start_update_step=1000,
-                target_update_frequency=8,
-                policy_update_frequency=4,
-                gamma=0.99,
-                eps_start=1.0,
-                dqn_mode=input_args.dqn_mode,
-                gradient_clip=input_args.clip_grad,
-                save_name=input_args.save_name,
-                soft_target_update=True
-                )
-
-    # train the DQN
-    myDQN.train()
-    # myDQN.eval("offline", "results/model/dqn_vanilla_clip_new.pt")
-
-    dqn_return = np.load("results/return/dqn_vanilla_return.npy")
-    smooth_data = DQN.rolling_average(dqn_return, 25)
-
-    x = np.arange(dqn_return.shape[0])
-    plt.plot(x, dqn_return, 'salmon')
-    plt.plot(x, smooth_data, 'r')
-    plt.show()
-
-
-def run_TD3():
-    # input params
-    input_args = td3_parse_input()
-
-    # load the CarPole environment
-    env = gym.make('CartPole-v1')
-    # obtain the params for training
-    state_dim = env.observation_space.shape[0]
-    action_num = env.action_space.n
-    hidden_dim = 512
-    transition_config = namedtuple("transition", ["state", "action", "next_state", "reward", "done"])
-    batch_size = 64
-    replay_buffer_size = 200_000
-
-    # create a TD3
-    myTD3 = TD3(env,
-                state_dim,
-                hidden_dim,
-                action_num,
-                start_time_steps=10_000,
-                max_time_steps=510_000,
-                buffer_size=replay_buffer_size,
-                population_num=0,
-                batch_size=batch_size,
-                actor_update_frequency=2,
-                critic_update_frequency=1,
-                save_name=input_args.save_name,
-                tau=0.005
-                )
-
-    # train the TD3
-    # myTD3.train()
-    td3_return = np.load("results/return/td3_test_return.npy")
-    smooth_data = DQN.rolling_average(td3_return, 25)
-
-    x = np.arange(td3_return.shape[0])
-    plt.plot(x, td3_return, 'salmon')
-    plt.plot(x, smooth_data, 'r')
-    plt.show()
-
-
-if __name__ == "__main__":
-    run_DQN()
-    # run_TD3()
+if __name__ == '__main__':
+    # load the input arguments
+    inputs = parse_input()
+    """ Set up the Deepmind environment"""
+    # necessary observations (correct: this is the egocentric observations (following the counter clock direction))
+    observation_list = ['RGB.LOOK_EAST',
+                        'RGB.LOOK_NORTH_EAST',
+                        'RGB.LOOK_NORTH',
+                        'RGB.LOOK_NORTH_WEST',
+                        'RGB.LOOK_WEST',
+                        'RGB.LOOK_SOUTH_WEST',
+                        'RGB.LOOK_SOUTH',
+                        'RGB.LOOK_SOUTH_EAST',
+                        'RGB.LOOK_RANDOM',
+                        'DEBUG.POS.TRANS',
+                        'DEBUG.POS.ROT',
+                        'RGB.LOOK_TOP_DOWN']
+    observation_width = 64
+    observation_height = 64
+    observation_fps = 60
+    maze_size = [5, 7, 9]
+    if inputs.experiment_type == 'trn':
+        maze_seed = np.arange(15).tolist()
+    else:
+        maze_seed = np.arange(15, 20, 1).tolist()
+    # create the environment
+    my_lab = RandomMaze(observation_list, observation_width, observation_height, observation_fps)
+    """ Set up the agent """
+    if inputs.agent == 'random':
+        my_agent = RandomAgent(my_lab.action_space, inputs.rnd_seed)
+    elif inputs.agent == 'dqn':
+        my_agent = DQNAgent(target_update_frequency=100,
+                            policy_update_frequency=4,
+                            soft_target_update=False,
+                            dqn_mode="vanilla",
+                            gamma=0.99,
+                            gradient_clip=False
+                            )
+    else:
+        raise Exception(f"{inputs.agent} is not defined. Please try the valid agent (random, dqn, actor-critic)")
+    """ Set up the experiment """
+    my_experiment = Experiment.Experiment(
+        env=my_lab,
+        maze_list=maze_size,
+        seed_list=maze_seed,
+        agent=my_agent,
+        buffer_size=inputs.buffer_size,
+        batch_size=inputs.batch_size,
+        max_time_steps=inputs.max_total_time_steps,
+        max_time_steps_per_episode=inputs.max_episode_time_steps,
+        use_replay=inputs.use_replay_buffer,
+        sampled_goal=inputs.sampled_goal,
+        gamma=0.99,
+        start_train_step=100,
+        model_name=inputs.model_idx,
+        save_dir=inputs.save_dir
+    )
+    my_experiment.run()
