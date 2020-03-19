@@ -5,3 +5,6 @@ class RandomAgent(object):
 
     def get_action(self, state, goal):
         return self.action_space.sample()
+
+    def train_one_batch(self, batch):
+        pass

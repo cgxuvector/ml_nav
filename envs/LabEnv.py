@@ -29,7 +29,7 @@ ACTION_LIST = [
         _action(20, 0, 0, 0, 0, 0, 0),  # look_right
         _action(0, 0, 0, 1, 0, 0, 0),  # forward
         _action(0, 0, 0, -1, 0, 0, 0),  # backward
-        _action(0, 0, 0, 0, 0, 0, 0),  # NOOP
+        # _action(0, 0, 0, 0, 0, 0, 0),  # NOOP
 ]
 
 # Valid observations
@@ -98,6 +98,7 @@ class RandomMaze(gym.Env):
         # last observations
         self._current_observation = None
         self._last_observation = None
+        self._last_distance = None
         # record the start position and end position
         self.start_pos = []
         self.goal_pos = []
@@ -116,9 +117,10 @@ class RandomMaze(gym.Env):
     def reset(self, maze_size=5, maze_seed=0, params=None):
         assert (maze_size > 0 and maze_seed >= 0)
         self.maze_size = maze_size
-        # record the start and end position and the orientation is set default as EAST
-        self.start_pos = [params[0], params[1]]
-        tmp_ori = np.random.choice(self.orientations, 1).item()
+        # record the start and end position and the orientation is set default as 0
+        self.start_pos = [params[0], params[1], params[2]]
+        # tmp_ori = np.random.choice(self.orientations, 1).item()
+        tmp_ori = 0
         self.goal_pos = [params[2], params[3], tmp_ori]
         # send maze
         self._lab.write_property("params.maze_set.size", str(maze_size))
@@ -126,10 +128,10 @@ class RandomMaze(gym.Env):
         # send initial position
         self._lab.write_property("params.agent_pos.x", str(self.start_pos[0] + 1))
         self._lab.write_property("params.agent_pos.y", str(self.start_pos[1] + 1))
-        self._lab.write_property("params.agent_pos.theta", str(params[-1] * 90))
-        # send target position
-        self._lab.write_property("params.goal_pos.x", str(self.goal_pos[0] + 1))
-        self._lab.write_property("params.goal_pos.y", str(self.goal_pos[1] + 1))
+        self._lab.write_property("params.agent_pos.theta", str(self.start_pos[2]))
+        # send target position (uncomment to use the terminal in deepmind)
+        # self._lab.write_property("params.goal_pos.x", str(self.goal_pos[0] + 1))
+        # self._lab.write_property("params.goal_pos.y", str(self.goal_pos[1] + 1))
         # set the view position
         self._lab.write_property("params.view_pos.x", str(self.goal_pos[0] + 1))
         self._lab.write_property("params.view_pos.y", str(self.goal_pos[1] + 1))
@@ -140,6 +142,7 @@ class RandomMaze(gym.Env):
         # record the current observation
         self._current_state = self._lab.observations()
         self._last_observation = [self._current_state[key] for key in self._current_state.keys()][0:8]
+        self._last_distance = np.inf
         self.top_down_obs = self._current_state['RGB.LOOK_TOP_DOWN']
         return self._last_observation, self.goal_observation
 
@@ -151,17 +154,15 @@ class RandomMaze(gym.Env):
         if self._lab.is_running():
             # get the current observations
             self._current_state = self._lab.observations()
-            # # get the current position and orientation
-            # pos_x, pos_y, pos_z = self._current_state['DEBUG.POS.TRANS'].tolist()
-            # pos_pitch, pos_yaw, pos_roll = self._current_state['DEBUG.POS.ROT'].tolist()
+            # get the current position and orientation
+            pos_x, pos_y, pos_z = self._current_state['DEBUG.POS.TRANS'].tolist()
+            pos_pitch, pos_yaw, pos_roll = self._current_state['DEBUG.POS.ROT'].tolist()
             # # get the terminal flag
-            # terminal = self.reach_goal([pos_x, pos_y, pos_yaw])
-            if reward == 10:
-                terminal = True
-            else:
-                terminal = False
+            terminal, dist = self.reach_goal([pos_x, pos_y, pos_yaw])
+            # store the distance
+            self._last_distance = dist
             # get the reward
-            reward = 0.0 if terminal else self.compute_reward()
+            reward = 0.0 if terminal else self.compute_reward(-1)
             # get the next
             next_obs = None if terminal else [self._current_state[key] for key in self._current_state.keys()][0:8]
             self._last_observation = next_obs if next_obs is not None else np.copy(self._last_observation)
@@ -174,9 +175,10 @@ class RandomMaze(gym.Env):
             # set the terminal flag
             terminal = True
             self._last_observation = np.copy(self._last_observation)
+            self._last_distance = self._last_distance
             self.top_down_obs = np.copy(self.top_down_obs)
 
-        return self._last_observation, reward, terminal, dict()
+        return self._last_observation, reward, terminal, self._last_distance, dict()
 
     # render function
     def render(self, mode='rgb_array', close=False):
@@ -216,59 +218,23 @@ class RandomMaze(gym.Env):
         dist = np.sqrt((current_pos[0] - goal_pos_3d[0])**2 + (current_pos[1] - goal_pos_3d[1])**2)
         angle_error = np.abs(current_pos[2] - self.goal_pos[2])
 
-        if dist < 1 and angle_error < 1:
-            return True
+        # print(f"Goal pos = ({goal_pos_3d[0]:.2f}, {goal_pos_3d[1]:.2f}, {self.goal_pos[2]:.2f}), -"
+        #       f" Now pos = ({current_pos[0]:.2f}, {current_pos[1]:.2f}, {current_pos[2]:.2f}) -"
+        #       f" Err = ({dist:.2f}, {angle_error:.2f})")
+        # print(dist)
+        if dist < 20 and angle_error < 10:
+            return True, dist
         else:
-            return False
+            return False, dist
 
     @staticmethod
-    def compute_reward():
-        return -1.0
+    def compute_reward(dist):
+        return dist
 
     @staticmethod
     def position_map2maze(pos, size):
         # convert the positions on the map to the positions in the 3D maze.
-        return [(pos[1] - 1) * 100 + 50, (size - pos[0]) * 100 + 50]
-
-
-# reference
-""" Note: deepmind_lab.Lab(level, observations, config={}, renderer='software', level_cache=None)
-                      Input args:
-                            level: game script file containing the general design of the maze
-                            observations: list object that contains the supported observations.
-                                        # Supported type:
-                                        ['RGB_INTERLEAVED', 'RGBD_INTERLEAVED', 'RGB', 'RGBD', 'BGR_INTERLEAVED'
-                                          'BGRD_INTERLEAVED', ...]
-                                        # Output obs:
-                                        [{'dtype': <type 'numpy.uint8'>, 'name': 'RGB_INTERLEAVED', 'shape': (180, 320, 3)},
-                                         {'dtype': <type 'numpy.uint8'>, 'name': 'RGBD_INTERLEAVED', 'shape': (180, 320, 4)},
-                                         {'dtype': <type 'numpy.uint8'>, 'name': 'RGB', 'shape': (3, 180, 320)},
-                                         {'dtype': <type 'numpy.uint8'>, 'name': 'RGBD', 'shape': (4, 180, 320)},
-                                         {'dtype': <type 'numpy.uint8'>, 'name': 'BGR_INTERLEAVED', 'shape': (180, 320, 3)},
-                                         {'dtype': <type 'numpy.uint8'>, 'name': 'BGRD_INTERLEAVED', 'shape': (180, 320, 4)},
-                                         {'dtype': <type 'numpy.float64'>, 'name': 'MAP_FRAME_NUMBER', 'shape': (1,)},
-                                         {'dtype': <type 'numpy.float64'>, 'name': 'VEL.TRANS', 'shape': (3,)},
-                                         {'dtype': <type 'numpy.float64'>, 'name': 'VEL.ROT', 'shape': (3,)},
-                                         {'dtype': <type 'str'>, 'name': 'INSTR', 'shape': ()},
-                                         {'dtype': <type 'numpy.float64'>, 'name': 'DEBUG.POS.TRANS', 'shape': (3,)},
-                                         {'dtype': <type 'numpy.float64'>, 'name': 'DEBUG.POS.ROT', 'shape': (3,)},
-                                         {'dtype': <type 'numpy.float64'>, 'name': 'DEBUG.PLAYER_ID', 'shape': (1,)},...]
-                            config: dictionary object to set the additional settings.
-                                        # Supported configurations Note the value is string type
-                                        {'width': '320', 'height': '240', 'fps':'60', ...}
-                            rendered: Building with --define graphics=<option> sets which graphics implementation is used.
-                                    1. --define graphics=osmesa_or_egl.
-                                    If no define is set then the build uses this config_setting at the default.
-                                    If renderer is set to 'software' then osmesa is used for rendering.
-                                    If renderer is set to 'hardware' then EGL is used for rendering.
-
-                                    2. --define graphics=osmesa_or_glx.
-                                    If renderer is set to 'software' then osmesa is used for rendering.
-                                    If renderer is set to 'hardware' then GLX is used for rendering.
-
-                                    3. --define graphics=sdl.
-                                    This will render the game to the native window. One of the observation starting with 
-                                    'RGB' must be in the observations for the game to render correctly.
-
-                            level_cache: This is important for changing map for each episode.
-            """
+        # Note: the relation between the positions on the 2D map and the 3D maze is as follows:
+        #      2D map: x, y
+        #      3D maze: (y + 1 - 1) * 100 + 50, (maze_size - x) * 100 + 50
+        return [(pos[1] + 1 - 1) * 100 + 50, (size - pos[0] - 1) * 100 + 50]
