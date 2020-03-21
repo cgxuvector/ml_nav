@@ -151,8 +151,12 @@ class Experiment(object):
         # save the model and the statics
         model_save_path = os.path.join(self.save_dir, self.model_name) + ".pt"
         distance_save_path = os.path.join(self.save_dir, self.model_name + "_distance.npy")
+        returns_save_path = os.path.join(self.save_dir, self.model_name + "_return.npy")
+        lengths_save_path = os.path.join(self.save_dir, self.model_name + "_length.npy")
         torch.save(self.agent.policy_net.state_dict(), model_save_path)
         np.save(distance_save_path, self.distance)
+        np.save(returns_save_path, self.returns)
+        np.save(lengths_save_path, self.lengths)
 
     def map_sampling(self, env_map, maze_list, seed_list, sample_pos=False):
         """
