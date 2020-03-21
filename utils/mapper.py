@@ -2,9 +2,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 from skimage.transform import resize
 from pathlib import Path
-
-
+import random
+import copy
 from utils import searchAlg
+"""
+    1. Using a topological graph to store the positions (currently, it is stored as a list)
+    2. Fix the bug in rescaling.
+"""
 
 
 # define a class for the rough map
@@ -27,6 +31,7 @@ class RoughMap(object):
         Function is used to initialize the current maps
         :param m_size: size of the maze
         :param m_seed: size of the random seed
+        :param loc_map_size: size of the local map
         """
         # map parameters
         self.maze_size = m_size
@@ -37,13 +42,15 @@ class RoughMap(object):
         self.loc_map_size = loc_map_size
 
         # txt map and primary valid positions and primary valid local maps
-        self.raw_pos = {'init': None, 'goal': None}
         self.valid_pos = []  # walkable positions in the txt map
         self.valid_loc_maps = []  # local map for the walkable positions
         self.map2d_txt = self.load_map('txt')  # map represented as the raw txt file
+        self.init_pos = self.valid_pos[0]
+        self.goal_pos = self.valid_pos[-1]
+        self.init_pos, self.goal_pos = self.sample_start_goal_pos(True, True)
 
         # obtain bw map and randomly selected initial and target goals
-        self.pos, self.map2d_bw = self.load_map('bw')
+        self.init_pos, self.goal_pos, self.map2d_bw = self.load_map('bw')
 
         # obtain the grid world map to do the planning
         self.map2d_grid = self.load_map('grid')
@@ -73,18 +80,10 @@ class RoughMap(object):
                     for j_idx, s in enumerate(l):
                         if s == ' ':
                             self.valid_pos.append([i_idx, j_idx])
-                            # self.valid_pos.append([i_idx + 1, j_idx + 1])
-                # random
-                tmp_pos = np.zeros(2)
-                while tmp_pos[0] == tmp_pos[1]:
-                    tmp_pos = np.random.randint(0, len(self.valid_pos), 2)
-                self.raw_pos['init'] = self.valid_pos[tmp_pos[0]]
-                self.raw_pos['goal'] = self.valid_pos[tmp_pos[1]]
-                # print('init pos = {}, goal pos = {}'.format(self.raw_pos['init'], self.raw_pos['goal']))
             return map_txt
         elif m_type == 'bw':
-            map_bw = self.map_txt2bw(map_path, self.maze_size)
-            return map_bw
+            rescaled_init, rescaled_goal, map_bw = self.map_txt2bw(map_path, self.maze_size)
+            return rescaled_init, rescaled_goal, map_bw
         elif m_type == 'grid':
             map_grid = self.map_bw2grid(self.map2d_bw)
             return map_grid
@@ -118,18 +117,16 @@ class RoughMap(object):
                             # make walls black
                             bw_img_data[(i * vertical_upscale + v)][j * horizon_upscale + h] = 0
 
-                if i == self.raw_pos['goal'][0] and j == self.raw_pos['goal'][1]:
+                if i == self.goal_pos[0] and j == self.goal_pos[1]:
                     # goal is set to be darker: 0.2
-                    # pos['goal'] = [i, j]
                     for k in range(goal_upscale):
                         # mark goal with x
                         bw_img_data[(i * vertical_upscale + k)][j * horizon_upscale + k] = 0.2
                         bw_img_data[(i * vertical_upscale + goal_upscale - 1 - k)][j * horizon_upscale + k] = 0.2
 
-                if i == self.raw_pos['init'][0] and j == self.raw_pos['init'][1]:
+                if i == self.init_pos[0] and j == self.init_pos[1]:
                     # init_pose.append()
                     # initial is set to be lighter: 0.8
-                    # pos['init'] = [i, j]
                     for k in range(start_upscale):
                         # mark goal with x
                         bw_img_data[(i * vertical_upscale + k)][j * horizon_upscale + k] = 0.8
@@ -137,12 +134,12 @@ class RoughMap(object):
         f.close()
 
         # rescale the init and goal positions and randomly sample them
-        rescaled_init = [self.raw_pos['init'][0] * vertical_upscale + np.random.randint(start_upscale), \
-                         self.raw_pos['init'][1] * horizon_upscale + np.random.randint(start_upscale)]
-        rescaled_goal = [self.raw_pos['goal'][0] * vertical_upscale + np.random.randint(goal_upscale), \
-                         self.raw_pos['goal'][1] * horizon_upscale + np.random.randint(goal_upscale)]
+        rescaled_init = [self.init_pos[0] * vertical_upscale + np.random.randint(start_upscale), \
+                         self.init_pos[1] * horizon_upscale + np.random.randint(start_upscale)]
+        rescaled_goal = [self.goal_pos[0] * vertical_upscale + np.random.randint(goal_upscale), \
+                         self.goal_pos[1] * horizon_upscale + np.random.randint(goal_upscale)]
 
-        return [rescaled_init, rescaled_goal], np.asarray(bw_img_data)
+        return rescaled_init, rescaled_goal, np.asarray(bw_img_data)
 
     # build grid world
     @ staticmethod
@@ -150,10 +147,8 @@ class RoughMap(object):
         """
         Function is used to build the grid map from the binary map
         """
-        grid_map = resize(bw_map, bw_map.shape)
-
-        row = grid_map.shape[0]
-        col = grid_map.shape[1]
+        grid_map = np.copy(bw_map)
+        row, col = grid_map.shape
         # obtain the grid map
         for r in range(row):
             for c in range(col):
@@ -161,7 +156,6 @@ class RoughMap(object):
                     grid_map[r, c] = 1
                 else:
                     grid_map[r, c] = 0.0
-
         return grid_map
 
     # display the map: txt map or occupancy map
@@ -203,7 +197,7 @@ class RoughMap(object):
                             format(m_type))
 
     def generate_path(self):
-        path = searchAlg.A_star(self.map2d_grid, self.pos[0], self.pos[1])
+        path = searchAlg.A_star(self.map2d_grid, self.init_pos, self.goal_pos)
         path_map = self.show_path(path, self.map2d_grid)
         return path, path_map
 
@@ -351,15 +345,24 @@ class RoughMap(object):
         return local_maps, pad_map
 
     def get_start_goal_pos(self):
-        pos_params = [self.raw_pos['init'][0],
-                      self.raw_pos['init'][1],
-                      self.raw_pos['goal'][0],
-                      self.raw_pos['goal'][1],
+        pos_params = [self.init_pos[0],
+                      self.init_pos[1],
+                      self.goal_pos[0],
+                      self.goal_pos[1],
                       0]  # [init_pos, goal_pos, init_orientation]
         return pos_params
 
-    def sample_start_goal(self):
-        return
+    def sample_start_goal_pos(self, fix_init, fix_goal):
+        # sample the start position
+        init_positions = list(self.valid_pos)
+        init_positions.remove(self.goal_pos)
+        tmp_init_pos = self.init_pos if fix_init else random.sample(self.valid_pos, 1)[0]
+        # sample the goal position
+        goal_positions = list(self.valid_pos)
+        goal_positions.remove(tmp_init_pos)
+        tmp_goal_pos = self.goal_pos if fix_goal else random.sample(goal_positions, 1)[0]
+        return tmp_init_pos, tmp_goal_pos
+
 
 
 

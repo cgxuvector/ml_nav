@@ -149,7 +149,7 @@ class RandomMaze(gym.Env):
     # step function
     def step(self, action):
         # take one step in the environment
-        reward = self._lab.step(ACTION_LIST[action], num_steps=4)
+        reward = self._lab.step(ACTION_LIST[action], num_steps=8)
         # compute terminal flag
         if self._lab.is_running():
             # get the current observations
