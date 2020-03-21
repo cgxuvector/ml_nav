@@ -12,10 +12,10 @@ def parse_input():
     parser.add_argument("--experiment_type", type=str, default="trn", help="Type of the experiment. "
                                                                            "(training or testing)")
     parser.add_argument("--rnd_seed", type=int, default=1234, help="random seed")
-    parser.add_argument("--buffer_size", type=int, default=20_000, help="size of the replay buffer")
+    parser.add_argument("--buffer_size", type=int, default=20000, help="size of the replay buffer")
     parser.add_argument("--batch_size", type=int, default=64, help="size of the mini-batches")
-    parser.add_argument("--max_total_time_steps", type=int, default=1_000_000, help="maximal number of time steps")
-    parser.add_argument("--max_episode_time_steps", type=int, default=2_000, help="maximal time steps per episode")
+    parser.add_argument("--max_total_time_steps", type=int, default=1000000, help="maximal number of time steps")
+    parser.add_argument("--max_episode_time_steps", type=int, default=2000, help="maximal time steps per episode")
     parser.add_argument("--use_replay_buffer", type=bool, default=True, help="whether use the replay buffer")
 
     parser.add_argument("--sampled_goal", type=int, default=5, help="number of sampled goals in each maze")
@@ -23,6 +23,7 @@ def parse_input():
 
     parser.add_argument("--model_idx", type=str, default=None, help="model index")
     parser.add_argument("--save_dir", type=str, default=None, help="saving folder")
+    parser.add_argument("--device", type=str, default="cpu", help="device")
     return parser.parse_args()
 
 
@@ -57,12 +58,13 @@ if __name__ == '__main__':
     if inputs.agent == 'random':
         my_agent = RandomAgent(my_lab.action_space, inputs.rnd_seed)
     elif inputs.agent == 'dqn':
-        my_agent = DQNAgent(target_update_frequency=100,
-                            policy_update_frequency=4,
+        my_agent = DQNAgent(target_update_frequency=1000,
+                            policy_update_frequency=50,
                             soft_target_update=False,
                             dqn_mode="double",
                             gamma=0.99,
-                            gradient_clip=False
+                            gradient_clip=False,
+                            device=inputs.device
                             )
     else:
         raise Exception(f"{inputs.agent} is not defined. Please try the valid agent (random, dqn, actor-critic)")
