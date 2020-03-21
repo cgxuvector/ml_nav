@@ -25,6 +25,7 @@ def parse_input():
     # set the running mode
     parser.add_argument("--rnd_seed", type=int, default=1234, help="Random seed.")
     # set the training mode
+    parser.add_argument("--device", type=str, default="cpu", help="Device to use.")
     parser.add_argument("--lr", type=float, default=1e-3, help="Learning rate.")
     parser.add_argument("--start_train_steps", type=int, default=100, help="Start training time steps.")
     parser.add_argument("--total_time_steps", type=int, default=1000000, help="Total time steps.")
@@ -88,7 +89,8 @@ if __name__ == '__main__':
                             soft_target_update_tau=inputs.soft_target_update_tau,
                             dqn_mode=inputs.dqn_mode,
                             gamma=0.99,
-                            gradient_clip=inputs.dqn_gradient_clip
+                            gradient_clip=inputs.dqn_gradient_clip,
+                            device=inputs.device
                             )
     else:
         raise Exception(f"{inputs.agent} is not defined. Please try the valid agent (random, dqn, actor-critic)")
@@ -112,6 +114,7 @@ if __name__ == '__main__':
         model_name=inputs.model_idx,
         save_dir=inputs.save_dir,
         transition=namedtuple("transition", ["state", "action", "reward", "next_state", "done"])
+
     )
     my_experiment.run()
 

@@ -34,7 +34,8 @@ class Experiment(object):
                  use_replay=False,
                  sampled_goal=10,
                  eps_start=1.0,
-                 eps_end=0.01):
+                 eps_end=0.01,
+                 device="cpu"):
         # environment
         self.env = env
         self.maze_list = maze_list
@@ -49,6 +50,7 @@ class Experiment(object):
         self.max_steps_per_episode = max_time_steps_per_episode
         self.start_train_step = start_train_step
         self.learning_rate = learning_rate
+        self.device = torch.device(device)
         # replay buffer configurations
         if buffer_size:
             self.replay_buffer = memory.ReplayMemory(buffer_size, transition)
@@ -70,14 +72,22 @@ class Experiment(object):
         self.sampled_goal = sampled_goal
 
     def run(self):
+        """
+        Function to run the experiment given the environment, agent, and training details
+        :return: None. Saved results are as follows:
+            - list of final distances for every episode during the training.
+            - final model for the agent
+        """
         # running statistics
         rewards = []
         episode_t = 0
         sampled_goal_count = self.sampled_goal
-        # set a maze and obtain the start and goal positions
+        # set the random seed
         np.random.seed(self.seed_rnd)
+        # select the maze
         size = np.random.choice(self.maze_list)
         seed = np.random.choice(self.seed_list)
+        # load the 2D map
         env_map = mapper.RoughMap(size, seed, 3)
         pos_params = env_map.get_start_goal_pos()
         # reset the environment
@@ -86,12 +96,12 @@ class Experiment(object):
         for t in pbar:
             # compute the epsilon
             eps = self.schedule.get_value(t)
+            # get an action from epsilon greedy
             if np.random.sample() < eps:
                 action = self.env.action_space.sample()
             else:
-                # get action from the agent
                 action = self.agent.get_action(self.toTensor(state))
-            # apply the action
+            # step in the environment
             next_state, reward, done, dist, _ = self.env.step(action)
             # store the replay buffer and convert the data to tensor
             if self.use_relay_buffer:
@@ -108,20 +118,23 @@ class Experiment(object):
                 G = 0
                 for r in reversed(rewards):
                     G = r + self.gamma * G
-                self.returns.append(G)
+                # compute the episode number
                 episode = len(self.returns)
+                # store the return, episode length, and final distance
+                self.returns.append(G)
                 self.lengths.append(len(rewards))
                 self.distance.append(dist)
+                # print the information
                 pbar.set_description(
                     f'Episode: {episode} | Steps: {episode_t} | Return: {G:2f} | Dist: {dist:.2f}'
                 )
-                # reset
-                rewards = []
-                episode_t = 0
-                if sampled_goal_count > 0:
+                # reset the environments
+                rewards = []  # rewards recorder
+                episode_t = 0  # episode steps counter
+                if sampled_goal_count > 0:  # for each maze, sampled #(sampled_goal_count) init and goal position
                     size, seed, pos_params, env_map = self.map_sampling(env_map, self.maze_list, self.seed_list, True)
                     sampled_goal_count -= 1
-                else:
+                else:  # then, change to another maze environment
                     size, seed, pos_params, env_map = self.map_sampling(env_map, self.maze_list, self.seed_list, False)
                     sampled_goal_count = self.sampled_goal
                 state, goal = self.env.reset(size, seed, pos_params)
@@ -142,6 +155,14 @@ class Experiment(object):
         np.save(distance_save_path, self.distance)
 
     def map_sampling(self, env_map, maze_list, seed_list, sample_pos=False):
+        """
+        Function is used to sampled start and goal positions in one maze or to sample a new maze.
+        :param env_map: The map object of the current maze. This variable is used to sample start and goal positions.
+        :param maze_list: List of the valid maze sizes.
+        :param seed_list: List of the valid maze seeds.
+        :param sample_pos: flag. If true, we only sample start and goal positions instead of sampling a new maze.
+        :return: maze size, maze seed, start-goal positions, and map object
+        """
         if not sample_pos:
             size = np.random.choice(maze_list)
             seed = np.random.choice(seed_list)
@@ -163,7 +184,13 @@ class Experiment(object):
 
     @staticmethod
     def toTensor(obs_list):
+        """
+        Function is used to convert the data type. In the current settings, the state obtained from the environment is a
+        list of 8 RGB observations (numpy arrays). This function will change the list into a tensor with size
+        8 x 3 x 64 x 64.
+        :param obs_list: List of the 8 observations
+        :return: state tensor
+        """
         state_obs = torch.tensor(np.array(obs_list).transpose(0, 3, 1, 2)).float()
-        # print(state_obs.size())
         return state_obs
 
