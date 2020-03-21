@@ -29,7 +29,6 @@ ACTION_LIST = [
         _action(20, 0, 0, 0, 0, 0, 0),  # look_right
         _action(0, 0, 0, 1, 0, 0, 0),  # forward
         _action(0, 0, 0, -1, 0, 0, 0),  # backward
-        # _action(0, 0, 0, 0, 0, 0, 0),  # NOOP
 ]
 
 # Valid observations
@@ -83,29 +82,28 @@ class RandomMaze(gym.Env):
             "width": str(width),
             "height": str(height)
         }
-        # create the environment using the level name and configurations
         # check the validation of the observations
         assert set(observations) <= set(VALID_OBS), f"Observations contain invalid observations. Please check the " \
                                                     f"valid list here {VALID_OBS}."
         self.observation_names = observations
+        # create the lab maze environment
         self._lab = deepmind_lab.Lab(self._level_name,
                                      [obs for obs in observations],
                                      self._level_configs)
-        # construct the action space
+        # set the action space
         self.action_space = gym.spaces.Discrete(len(ACTION_LIST))
-        # construct the observation space
+        # set the observation space
         self.observation_space = gym.spaces.Box(0, 255, (height, width, 3), dtype=np.uint8)
-        # last observations
-        self._current_observation = None
-        self._last_observation = None
-        self._last_distance = None
         # record the start position and end position
         self.start_pos = []
         self.goal_pos = []
+        # agent 8 observations
+        self._last_observation = None
+        self._last_distance = None
         # current state
         self._current_state = None
         # goal observation
-        self.goal_observation = []
+        self._goal_observation = []
         # global orientations
         self.orientations = np.arange(0, 360, 45)
         # map info
@@ -115,13 +113,19 @@ class RandomMaze(gym.Env):
 
     # reset function
     def reset(self, maze_size=5, maze_seed=0, params=None):
+        """ customized reset """
+
+        """ maze customized configurations """
+        # check the validation of the size and seed
         assert (maze_size > 0 and maze_seed >= 0)
+        # store the size
         self.maze_size = maze_size
-        # record the start and end position and the orientation is set default as 0
-        self.start_pos = [params[0], params[1], params[2]]
-        # tmp_ori = np.random.choice(self.orientations, 1).item()
+        # store the start and goal positions in 2D map
         tmp_ori = 0
-        self.goal_pos = [params[2], params[3], tmp_ori]
+        self.start_pos = [params[0], params[1], tmp_ori]
+        self.goal_pos = [params[2], params[3], tmp_ori]  # default goal orientation is 0.
+
+        """ send customized configurations to Deepmind """
         # send maze
         self._lab.write_property("params.maze_set.size", str(maze_size))
         self._lab.write_property("params.maze_set.seed", str(maze_seed))
@@ -132,44 +136,54 @@ class RandomMaze(gym.Env):
         # send target position (uncomment to use the terminal in deepmind)
         # self._lab.write_property("params.goal_pos.x", str(self.goal_pos[0] + 1))
         # self._lab.write_property("params.goal_pos.y", str(self.goal_pos[1] + 1))
-        # set the view position
+        # send the view position
         self._lab.write_property("params.view_pos.x", str(self.goal_pos[0] + 1))
         self._lab.write_property("params.view_pos.y", str(self.goal_pos[1] + 1))
+
+        """ initialize the Deepmind maze """
         # reset the agent
         self._lab.reset()
-        # obtain the goal observations based on the position and orientation
-        self.goal_observation = self.get_random_observations(self.goal_pos)
-        # record the current observation
+
+        """ obtain the desired observations and return """
+        # record the all current observations
         self._current_state = self._lab.observations()
+        # obtain the goal observations based on the position and orientation
+        self._goal_observation = self.get_random_observations(self.goal_pos)
+        # extract the agent current 8 observations
         self._last_observation = [self._current_state[key] for key in self._current_state.keys()][0:8]
+        # initialize the distance to be infinite
         self._last_distance = np.inf
+        # extract the current top down observations
         self.top_down_obs = self._current_state['RGB.LOOK_TOP_DOWN']
-        return self._last_observation, self.goal_observation
+        return self._last_observation, self._goal_observation
 
     # step function
     def step(self, action):
+        """ step function """
+
+        """ step #(num_steps) in Deepmind Lab"""
         # take one step in the environment
-        reward = self._lab.step(ACTION_LIST[action], num_steps=8)
-        # compute terminal flag
-        if self._lab.is_running():
-            # get the current observations
+        self._lab.step(ACTION_LIST[action], num_steps=8)
+
+        """ check the terminal and return observations"""
+        if self._lab.is_running():  # If the maze is still running
+            # get the observations after taking the action
             self._current_state = self._lab.observations()
-            # get the current position and orientation
+            # get the current position
             pos_x, pos_y, pos_z = self._current_state['DEBUG.POS.TRANS'].tolist()
+            # get the current orientations
             pos_pitch, pos_yaw, pos_roll = self._current_state['DEBUG.POS.ROT'].tolist()
-            # # get the terminal flag
+            # check if the agent reaches the goal given the current position and orientation
             terminal, dist = self.reach_goal([pos_x, pos_y, pos_yaw])
-            # store the distance
+            # update the current distance between the agent and the goal
             self._last_distance = dist
-            # get the reward
+            # update the rewards
             reward = 0.0 if terminal else self.compute_reward(-1)
-            # get the next
+            # update the observations
             next_obs = None if terminal else [self._current_state[key] for key in self._current_state.keys()][0:8]
-            self._last_observation = next_obs if next_obs is not None else np.copy(self._last_observation)
+            self._last_observation = next_obs if not terminal else np.copy(self._last_observation)
             self.top_down_obs = self._current_state['RGB.LOOK_TOP_DOWN'] if not terminal else np.copy(self.top_down_obs)
         else:
-            # set the terminal observations
-            next_obs = None
             # set the terminal reward
             reward = 0.0
             # set the terminal flag
@@ -178,6 +192,7 @@ class RandomMaze(gym.Env):
             self._last_distance = self._last_distance
             self.top_down_obs = np.copy(self.top_down_obs)
 
+        # Note, we also return the distance
         return self._last_observation, reward, terminal, self._last_distance, dict()
 
     # render function
@@ -197,6 +212,11 @@ class RandomMaze(gym.Env):
 
     # obtain goal image
     def get_random_observations(self, pos):
+        """
+        Function is used to get the observations at any position with any orientation.
+        :param pos: List contains [x, y, ori]
+        :return: List of egocentric observations at position (x, y)
+        """
         # store observations
         ego_observations = []
         # re-arrange the observations of the agent
@@ -208,7 +228,7 @@ class RandomMaze(gym.Env):
         self._lab.write_property("params.view_pos.y", str(pos[1] + 1))
         for a in angles:
             self._lab.write_property("params.view_pos.theta", str(a))
-            ego_observations.append(self._lab.observations()['RGB.LOOK_RANDOM'])
+            ego_observations.append(self._current_state['RGB.LOOK_RANDOM'])
         return ego_observations
 
     def reach_goal(self, current_pos):
@@ -217,7 +237,6 @@ class RandomMaze(gym.Env):
         # compute the distance and angle error
         dist = np.sqrt((current_pos[0] - goal_pos_3d[0])**2 + (current_pos[1] - goal_pos_3d[1])**2)
         angle_error = np.abs(current_pos[2] - self.goal_pos[2])
-
         # print(f"Goal pos = ({goal_pos_3d[0]:.2f}, {goal_pos_3d[1]:.2f}, {self.goal_pos[2]:.2f}), -"
         #       f" Now pos = ({current_pos[0]:.2f}, {current_pos[1]:.2f}, {current_pos[2]:.2f}) -"
         #       f" Err = ({dist:.2f}, {angle_error:.2f})")

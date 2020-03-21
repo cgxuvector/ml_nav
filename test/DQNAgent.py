@@ -67,21 +67,34 @@ class DQNAgent(object):
                  learning_rate=1e-3,
                  dqn_mode="vanilla",
                  gamma=1.0,
-                 gradient_clip=True
+                 gradient_clip=True,
+                 device="cpu"
                  ):
         """
+        Init the DQN agent
+        :param target_update_frequency: frequency of updating the target net (time steps)
+        :param policy_update_frequency: frequency of updating the policy net (time steps)
+        :param soft_target_update_tau: soft update params
+        :param learning_rate: learning rate
+        :param dqn_mode: dqn mode: vanilla, double
+        :param gamma: gamma
+        :param gradient_clip: if true, gradient clip will be applied
+        :param device: device to use
         """
+        self.device = torch.device(device)
         """ DQN configurations"""
         # create the policy network and target network
         self.policy_net = DeepQNet()
         self.target_net = DeepQNet()
         self.target_net.load_state_dict(self.policy_net.state_dict())
+        self.policy_net = self.policy_net.to(device)
+        self.target_net = self.target_net.to(device)
         # DQN mode: vanilla or double
         self.dqn_mode = dqn_mode
         """ Training configurations """
         self.gamma = gamma
-        self.tau = 0.01  # parameters for soft target update
-        self.soft_update = soft_target_update_tau  # flag for soft update
+        self.tau = soft_target_update_tau  # parameters for soft target update
+        self.soft_update = True if soft_target_update_tau else False  # flag for soft update
         self.freq_update_target = target_update_frequency
         self.freq_update_policy = policy_update_frequency
         self.optimizer = torch.optim.Adam(self.policy_net.parameters(),
@@ -98,7 +111,7 @@ class DQNAgent(object):
         # hard update
         if not self.soft_update:
             self.target_net.load_state_dict(self.policy_net.state_dict())
-        else:
+        else:  # soft update
             for param, target_param in zip(self.policy_net.parameters(), self.target_net.parameters()):
                 target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
 
@@ -160,22 +173,21 @@ class DQNAgent(object):
         if np.mod(t, self.freq_update_target):
             self.update_target_net()
 
-    @staticmethod
-    def convert2tensor(batch):
+    def convert2tensor(self, batch):
         if len(batch._fields) == 5:
-            state = torch.cat(batch.state, dim=0)
-            action = torch.cat(batch.action, dim=0)
-            reward = torch.cat(batch.reward, dim=0)
-            next_state = torch.cat(batch.next_state, dim=0)
-            done = torch.cat(batch.done, dim=0)
+            state = torch.cat(batch.state, dim=0).to(self.device)
+            action = torch.cat(batch.action, dim=0).to(self.device)
+            reward = torch.cat(batch.reward, dim=0).to(self.device)
+            next_state = torch.cat(batch.next_state, dim=0).to(self.device)
+            done = torch.cat(batch.done, dim=0).to(self.device)
             return state, action, next_state, reward, done
         elif len(batch._fields) == 6:
-            state = torch.cat(batch.state, dim=0)
-            action = torch.cat(batch.action, dim=0)
-            reward = torch.cat(batch.reward, dim=0)
-            next_state = torch.cat(batch.next_state, dim=0)
-            goal = torch.cat(batch.goal, dim=0)
-            done = torch.cat(batch.done, dim=0)
+            state = torch.cat(batch.state, dim=0).to(self.device)
+            action = torch.cat(batch.action, dim=0).to(self.device)
+            reward = torch.cat(batch.reward, dim=0).to(self.device)
+            next_state = torch.cat(batch.next_state, dim=0).to(self.device)
+            goal = torch.cat(batch.goal, dim=0).to(self.device)
+            done = torch.cat(batch.done, dim=0).to(self.device)
             return state, action, next_state, goal, reward, done
 
     @staticmethod
