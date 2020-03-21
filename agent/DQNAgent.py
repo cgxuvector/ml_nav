@@ -84,12 +84,13 @@ class DQNAgent(object):
                  learning_rate=1e-3,
                  dqn_mode="vanilla",
                  gamma=1.0,
-                 gradient_clip=True
+                 gradient_clip=True,
+                 device='cpu'
                  ):
         """
         """
         """ DQN configurations"""
-        self.device=torch.device("cpu")
+        self.device=torch.device(device)
         # create the policy network and target network
         self.policy_net = DeepQNet()
         self.policy_net = self.policy_net.to(self.device)
@@ -128,6 +129,7 @@ class DQNAgent(object):
         state, action, next_state, goal, reward, done = self.convert2tensor(batch_data)
         state = state.to(self.device)
         goal = goal.to(self.device)
+        next_state = next_state.to(self.device)
         # compute the Q_policy(s, a)
         state_q_values = self.policy_net(state, goal).gather(dim=1, index=action)
         # compute the TD target r + gamma * max_a' Q_target(s', a')
