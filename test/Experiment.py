@@ -6,6 +6,7 @@ from utils import memory
 from utils import ml_schedule
 import torch
 import os
+import sys
 import IPython.terminal.debugger as Debug
 
 DEFAULT_TRANSITION = namedtuple("transition", ["state", "action", "reward", "next_state", "goal", "done"])
@@ -21,6 +22,7 @@ class Experiment(object):
                  fix_maze=True,
                  fix_start=True,
                  fix_goal=True,
+                 train_episode_num=100,
                  max_time_steps_per_episode=100,
                  start_train_step=10,
                  buffer_size=None,
@@ -70,6 +72,7 @@ class Experiment(object):
         # random setting
         self.seed_rnd = random_seed
         self.sampled_goal = sampled_goal
+        self.train_episode_num = train_episode_num
 
     def run(self):
         """
@@ -82,6 +85,7 @@ class Experiment(object):
         rewards = []
         episode_t = 0
         sampled_goal_count = self.sampled_goal
+        train_episode_count = self.train_episode_num
         # set the random seed
         np.random.seed(self.seed_rnd)
         # select the maze
@@ -131,12 +135,19 @@ class Experiment(object):
                 # reset the environments
                 rewards = []  # rewards recorder
                 episode_t = 0  # episode steps counter
-                if sampled_goal_count > 0:  # for each maze, sampled #(sampled_goal_count) init and goal position
-                    size, seed, pos_params, env_map = self.map_sampling(env_map, self.maze_list, self.seed_list, True)
-                    sampled_goal_count -= 1
-                else:  # then, change to another maze environment
-                    size, seed, pos_params, env_map = self.map_sampling(env_map, self.maze_list, self.seed_list, False)
-                    sampled_goal_count = self.sampled_goal
+                if train_episode_count > 0:
+                    size = env_map.maze_size
+                    seed = env_map.maze_seed
+                    pos_params = env_map.get_start_goal_pos()
+                    train_episode_count -= 1
+                else:
+                    if sampled_goal_count > 0:  # for each maze, sampled #(sampled_goal_count) init and goal position
+                        size, seed, pos_params, env_map = self.map_sampling(env_map, self.maze_list, self.seed_list, True)
+                        sampled_goal_count -= 1
+                    else:  # then, change to another maze environment
+                        size, seed, pos_params, env_map = self.map_sampling(env_map, self.maze_list, self.seed_list, False)
+                        sampled_goal_count = self.sampled_goal
+                    train_episode_count = self.train_episode_num
                 state, goal = self.env.reset(size, seed, pos_params)
             else:
                 state = next_state

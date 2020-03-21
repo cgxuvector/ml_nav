@@ -21,6 +21,7 @@ def parse_input():
     parser.add_argument("--fix_maze", type=bool, default=True, help="Fix the maze.")
     parser.add_argument("--fix_start", type=bool, default=True, help="Fix the initial position.")
     parser.add_argument("--fix_goal", type=bool, default=True, help="Fix the goal position.")
+    parser.add_argument("--train_episode_num", type=int, default=100, help="Number of episode to train for each sampling")
     parser.add_argument("--sampled_goal", type=int, default=10, help="Number of sampled initial and goal positions.")
     # set the running mode
     parser.add_argument("--rnd_seed", type=int, default=1234, help="Random seed.")
@@ -113,8 +114,8 @@ if __name__ == '__main__':
         start_train_step=inputs.start_train_steps,
         model_name=inputs.model_idx,
         save_dir=inputs.save_dir,
+        train_episode_num=inputs.train_episode_num,
         transition=namedtuple("transition", ["state", "action", "reward", "next_state", "done"])
-
     )
     my_experiment.run()
 
