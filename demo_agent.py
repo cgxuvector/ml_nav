@@ -49,7 +49,7 @@ def run_agent(max_frame, win_width, win_height, frame_fps, level_name):
     :return: None
     """
     # create the environment)
-    observations = ["RGBD_INTERLEAVED", "RGB.LOK_TOP_DOWN", "RGB.LOOK_RANDOM"]
+    observations = ["RGBD_INTERLEAVED", "RGB.LOOK_TOP_DOWN", "RGB.LOOK_RANDOM"]
     # myEnv = gym.make("LabRandomMaze-v0",
     #                  observations=observations,
     #                  width=win_width,
@@ -62,7 +62,7 @@ def run_agent(max_frame, win_width, win_height, frame_fps, level_name):
                        height=win_height,
                        fps=frame_fps,
                        set_goal=True,
-                       set_texture=True)
+                       set_texture=False)
 
     # episodes
     episode_num = 100
@@ -80,10 +80,10 @@ def run_agent(max_frame, win_width, win_height, frame_fps, level_name):
         # load map
         env_map = mapper.RoughMap(maze_size, maze_seed, 3)
         # # reset the environment using the size and seed
-        pos_params = [env_map.raw_pos['init'][0],
-                      env_map.raw_pos['init'][1],
-                      env_map.raw_pos['goal'][0],
-                      env_map.raw_pos['goal'][1],
+        pos_params = [env_map.init_pos[0],
+                      env_map.init_pos[1],
+                      env_map.goal_pos[0],
+                      env_map.goal_pos[1],
                       0]  # [init_pos, goal_pos, init_orientation]
 
         print("Init : ({}, {})".format((pos_params[1] - 1) * 100 + 50, (maze_size - pos_params[0]) * 100 + 50))
