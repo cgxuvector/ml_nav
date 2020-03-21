@@ -127,7 +127,7 @@ class DQNAgent(object):
                 # compute the : max_a' Q_target(s', a')
                 max_next_state_q_values = self.target_net(next_state).max(1)[0].view(-1, 1)
                 # if s' is terminal, then change Q(s', a') = 0
-                terminal_mask = (torch.ones(done.size()) - done)
+                terminal_mask = (torch.ones(done.size(), device=self.device) - done)
                 max_next_state_q_values = max_next_state_q_values * terminal_mask
                 # compute the r + gamma * max_a' Q_target(s', a')
                 td_target = (reward + self.gamma * max_next_state_q_values)
@@ -139,7 +139,7 @@ class DQNAgent(object):
                 # compute the Q_target(s', argmax_a)
                 next_state_q_values = self.target_net(next_state).gather(dim=1, index=next_action_data)
                 # convert the value of the terminal states to be zero
-                terminal_mask = (torch.ones(done.size()) - done)
+                terminal_mask = (torch.ones(done.size(), device=self.device) - done)
                 max_next_state_q_values = next_state_q_values * terminal_mask
                 # compute the TD target
                 td_target = reward + self.gamma * max_next_state_q_values
@@ -157,6 +157,7 @@ class DQNAgent(object):
 
     # select an action based on the policy network
     def get_action(self, input_state):
+        input_state = input_state.to(self.device)
         with torch.no_grad():
             q_values = self.policy_net(input_state)
             # action = q_values.max(0)[1].item()
