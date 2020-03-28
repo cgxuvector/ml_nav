@@ -5,6 +5,7 @@ from pathlib import Path
 import random
 import copy
 from utils import searchAlg
+import IPython.terminal.debugger as Debug
 """
     1. Using a topological graph to store the positions (currently, it is stored as a list)
     2. Fix the bug in rescaling.

@@ -9,7 +9,7 @@ import os
 import sys
 import IPython.terminal.debugger as Debug
 
-DEFAULT_TRANSITION = namedtuple("transition", ["state", "action", "reward", "next_state", "goal", "done"])
+DEFAULT_TRANSITION = namedtuple("transition", ["state", "action", "next_state", "reward", "goal", "done"])
 
 
 class Experiment(object):
@@ -37,7 +37,8 @@ class Experiment(object):
                  sampled_goal=10,
                  eps_start=1.0,
                  eps_end=0.01,
-                 device="cpu"):
+                 device="cpu",
+                 use_goal=False):
         # environment
         self.env = env
         self.maze_list = maze_list
@@ -73,6 +74,8 @@ class Experiment(object):
         self.seed_rnd = random_seed
         self.sampled_goal = sampled_goal
         self.train_episode_num = train_episode_num
+        # goal conditioned flag
+        self.use_goal = use_goal
 
     def run(self):
         """
@@ -98,22 +101,19 @@ class Experiment(object):
         state, goal = self.env.reset(size, seed, pos_params)
         pbar = tqdm.trange(self.max_time_steps)
         for t in pbar:
+        # for t in range(self.max_time_steps):
             # compute the epsilon
             eps = self.schedule.get_value(t)
             # get an action from epsilon greedy
             if np.random.sample() < eps:
                 action = self.env.action_space.sample()
             else:
-                action = self.agent.get_action(self.toTensor(state))
+                action = self.agent.get_action(self.toTensor(state)) if not self.use_goal else self.agent.get_action(self.toTensor(state), self.toTensor(goal))
             # step in the environment
             next_state, reward, done, dist, _ = self.env.step(action)
             # store the replay buffer and convert the data to tensor
             if self.use_relay_buffer:
-                trans = self.TRANSITION(state=self.toTensor(state),
-                                        action=torch.tensor(action).long().view(-1, 1),
-                                        reward=torch.tensor(reward).float().view(-1, 1),
-                                        next_state=self.toTensor(next_state),
-                                        done=torch.tensor(done).view(-1, 1))
+                trans = self.toTransition(state, action, next_state, reward, goal, done)
                 self.replay_buffer.add(trans)
 
             # check terminal
@@ -154,10 +154,10 @@ class Experiment(object):
                 rewards.append(reward)
                 episode_t += 1
 
-            # train the agent
-            if t > self.start_train_step:
-                sampled_batch = self.replay_buffer.sample(self.batch_size)
-                self.agent.train_one_batch(t, sampled_batch)
+            # # train the agent
+            # if t > self.start_train_step:
+            #     sampled_batch = self.replay_buffer.sample(self.batch_size)
+            #     self.agent.train_one_batch(t, sampled_batch)
 
         # save the model and the statics
         model_save_path = os.path.join(self.save_dir, self.model_name) + ".pt"
@@ -197,6 +197,31 @@ class Experiment(object):
 
         return size, seed, pos_params, env_map
 
+    def toTransition(self, state, action, next_state, reward, goal, done):
+        """
+        Return the transitions based on goal-conditioned or non-goal-conditioned
+        :param state: current state
+        :param action: current action
+        :param next_state: next state
+        :param reward: reward
+        :param done: terminal flag
+        :param goal: current goal
+        :return: A transition.
+        """
+        if not self.use_goal:
+            return self.TRANSITION(state=self.toTensor(state),
+                                   action=torch.tensor(action).long().view(-1, 1),
+                                   reward=torch.tensor(reward).float().view(-1, 1),
+                                   next_state=self.toTensor(next_state),
+                                   done=torch.tensor(done).view(-1, 1))
+        else:
+            return self.TRANSITION(state=self.toTensor(state),
+                                   action=torch.tensor(action).long().view(-1, 1),
+                                   reward=torch.tensor(reward).float().view(-1, 1),
+                                   next_state=self.toTensor(next_state),
+                                   goal=self.toTensor(goal),
+                                   done=torch.tensor(done).view(-1, 1))
+
     @staticmethod
     def toTensor(obs_list):
         """
@@ -208,4 +233,5 @@ class Experiment(object):
         """
         state_obs = torch.tensor(np.array(obs_list).transpose(0, 3, 1, 2)).float()
         return state_obs
+
 

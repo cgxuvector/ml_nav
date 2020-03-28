@@ -1,9 +1,11 @@
 from test.Experiment import Experiment
 from test.DQNAgent import DQNAgent
 from test.RandomAgent import RandomAgent
+from test.GoalDQNAgent import GoalDQNAgent
 from envs.LabEnv import RandomMaze
 import argparse
 from collections import namedtuple
+import sys
 
 
 DEFAULT_SIZE = [5, 7, 9, 11, 13]
@@ -44,6 +46,8 @@ def parse_input():
     # set the saving params
     parser.add_argument("--model_idx", type=str, default=None, help="model index")
     parser.add_argument("--save_dir", type=str, default=None, help="saving folder")
+    # set goal-conditioned
+    parser.add_argument("--use_goal", type=str, default=None, help="whether using goal conditioned strategy")
     return parser.parse_args()
 
 
@@ -93,6 +97,15 @@ if __name__ == '__main__':
                             gradient_clip=inputs.dqn_gradient_clip,
                             device=inputs.device
                             )
+    elif inputs.agent == 'goal-dqn':
+        my_agent = GoalDQNAgent(target_update_frequency=inputs.dqn_update_target_net,
+                                policy_update_frequency=inputs.dqn_update_policy_net,
+                                soft_target_update_tau=inputs.soft_target_update_tau,
+                                dqn_mode=inputs.dqn_mode,
+                                gamma=0.99,
+                                gradient_clip=inputs.dqn_gradient_clip,
+                                device=inputs.device
+                            )
     else:
         raise Exception(f"{inputs.agent} is not defined. Please try the valid agent (random, dqn, actor-critic)")
     """ Set up the experiment """
@@ -115,8 +128,11 @@ if __name__ == '__main__':
         model_name=inputs.model_idx,
         save_dir=inputs.save_dir,
         train_episode_num=inputs.train_episode_num,
-        transition=namedtuple("transition", ["state", "action", "reward", "next_state", "done"])
+        # whether use goal-conditioned strategy
+        use_goal=True,
+        transition=namedtuple("transition", ["state", "action", "reward", "next_state", "goal", "done"])
     )
     my_experiment.run()
+
 
 
