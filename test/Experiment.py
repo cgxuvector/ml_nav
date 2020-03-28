@@ -22,8 +22,8 @@ class Experiment(object):
                  fix_maze=True,
                  fix_start=True,
                  fix_goal=True,
-                 train_episode_num=100,
-                 max_time_steps_per_episode=100,
+                 train_episode_num=10,
+                 episode_time_steps=2000,
                  start_train_step=10,
                  buffer_size=None,
                  transition=DEFAULT_TRANSITION,
@@ -50,7 +50,7 @@ class Experiment(object):
         self.agent = agent
         # training configurations
         self.max_time_steps = max_time_steps
-        self.max_steps_per_episode = max_time_steps_per_episode
+        self.max_steps_per_episode = episode_time_steps
         self.start_train_step = start_train_step
         self.learning_rate = learning_rate
         self.device = torch.device(device)
@@ -101,7 +101,6 @@ class Experiment(object):
         state, goal = self.env.reset(size, seed, pos_params)
         pbar = tqdm.trange(self.max_time_steps)
         for t in pbar:
-        # for t in range(self.max_time_steps):
             # compute the epsilon
             eps = self.schedule.get_value(t)
             # get an action from epsilon greedy
@@ -122,30 +121,30 @@ class Experiment(object):
                 G = 0
                 for r in reversed(rewards):
                     G = r + self.gamma * G
-                # compute the episode number
-                episode = len(self.returns)
                 # store the return, episode length, and final distance
                 self.returns.append(G)
-                self.lengths.append(len(rewards))
+                self.lengths.append(episode_t)
                 self.distance.append(dist)
+                # compute the episode number
+                episode_idx = len(self.returns)
                 # print the information
                 pbar.set_description(
-                    f'Episode: {episode} | Steps: {episode_t} | Return: {G:2f} | Dist: {dist:.2f}'
+                    f'Episode: {episode_idx} | Steps: {episode_t} | Return: {G:2f} | Dist: {dist:.2f}'
                 )
                 # reset the environments
                 rewards = []  # rewards recorder
                 episode_t = 0  # episode steps counter
+                # for a fixed (start, goal) pair, train it for #train_episode_count
                 if train_episode_count > 0:
-                    size = env_map.maze_size
-                    seed = env_map.maze_seed
-                    pos_params = env_map.get_start_goal_pos()
                     train_episode_count -= 1
                 else:
-                    if sampled_goal_count > 0:  # for each maze, sampled #(sampled_goal_count) init and goal position
+                    # for a fixed maze, sampled #(sampled_goal_count) (start, goal) pairs
+                    if sampled_goal_count > 0:
                         size, seed, pos_params, env_map = self.map_sampling(env_map, self.maze_list, self.seed_list, True)
                         sampled_goal_count -= 1
-                    else:  # then, change to another maze environment
-                        size, seed, pos_params, env_map = self.map_sampling(env_map, self.maze_list, self.seed_list, False)
+                    else:
+                        # then, change to another maze environment
+                        size, seed, pos_params, env_map = self.map_sampling(env_map, self.maze_list, self.seed_list, self.fix_maze)
                         sampled_goal_count = self.sampled_goal
                     train_episode_count = self.train_episode_num
                 state, goal = self.env.reset(size, seed, pos_params)
@@ -159,15 +158,15 @@ class Experiment(object):
             #     sampled_batch = self.replay_buffer.sample(self.batch_size)
             #     self.agent.train_one_batch(t, sampled_batch)
 
-        # save the model and the statics
-        model_save_path = os.path.join(self.save_dir, self.model_name) + ".pt"
-        distance_save_path = os.path.join(self.save_dir, self.model_name + "_distance.npy")
-        returns_save_path = os.path.join(self.save_dir, self.model_name + "_return.npy")
-        lengths_save_path = os.path.join(self.save_dir, self.model_name + "_length.npy")
-        torch.save(self.agent.policy_net.state_dict(), model_save_path)
-        np.save(distance_save_path, self.distance)
-        np.save(returns_save_path, self.returns)
-        np.save(lengths_save_path, self.lengths)
+        # # save the model and the statics
+        # model_save_path = os.path.join(self.save_dir, self.model_name) + ".pt"
+        # distance_save_path = os.path.join(self.save_dir, self.model_name + "_distance.npy")
+        # returns_save_path = os.path.join(self.save_dir, self.model_name + "_return.npy")
+        # lengths_save_path = os.path.join(self.save_dir, self.model_name + "_length.npy")
+        # torch.save(self.agent.policy_net.state_dict(), model_save_path)
+        # np.save(distance_save_path, self.distance)
+        # np.save(returns_save_path, self.returns)
+        # np.save(lengths_save_path, self.lengths)
 
     def map_sampling(self, env_map, maze_list, seed_list, sample_pos=False):
         """
