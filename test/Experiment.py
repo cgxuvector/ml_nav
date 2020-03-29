@@ -8,8 +8,6 @@ import torch
 import os
 import sys
 import IPython.terminal.debugger as Debug
-import matplotlib.pyplot as plt
-from scipy import ndimage
 
 DEFAULT_TRANSITION = namedtuple("transition", ["state", "action", "next_state", "reward", "goal", "done"])
 
@@ -102,11 +100,7 @@ class Experiment(object):
         # reset the environment
         state, goal = self.env.reset(size, seed, pos_params)
         pbar = tqdm.trange(self.max_time_steps)
-        # fig, arrs = plt.subplots(1, 2)
-        # obs_img = arrs[0].imshow(ndimage.rotate(self.env.top_down_obs, -90))
-        # map_img = arrs[1].imshow(env_map.map2d_bw)
         for t in pbar:
-        # for t in range(self.max_time_steps):
             # compute the epsilon
             eps = self.schedule.get_value(t)
             # get an action from epsilon greedy
@@ -116,10 +110,6 @@ class Experiment(object):
                 action = self.agent.get_action(self.toTensor(state)) if not self.use_goal else self.agent.get_action(self.toTensor(state), self.toTensor(goal))
             # step in the environment
             next_state, reward, done, dist, _ = self.env.step(action)
-            # obs_img.set_data(ndimage.rotate(self.env.top_down_obs, -90))
-            # map_img.set_data(env_map.map2d_bw)
-            # fig.canvas.draw()
-            # plt.pause(0.001)
             # store the replay buffer and convert the data to tensor
             if self.use_relay_buffer:
                 trans = self.toTransition(state, action, next_state, reward, goal, done)
@@ -141,7 +131,7 @@ class Experiment(object):
                 pbar.set_description(
                     f'Episode: {episode_idx} | Steps: {episode_t} | Return: {G:2f} | Dist: {dist:.2f}'
                 )
-                # print(f"Episode: {episode_idx}, Maze: {size} - {seed}, Position: {pos_params[0:2]} - {pos_params[2:-1]}")
+                #print(f"Episode: {episode_idx}, Maze: {size}-{seed}, Position: {pos_params[0:2]} - {pos_params[2:-1]}")
                 # reset the environments
                 rewards = []  # rewards recorder
                 episode_t = 0  # episode steps counter
