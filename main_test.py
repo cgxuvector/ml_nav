@@ -152,7 +152,11 @@ if __name__ == '__main__':
         use_goal=inputs.use_goal,
         transition=transition
     )
-    my_experiment.run()
+    # run the experiments
+    if inputs.use_goal:
+        my_experiment.goal_conditioned_run()
+    else:
+        my_experiment.run()
 
 
 

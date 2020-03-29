@@ -21,9 +21,9 @@ def plot_line_chart(data, name, x_label, y_label, smooth_win_size, color):
 
 
 if __name__ == '__main__':
-    root_dir = '../results/3-22/'
-    data_name = 'dqn_random_init_goal_distance.npy'
+    root_dir = '../results/3-28/'
+    data_name = 'vanilla_dqn_fixed_goal_step8_1_return.npy'
     d = np.load(root_dir + data_name)
-    plot_line_chart(d, "Vanilla DQN: 11x11 maze with fixed start and random goal positions", "episode", "Distance", 100, ['lightsalmon', '-r'])
+    plot_line_chart(d, "Vanilla DQN with Fixed Start and Goal (Step = 8) 1", "Episode", "Distance", 100, ['lightgreen', '-g'])
 
 
