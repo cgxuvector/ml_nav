@@ -332,16 +332,6 @@ class RoughMap(object):
 
         for idx, pos in enumerate(path):
             local_maps.append(self.cropper(pad_map, pos))
-            # test draw the path on the padding map
-            # pad_map[pad_pos[0], pad_pos[1]] = 0.5
-
-            # rotate the local map
-
-            # plt.imshow(local_maps[-1], cmap=plt.cm.gray)
-            # plt.show()
-        #
-        # plt.imshow(pad_map, cmap=plt.cm.gray)
-        # plt.show()
 
         return local_maps, pad_map
 
@@ -364,7 +354,15 @@ class RoughMap(object):
         tmp_goal_pos = self.goal_pos if fix_goal else random.sample(goal_positions, 1)[0]
         return tmp_init_pos, tmp_goal_pos
 
-
-
-
+    def sample_path_goal(self, current_goal, step):
+        # obtain all the positions on the path
+        positions_on_path = [pos.tolist() for pos in self.path]
+        # compute the from index and the to index
+        current_goal_index = positions_on_path.index(current_goal)
+        from_idx = 1 if current_goal_index - step < 1 else current_goal_index - step
+        to_idx = len(self.path) - 1 if current_goal_index + step > len(self.path) - 1 else current_goal_index + step
+        # sample a new goal
+        new_goal = random.sample(self.path[from_idx:to_idx+1], 1)
+        self.goal_pos = new_goal[0].tolist()
+        return self.goal_pos
 

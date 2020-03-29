@@ -131,7 +131,6 @@ class Experiment(object):
                 pbar.set_description(
                     f'Episode: {episode_idx} | Steps: {episode_t} | Return: {G:2f} | Dist: {dist:.2f}'
                 )
-                #print(f"Episode: {episode_idx}, Maze: {size}-{seed}, Position: {pos_params[0:2]} - {pos_params[2:-1]}")
                 # reset the environments
                 rewards = []  # rewards recorder
                 episode_t = 0  # episode steps counter
@@ -174,6 +173,87 @@ class Experiment(object):
         Run experiments using goal-conditioned DQN with the nearby goals
         :return: None
         """
+        # running statistics
+        rewards = []
+        episode_t = 0
+        sampled_goal_count = self.sampled_goal
+        train_episode_count = self.train_episode_num
+        # set the random seed
+        np.random.seed(self.seed_rnd)
+        # select the maze
+        size = np.random.choice(self.maze_list)
+        seed = np.random.choice(self.seed_list)
+        # load the 2D map
+        env_map = mapper.RoughMap(size, seed, 3)
+        pos_params = env_map.get_start_goal_pos()
+        pos_params[2:4] = env_map.sample_path_goal(env_map.init_pos, 1)
+        # reset the environment
+        state, goal = self.env.reset(size, seed, pos_params)
+        pbar = tqdm.trange(self.max_time_steps)
+        for t in pbar:
+            # compute the epsilon
+            eps = self.schedule.get_value(t)
+            # get an action from epsilon greedy
+            if np.random.sample() < eps:
+                action = self.env.action_space.sample()
+            else:
+                action = self.agent.get_action(self.toTensor(state)) if not self.use_goal else self.agent.get_action(
+                    self.toTensor(state), self.toTensor(goal))
+            # step in the environment
+            next_state, reward, done, dist, _ = self.env.step(action)
+            # store the replay buffer and convert the data to tensor
+            if self.use_relay_buffer:
+                trans = self.toTransition(state, action, next_state, reward, goal, done)
+                self.replay_buffer.add(trans)
+
+            # check terminal
+            if done or (episode_t == self.max_steps_per_episode):
+                # compute the return
+                G = 0
+                for r in reversed(rewards):
+                    G = r + self.gamma * G
+                # store the return, episode length, and final distance
+                self.returns.append(G)
+                self.lengths.append(episode_t)
+                self.distance.append(dist)
+                # compute the episode number
+                episode_idx = len(self.returns)
+                # print the information
+                pbar.set_description(
+                    f'Episode: {episode_idx} | Steps: {episode_t} | Return: {G:2f} | Dist: {dist:.2f} | Init: {pos_params[0:2]} | Goal: {pos_params[2:4]}'
+                )
+                # reset the environments
+                rewards = []  # rewards recorder
+                episode_t = 0  # episode steps counter
+                # for a fixed (start, goal) pair, train it for #train_episode_count
+                if train_episode_count > 0:
+                    train_episode_count -= 1
+                else:
+                    # for a fixed maze, sampled #(sampled_goal_count) (start, goal) pairs
+                    if sampled_goal_count > 0:
+                        # size, seed, pos_params, env_map = self.map_sampling(env_map, self.maze_list, self.seed_list,
+                        #                                                     True)
+                        size = env_map.maze_size
+                        seed = env_map.maze_seed
+                        pos_params[2:4] = env_map.sample_path_goal(env_map.goal_pos, 1)
+                        sampled_goal_count -= 1
+                    else:
+                        # then, change to another maze environment
+                        size, seed, pos_params, env_map = self.map_sampling(env_map, self.maze_list, self.seed_list,
+                                                                            self.fix_maze)
+                        sampled_goal_count = self.sampled_goal
+                    train_episode_count = self.train_episode_num
+                state, goal = self.env.reset(size, seed, pos_params)
+            else:
+                state = next_state
+                rewards.append(reward)
+                episode_t += 1
+
+            # train the agent
+            if t > self.start_train_step:
+                sampled_batch = self.replay_buffer.sample(self.batch_size)
+                self.agent.train_one_batch(t, sampled_batch)
+
         # save the model and the statics
         model_save_path = os.path.join(self.save_dir, self.model_name) + ".pt"
         distance_save_path = os.path.join(self.save_dir, self.model_name + "_distance.npy")
