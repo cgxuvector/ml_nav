@@ -149,11 +149,14 @@ if __name__ == '__main__':
         save_dir=inputs.save_dir,
         train_episode_num=inputs.train_episode_num,
         # whether use goal-conditioned strategy
-        use_goal=inputs.use_goal,
+        use_goal=False,
         transition=transition
     )
     # run the experiments
-    my_experiment.goal_conditioned_run()
+    if inputs.use_goal:
+        my_experiment.goal_conditioned_run()
+    else:
+        my_experiment.run()
 
 
 
