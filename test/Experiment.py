@@ -131,6 +131,7 @@ class Experiment(object):
                 pbar.set_description(
                     f'Episode: {episode_idx} | Steps: {episode_t} | Return: {G:2f} | Dist: {dist:.2f}'
                 )
+                #print(f"Episode: {episode_idx}, Maze: {size}-{seed}, Position: {pos_params[0:2]} - {pos_params[2:-1]}")
                 # reset the environments
                 rewards = []  # rewards recorder
                 episode_t = 0  # episode steps counter
@@ -153,20 +154,20 @@ class Experiment(object):
                 rewards.append(reward)
                 episode_t += 1
 
-            # # train the agent
-            # if t > self.start_train_step:
-            #     sampled_batch = self.replay_buffer.sample(self.batch_size)
-            #     self.agent.train_one_batch(t, sampled_batch)
+            # train the agent
+            if t > self.start_train_step:
+                sampled_batch = self.replay_buffer.sample(self.batch_size)
+                self.agent.train_one_batch(t, sampled_batch)
 
-        # # save the model and the statics
-        # model_save_path = os.path.join(self.save_dir, self.model_name) + ".pt"
-        # distance_save_path = os.path.join(self.save_dir, self.model_name + "_distance.npy")
-        # returns_save_path = os.path.join(self.save_dir, self.model_name + "_return.npy")
-        # lengths_save_path = os.path.join(self.save_dir, self.model_name + "_length.npy")
-        # torch.save(self.agent.policy_net.state_dict(), model_save_path)
-        # np.save(distance_save_path, self.distance)
-        # np.save(returns_save_path, self.returns)
-        # np.save(lengths_save_path, self.lengths)
+        # save the model and the statics
+        model_save_path = os.path.join(self.save_dir, self.model_name) + ".pt"
+        distance_save_path = os.path.join(self.save_dir, self.model_name + "_distance.npy")
+        returns_save_path = os.path.join(self.save_dir, self.model_name + "_return.npy")
+        lengths_save_path = os.path.join(self.save_dir, self.model_name + "_length.npy")
+        torch.save(self.agent.policy_net.state_dict(), model_save_path)
+        np.save(distance_save_path, self.distance)
+        np.save(returns_save_path, self.returns)
+        np.save(lengths_save_path, self.lengths)
 
     def map_sampling(self, env_map, maze_list, seed_list, sample_pos=False):
         """

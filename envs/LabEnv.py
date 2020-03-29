@@ -163,7 +163,7 @@ class RandomMaze(gym.Env):
 
         """ step #(num_steps) in Deepmind Lab"""
         # take one step in the environment
-        self._lab.step(ACTION_LIST[action], num_steps=4)
+        self._lab.step(ACTION_LIST[action], num_steps=8)
 
         """ check the terminal and return observations"""
         if self._lab.is_running():  # If the maze is still running
