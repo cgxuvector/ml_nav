@@ -129,7 +129,7 @@ class Experiment(object):
                 episode_idx = len(self.returns)
                 # print the information
                 pbar.set_description(
-                    f'Episode: {episode_idx} | Steps: {episode_t} | Return: {G:2f} | Dist: {dist:.2f}'
+                    f'Episode: {episode_idx} | Steps: {episode_t} | Return: {G:2f} | Dist: {dist:.2f} | Init: {pos_params[0:2]} | Goal: {pos_params[2:4]}'
                 )
                 # reset the environments
                 rewards = []  # rewards recorder
