@@ -134,8 +134,8 @@ class RandomMaze(gym.Env):
         self._lab.write_property("params.agent_pos.y", str(self.start_pos[1] + 1))
         self._lab.write_property("params.agent_pos.theta", str(self.start_pos[2]))
         # send target position (uncomment to use the terminal in deepmind)
-        # self._lab.write_property("params.goal_pos.x", str(self.goal_pos[0] + 1))
-        # self._lab.write_property("params.goal_pos.y", str(self.goal_pos[1] + 1))
+        self._lab.write_property("params.goal_pos.x", str(self.goal_pos[0] + 1))
+        self._lab.write_property("params.goal_pos.y", str(self.goal_pos[1] + 1))
         # send the view position
         self._lab.write_property("params.view_pos.x", str(self.goal_pos[0] + 1))
         self._lab.write_property("params.view_pos.y", str(self.goal_pos[1] + 1))

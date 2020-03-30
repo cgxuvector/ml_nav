@@ -21,9 +21,9 @@ def plot_line_chart(data, name, x_label, y_label, smooth_win_size, color):
 
 
 if __name__ == '__main__':
-    root_dir = '../results/3-28/'
-    data_name = 'vanilla_dqn_fixed_goal_step8_1_return.npy'
+    root_dir = '../results/3-29/'
+    data_name = 'double_dqn_fixed_goal_7_subgoal_distance.npy'
     d = np.load(root_dir + data_name)
-    plot_line_chart(d, "Vanilla DQN with Fixed Start and Goal (Step = 8) 1", "Episode", "Distance", 100, ['lightgreen', '-g'])
+    plot_line_chart(d, "7", "Episode", "Distance", 50, ['lightsalmon', '-r'])
 
 

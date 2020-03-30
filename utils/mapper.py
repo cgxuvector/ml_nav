@@ -366,3 +366,35 @@ class RoughMap(object):
         self.goal_pos = new_goal[0].tolist()
         return self.goal_pos
 
+    def sample_path_next_goal(self, step):
+        assert (step > 0), f"Invalid step size. Step should be bigger than 0."
+        # obtain all the positions on the path
+        positions_on_path = [pos.tolist() for pos in self.path]
+        # sample the next goal
+        new_goal = positions_on_path[step] if step < len(self.path) else positions_on_path[-1]
+        return new_goal
+
+    def sample_path_next_pair(self, dist):
+        # length
+        length = len(self.path)
+        # obtain all the positions on the path
+        positions_on_path = [pos.tolist() for pos in self.path]
+        # sample a start position
+        start_idx = np.random.choice(len(self.path), 1).item()
+        # sample a pair from the path
+        if np.random.sample() < 0.5:
+            # select goal on the left
+            if start_idx == 0:
+                goal_idx = start_idx + dist if start_idx + dist < len(self.path) else len(self.path) - 1
+            else:
+                goal_idx = 0 if start_idx - dist <= 0 else start_idx - dist
+        else:
+            # select goal on the right
+            if start_idx == length - 1:
+                goal_idx = 0 if start_idx - dist <= 0 else start_idx - dist
+            else:
+                goal_idx = start_idx + dist if start_idx + dist < len(self.path) else len(self.path) - 1
+        return positions_on_path[start_idx], positions_on_path[goal_idx]
+
+
+

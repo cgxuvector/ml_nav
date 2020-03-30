@@ -8,6 +8,8 @@ import torch
 import os
 import sys
 import IPython.terminal.debugger as Debug
+import matplotlib.pyplot as plt
+from scipy import ndimage
 
 DEFAULT_TRANSITION = namedtuple("transition", ["state", "action", "next_state", "reward", "goal", "done"])
 
@@ -190,6 +192,8 @@ class Experiment(object):
         # reset the environment
         state, goal = self.env.reset(size, seed, pos_params)
         pbar = tqdm.trange(self.max_time_steps)
+        fig, arrs = plt.subplots(1, 2)
+        top_down_img = arrs[0].imshow(ndimage.rotate(self.env.top_down_obs, -90))
         for t in pbar:
             # compute the epsilon
             eps = self.schedule.get_value(t)
@@ -205,6 +209,10 @@ class Experiment(object):
             if self.use_relay_buffer:
                 trans = self.toTransition(state, action, next_state, reward, goal, done)
                 self.replay_buffer.add(trans)
+
+            top_down_img.set_data(ndimage.rotate(self.env.top_down_obs, -90))
+            fig.canvas.draw()
+            plt.pause(0.0001)
 
             # check terminal
             if done or (episode_t == self.max_steps_per_episode):
