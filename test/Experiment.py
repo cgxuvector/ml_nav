@@ -176,6 +176,7 @@ class Experiment(object):
         :return: None
         """
         # running statistics
+        goal_step = 1
         rewards = []
         episode_t = 0
         sampled_goal_count = self.sampled_goal
@@ -188,13 +189,15 @@ class Experiment(object):
         # load the 2D map
         env_map = mapper.RoughMap(size, seed, 3)
         pos_params = env_map.get_start_goal_pos()
-        pos_params[2:4] = env_map.sample_path_goal(env_map.init_pos, 1)
+        pos_params[2:4] = env_map.sample_path_next_goal(goal_step)
+        goal_step += 1
         # reset the environment
         state, goal = self.env.reset(size, seed, pos_params)
         pbar = tqdm.trange(self.max_time_steps)
         fig, arrs = plt.subplots(1, 2)
         top_down_img = arrs[0].imshow(ndimage.rotate(self.env.top_down_obs, -90))
         for t in pbar:
+        # for t in range(self.max_time_steps):
             # compute the epsilon
             eps = self.schedule.get_value(t)
             # get an action from epsilon greedy
@@ -230,6 +233,9 @@ class Experiment(object):
                 pbar.set_description(
                     f'Episode: {episode_idx} | Steps: {episode_t} | Return: {G:2f} | Dist: {dist:.2f} | Init: {pos_params[0:2]} | Goal: {pos_params[2:4]}'
                 )
+                # print(
+                #     f'Episode: {episode_idx} | Init: {pos_params[0:2]} | Goal: {pos_params[2:4]}'
+                # )
                 # reset the environments
                 rewards = []  # rewards recorder
                 episode_t = 0  # episode steps counter
@@ -239,16 +245,18 @@ class Experiment(object):
                 else:
                     # for a fixed maze, sampled #(sampled_goal_count) (start, goal) pairs
                     if sampled_goal_count > 0:
-                        # size, seed, pos_params, env_map = self.map_sampling(env_map, self.maze_list, self.seed_list,
-                        #                                                     True)
                         size = env_map.maze_size
                         seed = env_map.maze_seed
-                        pos_params[2:4] = env_map.sample_path_goal(env_map.goal_pos, 1)
+                        pos_params[2:4] = env_map.sample_path_next_goal(goal_step)
+                        goal_step = goal_step + 1 if goal_step < len(env_map.path) else 1
                         sampled_goal_count -= 1
                     else:
                         # then, change to another maze environment
                         size, seed, pos_params, env_map = self.map_sampling(env_map, self.maze_list, self.seed_list,
                                                                             self.fix_maze)
+                        goal_step = 1
+                        pos_params[2:4] = env_map.sample_path_next_goal(goal_step)
+                        goal_step += 1
                         sampled_goal_count = self.sampled_goal
                     train_episode_count = self.train_episode_num
                 state, goal = self.env.reset(size, seed, pos_params)
