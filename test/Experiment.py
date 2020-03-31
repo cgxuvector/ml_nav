@@ -192,6 +192,7 @@ class Experiment(object):
         pos_params[2:4] = env_map.sample_path_next_goal(goal_step)
         goal_step += 1
         # reset the environment
+        sampled_goal_count = 1.5 * len(env_map.path)
         state, goal = self.env.reset(size, seed, pos_params)
         pbar = tqdm.trange(self.max_time_steps)
         #fig, arrs = plt.subplots(1, 2)
@@ -251,6 +252,7 @@ class Experiment(object):
                         goal_step = goal_step + 1 if goal_step < len(env_map.path) else 1
                         sampled_goal_count -= 1
                     else:
+                        break
                         # then, change to another maze environment
                         size, seed, pos_params, env_map = self.map_sampling(env_map, self.maze_list, self.seed_list,
                                                                             self.fix_maze)
