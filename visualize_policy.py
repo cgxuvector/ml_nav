@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy import ndimage
 from test.DQNAgent import DQNAgent
+from test.GoalDQNAgent import GoalDQNAgent
 import random
 
 from utils import mapper
@@ -122,9 +123,10 @@ class VisualPolicy(object):
 if __name__ == '__main__':
     # load the agent
     my_agent = DQNAgent(0, 0).policy_net
-    my_agent.load_state_dict(torch.load("./results/3-28/double_dqn_fixed_goal.pt", map_location=torch.device('cpu')))
+    # my_agent = GoalDQNAgent(0, 0).policy_net
+    my_agent.load_state_dict(torch.load("./results/3-30/double_dqn_fixed_goal_7_seed_3.pt", map_location=torch.device('cpu')))
     my_agent.eval()
 
     # run the agent
-    myVis = VisualPolicy(my_agent, 5, False, False)
+    myVis = VisualPolicy(my_agent, 7, False, False)
     myVis.run()

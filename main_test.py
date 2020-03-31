@@ -149,7 +149,7 @@ if __name__ == '__main__':
         save_dir=inputs.save_dir,
         train_episode_num=inputs.train_episode_num,
         # whether use goal-conditioned strategy
-        use_goal=False,
+        use_goal=inputs.use_goal,
         transition=transition
     )
     # run the experiments
