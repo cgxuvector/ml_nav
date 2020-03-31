@@ -194,6 +194,10 @@ class Experiment(object):
         # reset the environment
         state, goal = self.env.reset(size, seed, pos_params)
         pbar = tqdm.trange(self.max_time_steps)
+        #fig, arrs = plt.subplots(1, 2)
+        #top_down_img = arrs[0].imshow(ndimage.rotate(self.env.top_down_obs, -90))
+        for t in pbar:
+        # for t in range(self.max_time_steps):
         fig, arrs = plt.subplots(3, 3)
         img1 = arrs[1, 2].imshow(goal[0])
         img2 = arrs[0, 2].imshow(goal[1])
@@ -212,15 +216,14 @@ class Experiment(object):
             if np.random.sample() < eps:
                 action = self.env.action_space.sample()
             else:
-                print(self.use_goal)
                 action = self.agent.get_action(self.toTensor(state)) if not self.use_goal else self.agent.get_action(
                     self.toTensor(state), self.toTensor(goal))
             # step in the environment
             next_state, reward, done, dist, _ = self.env.step(action)
             # store the replay buffer and convert the data to tensor
-            # if self.use_relay_buffer:
-            #     trans = self.toTransition(state, action, next_state, reward, goal, done)
-            #     self.replay_buffer.add(trans)
+            if self.use_relay_buffer:
+                trans = self.toTransition(state, action, next_state, reward, goal, done)
+                self.replay_buffer.add(trans)
 
             img1.set_data(goal[0])
             img2.set_data(goal[1])
@@ -252,9 +255,6 @@ class Experiment(object):
                 # pbar.set_description(
                 #     f'Episode: {episode_idx} | Steps: {episode_t} | Return: {G:2f} | Dist: {dist:.2f} | Init: {pos_params[0:2]} | Goal: {pos_params[2:4]}'
                 # )
-                print(
-                    f'Episode: {episode_idx} | Init: {pos_params[0:2]} | Goal: {pos_params[2:4]} | Dist: {dist}'
-                )
                 # reset the environments
                 rewards = []  # rewards recorder
                 episode_t = 0  # episode steps counter

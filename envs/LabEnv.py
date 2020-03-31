@@ -17,7 +17,6 @@
 import gym
 import numpy as np
 import deepmind_lab
-import matplotlib.pyplot as plt
 
 
 def _action(*entries):
@@ -227,10 +226,9 @@ class RandomMaze(gym.Env):
         # obtain the egocentric observations
         self._lab.write_property("params.view_pos.x", str(pos[0] + 1))
         self._lab.write_property("params.view_pos.y", str(pos[1] + 1))
-
         for a in angles:
             self._lab.write_property("params.view_pos.theta", str(a))
-            ego_observations.append(self._lab.observations()['RGB.LOOK_RANDOM'])
+            ego_observations.append(self._lab_observations()['RGB.LOOK_RANDOM'])
         return ego_observations
 
     def reach_goal(self, current_pos):
@@ -243,8 +241,8 @@ class RandomMaze(gym.Env):
         #       f" Now pos = ({current_pos[0]:.2f}, {current_pos[1]:.2f}, {current_pos[2]:.2f}) -"
         #       f" Err = ({dist:.2f}, {angle_error:.2f})")
         # print(dist)
-        # if dist < 20 and angle_error < 10:
-        if dist < 35:  # no angle constraint
+        #if dist < 20 and angle_error < 10:
+        if dist < 35:
             return 1, dist
         else:
             return 0, dist
