@@ -88,8 +88,6 @@ class GoalDQNAgent(object):
         """ DQN configurations"""
         # create the policy network and target network
         self.policy_net = GoalDeepQNet()
-        self.policy_net.load_state_dict(torch.load("./results/3-30/conditioned_double_dqn_fixed_goal_7.pt", map_location=torch.device('cpu')))
-        self.policy_net.eval()
         self.target_net = GoalDeepQNet()
         self.target_net.load_state_dict(self.policy_net.state_dict())
         self.policy_net = self.policy_net.to(device)

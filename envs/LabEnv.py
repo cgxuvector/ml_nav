@@ -228,7 +228,7 @@ class RandomMaze(gym.Env):
         self._lab.write_property("params.view_pos.y", str(pos[1] + 1))
         for a in angles:
             self._lab.write_property("params.view_pos.theta", str(a))
-            ego_observations.append(self._lab_observations()['RGB.LOOK_RANDOM'])
+            ego_observations.append(self._lab.observations()['RGB.LOOK_RANDOM'])
         return ego_observations
 
     def reach_goal(self, current_pos):

@@ -26,9 +26,10 @@ class VisualPolicy(object):
         self.random_start = random_start
         self.random_goal = random_goal
 
-    def get_action(self, state):
+    def get_action(self, state, goal):
         state = torch.tensor(np.array(state).transpose(0, 3, 1, 2)).float()
-        action = self.agent(state).max(dim=1)[1].item()
+        goal = torch.tensor(np.array(goal).transpose(0, 3, 1, 2)).float()
+        action = self.agent(state, goal).max(dim=1)[1].item()
         return action
 
     def run(self):
@@ -91,7 +92,7 @@ class VisualPolicy(object):
             max_steps = 50
             for t in tqdm(range(500), desc="Step loop"):
                 # for i in range(1000):
-                act = self.get_action(state)
+                act = self.get_action(state, goal)
                 next_state, reward, done, dist, _ = my_lab.step(act)
                 print("  Count = ", 50 - max_steps, dist)
                 max_steps -= 1
@@ -114,7 +115,7 @@ class VisualPolicy(object):
                     env_map.map2d_bw[end_pos[0], end_pos[1]] = 0.2
                     env_map.map2d_bw[start_pos[0], start_pos[1]] = 0.8
                     print("  Current pos : {} - {}".format(pos_params[0:2], pos_params[2:-1]))
-                    my_lab.reset(size, seed, pos_params)
+                    state, goal = my_lab.reset(size, seed, pos_params)
                 else:
                     state = next_state
             plt.cla()
@@ -122,9 +123,9 @@ class VisualPolicy(object):
 
 if __name__ == '__main__':
     # load the agent
-    my_agent = DQNAgent(0, 0).policy_net
-    # my_agent = GoalDQNAgent(0, 0).policy_net
-    my_agent.load_state_dict(torch.load("./results/3-30/double_dqn_fixed_goal_7_seed_3.pt", map_location=torch.device('cpu')))
+    # my_agent = DQNAgent(0, 0).policy_net
+    my_agent = GoalDQNAgent(0, 0).policy_net
+    my_agent.load_state_dict(torch.load("./results/3-30/conditioned_double_dqn_fixed_goal_7_seed_2.pt", map_location=torch.device('cpu')))
     my_agent.eval()
 
     # run the agent

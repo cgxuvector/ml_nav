@@ -22,6 +22,7 @@ def plot_line_chart(data, name, x_label, y_label, smooth_win_size, color, step):
 
 if __name__ == '__main__':
     root_dir = '../results/3-30/'
-    data_name = 'conditioned_double_dqn_fixed_goal_7_return.npy'
+    data_name = 'conditioned_double_dqn_fixed_goal_7_seed_1_return.npy'
     d = np.load(root_dir + data_name)
-    plot_line_chart(d, "Non Goal Conditioned Double DQN Seed 1 ", "Episode", "Distance", 100, ['lightgreen', '-g'], 250)
+    # plot_line_chart(d, "Non Goal Conditioned Double DQN Seed 1 ", "Episode", "Distance", 100, ['lightsalmon', '-r'], d.shape[0])
+    plot_line_chart(d, "Non Goal Conditioned Double DQN Seed 1 ", "Episode", "Distance", 100, ['lightsalmon', '-r'], 200)

@@ -371,6 +371,7 @@ class RoughMap(object):
         # obtain all the positions on the path
         positions_on_path = [pos.tolist() for pos in self.path]
         # sample the next goal
+        # Debug.set_trace()
         new_goal = positions_on_path[step] if step < len(self.path) else positions_on_path[-1]
         return new_goal
 
@@ -397,4 +398,8 @@ class RoughMap(object):
         return positions_on_path[start_idx], positions_on_path[goal_idx]
 
 
+# myMap = RoughMap(7, 0, 3)
+# print(myMap.path)
+# for i in range(20):
+#     print(myMap.sample_path_next_goal(i+1))
 

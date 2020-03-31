@@ -78,6 +78,8 @@ class Experiment(object):
         self.train_episode_num = train_episode_num
         # goal conditioned flag
         self.use_goal = use_goal
+        # recycle
+        self.recycle_goal = False
 
     def run(self):
         """
@@ -175,41 +177,44 @@ class Experiment(object):
         Run experiments using goal-conditioned DQN with the nearby goals
         :return: None
         """
-        # running statistics
-        goal_step = 1
-        rewards = []
-        episode_t = 0
-        sampled_goal_count = self.sampled_goal
-        train_episode_count = self.train_episode_num
         # set the random seed
         np.random.seed(self.seed_rnd)
-        # select the maze
+        # select a maze
         size = np.random.choice(self.maze_list)
         seed = np.random.choice(self.seed_list)
-        # load the 2D map
+        # select the map
         env_map = mapper.RoughMap(size, seed, 3)
+        # get the start and goal positions
         pos_params = env_map.get_start_goal_pos()
+        # get the first middle sub-goal
+        goal_step = 1
         pos_params[2:4] = env_map.sample_path_next_goal(goal_step)
         goal_step += 1
         # reset the environment
         state, goal = self.env.reset(size, seed, pos_params)
+
+        # # plot the goal and the current observations
+        # fig, arrs = plt.subplots(3, 3)
+        # img1 = arrs[1, 2].imshow(goal[0])
+        # img2 = arrs[0, 2].imshow(goal[1])
+        # img3 = arrs[0, 1].imshow(goal[2])
+        # img4 = arrs[0, 0].imshow(goal[3])
+        # img5 = arrs[1, 0].imshow(goal[4])
+        # top_down_img = arrs[1, 1].imshow(ndimage.rotate(self.env.top_down_obs, -90))
+        # img6 = arrs[2, 0].imshow(goal[5])
+        # img7 = arrs[2, 1].imshow(goal[6])
+        # img8 = arrs[2, 2].imshow(goal[7])
+
+        # running statistics
+        rewards = []
+        episode_t = 0
+        sampled_goal_count = len(env_map.path)
+        train_episode_count = self.train_episode_num
+
+        # start training
         pbar = tqdm.trange(self.max_time_steps)
-        #fig, arrs = plt.subplots(1, 2)
-        #top_down_img = arrs[0].imshow(ndimage.rotate(self.env.top_down_obs, -90))
         for t in pbar:
-        # for t in range(self.max_time_steps):
-        fig, arrs = plt.subplots(3, 3)
-        img1 = arrs[1, 2].imshow(goal[0])
-        img2 = arrs[0, 2].imshow(goal[1])
-        img3 = arrs[0, 1].imshow(goal[2])
-        img4 = arrs[0, 0].imshow(goal[3])
-        img5 = arrs[1, 0].imshow(goal[4])
-        top_down_img = arrs[1, 1].imshow(ndimage.rotate(self.env.top_down_obs, -90))
-        img6 = arrs[2, 0].imshow(goal[5])
-        img7 = arrs[2, 1].imshow(goal[6])
-        img8 = arrs[2, 2].imshow(goal[7])
-        # for t in pbar:
-        for t in range(self.max_time_steps):
+            """ select an action using epsilon greedy"""
             # compute the epsilon
             eps = self.schedule.get_value(t)
             # get an action from epsilon greedy
@@ -218,26 +223,29 @@ class Experiment(object):
             else:
                 action = self.agent.get_action(self.toTensor(state)) if not self.use_goal else self.agent.get_action(
                     self.toTensor(state), self.toTensor(goal))
+
+            """ apply the action in the 3D maze"""
             # step in the environment
             next_state, reward, done, dist, _ = self.env.step(action)
+
+            # # show the current observation and goal
+            # img1.set_data(goal[0])
+            # img2.set_data(goal[1])
+            # img3.set_data(goal[2])
+            # img4.set_data(goal[3])
+            # img5.set_data(goal[4])
+            # top_down_img.set_data(ndimage.rotate(self.env.top_down_obs, -90))
+            # img6.set_data(goal[5])
+            # img7.set_data(goal[6])
+            # img8.set_data(goal[7])
+            # fig.canvas.draw()
+            # plt.pause(0.0001)
+
+            """ add the transition into the replay buffer"""
             # store the replay buffer and convert the data to tensor
             if self.use_relay_buffer:
                 trans = self.toTransition(state, action, next_state, reward, goal, done)
                 self.replay_buffer.add(trans)
-
-            img1.set_data(goal[0])
-            img2.set_data(goal[1])
-            img3.set_data(goal[2])
-            img4.set_data(goal[3])
-            img5.set_data(goal[4])
-            top_down_img.set_data(ndimage.rotate(self.env.top_down_obs, -90))
-            img6.set_data(goal[5])
-            img7.set_data(goal[6])
-            img8.set_data(goal[7])
-            fig.canvas.draw()
-            plt.pause(0.0001)
-
-            print("Distance = ", dist, " Done = ", done, "Pos = ", pos_params[0:2], pos_params[2:4])
 
             # check terminal
             if done or (episode_t == self.max_steps_per_episode):
@@ -251,53 +259,58 @@ class Experiment(object):
                 self.distance.append(dist)
                 # compute the episode number
                 episode_idx = len(self.returns)
+                # print(f"Episode={episode_idx}, Goal idx={goal_step}, Goal={pos_params[2:4]}, Maze={size}-{seed}, Dist={dist}")
+
                 # print the information
-                # pbar.set_description(
-                #     f'Episode: {episode_idx} | Steps: {episode_t} | Return: {G:2f} | Dist: {dist:.2f} | Init: {pos_params[0:2]} | Goal: {pos_params[2:4]}'
-                # )
+                pbar.set_description(
+                    f'Episode: {episode_idx} | Steps: {episode_t} | Return: {G:2f} | Dist: {dist:.2f} | Init: {pos_params[0:2]} | Goal: {pos_params[2:4]}'
+                )
                 # reset the environments
-                rewards = []  # rewards recorder
-                episode_t = 0  # episode steps counter
-                # for a fixed (start, goal) pair, train it for #train_episode_count
-                if train_episode_count > 0:
+                rewards = []  # reset the rewards
+                episode_t = 0  # reset the time step counter
+
+                # for fixed start and goal positions, train it for #(train_episode_num) episodes
+                if train_episode_count > 1:
                     train_episode_count -= 1
                 else:
-                    # for a fixed maze, sampled #(sampled_goal_count) (start, goal) pairs
-                    if sampled_goal_count > 0:
-                        size = env_map.maze_size
-                        seed = env_map.maze_seed
-                        pos_params[2:4] = env_map.sample_path_next_goal(goal_step)
-                        goal_step = goal_step + 1 if goal_step < len(env_map.path) else 1
-                        sampled_goal_count -= 1
-                    else:
-                        # then, change to another maze environment
-                        size, seed, pos_params, env_map = self.map_sampling(env_map, self.maze_list, self.seed_list,
-                                                                            self.fix_maze)
-                        goal_step = 1
+                    # for fixed start, sample the next middle sub-goal
+                    if sampled_goal_count > 1:
+                        # sample the next sub-goal
                         pos_params[2:4] = env_map.sample_path_next_goal(goal_step)
                         goal_step += 1
-                        sampled_goal_count = self.sampled_goal
+                        sampled_goal_count -= 1
+                    else:
+                        # sample another trajectory or sample a new maze
+                        size, seed, pos_params, env_map = self.map_sampling(env_map, self.maze_list, self.seed_list,
+                                                                            self.fix_maze)
+                        if self.recycle_goal:
+                            # sample the first middle sub-goal
+                            goal_step = 1
+                            pos_params[2:4] = env_map.sample_path_next_goal(goal_step)
+                            goal_step += 1
+                        sampled_goal_count = len(env_map.path)
                     train_episode_count = self.train_episode_num
+                # reset the environment
                 state, goal = self.env.reset(size, seed, pos_params)
             else:
                 state = next_state
                 rewards.append(reward)
                 episode_t += 1
 
-        #     # train the agent
-        #     if t > self.start_train_step:
-        #         sampled_batch = self.replay_buffer.sample(self.batch_size)
-        #         self.agent.train_one_batch(t, sampled_batch)
-        #
-        # # save the model and the statics
-        # model_save_path = os.path.join(self.save_dir, self.model_name) + ".pt"
-        # distance_save_path = os.path.join(self.save_dir, self.model_name + "_distance.npy")
-        # returns_save_path = os.path.join(self.save_dir, self.model_name + "_return.npy")
-        # lengths_save_path = os.path.join(self.save_dir, self.model_name + "_length.npy")
-        # torch.save(self.agent.policy_net.state_dict(), model_save_path)
-        # np.save(distance_save_path, self.distance)
-        # np.save(returns_save_path, self.returns)
-        # np.save(lengths_save_path, self.lengths)
+            # train the agent
+            if t > self.start_train_step:
+                sampled_batch = self.replay_buffer.sample(self.batch_size)
+                self.agent.train_one_batch(t, sampled_batch)
+
+        # save the model and the statics
+        model_save_path = os.path.join(self.save_dir, self.model_name) + ".pt"
+        distance_save_path = os.path.join(self.save_dir, self.model_name + "_distance.npy")
+        returns_save_path = os.path.join(self.save_dir, self.model_name + "_return.npy")
+        lengths_save_path = os.path.join(self.save_dir, self.model_name + "_length.npy")
+        torch.save(self.agent.policy_net.state_dict(), model_save_path)
+        np.save(distance_save_path, self.distance)
+        np.save(returns_save_path, self.returns)
+        np.save(lengths_save_path, self.lengths)
 
     def map_sampling(self, env_map, maze_list, seed_list, sample_pos=False):
         """
