@@ -1,9 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from skimage.transform import resize
 from pathlib import Path
 import random
-import copy
 from utils import searchAlg
 import IPython.terminal.debugger as Debug
 """
@@ -396,10 +394,4 @@ class RoughMap(object):
             else:
                 goal_idx = start_idx + dist if start_idx + dist < len(self.path) else len(self.path) - 1
         return positions_on_path[start_idx], positions_on_path[goal_idx]
-
-
-# myMap = RoughMap(7, 0, 3)
-# print(myMap.path)
-# for i in range(20):
-#     print(myMap.sample_path_next_goal(i+1))
 
