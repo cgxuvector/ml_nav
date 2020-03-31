@@ -1,9 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from skimage.transform import resize
 from pathlib import Path
 import random
-import copy
 from utils import searchAlg
 import IPython.terminal.debugger as Debug
 """
@@ -371,6 +369,7 @@ class RoughMap(object):
         # obtain all the positions on the path
         positions_on_path = [pos.tolist() for pos in self.path]
         # sample the next goal
+        # Debug.set_trace()
         new_goal = positions_on_path[step] if step < len(self.path) else positions_on_path[-1]
         return new_goal
 
@@ -395,6 +394,4 @@ class RoughMap(object):
             else:
                 goal_idx = start_idx + dist if start_idx + dist < len(self.path) else len(self.path) - 1
         return positions_on_path[start_idx], positions_on_path[goal_idx]
-
-
 
