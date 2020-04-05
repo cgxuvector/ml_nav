@@ -37,7 +37,7 @@ class Experiment(object):
                  random_seed=1234,
                  use_replay=False,
                  sampled_goal=10,
-                 eps_start=1.0,
+                 eps_start=0.2,
                  eps_end=0.01,
                  device="cpu",
                  use_goal=False):
@@ -80,6 +80,8 @@ class Experiment(object):
         self.use_goal = use_goal
         # recycle
         self.recycle_goal = False
+        # last goal
+        self.last_goal = None
 
     def run(self):
         """
@@ -192,19 +194,18 @@ class Experiment(object):
         goal_step += 1
         # reset the environment
         state, goal = self.env.reset(size, seed, pos_params)
-
-        # plot the goal and the current observations
-        fig, arrs = plt.subplots(3, 3)
-        img1 = arrs[1, 2].imshow(goal[0])
-        img2 = arrs[0, 2].imshow(goal[1])
-        img3 = arrs[0, 1].imshow(goal[2])
-        img4 = arrs[0, 0].imshow(goal[3])
-        img5 = arrs[1, 0].imshow(goal[4])
+        self.last_goal = goal
+        # # plot the goal and the current observations
+        # fig, arrs = plt.subplots(3, 3)
+        # img1 = arrs[1, 2].imshow(goal[0])
+        # img2 = arrs[0, 2].imshow(goal[1])
+        # img3 = arrs[0, 1].imshow(goal[2])
+        # img4 = arrs[0, 0].imshow(goal[3])
+        # img5 = arrs[1, 0].imshow(goal[4])
         # top_down_img = arrs[1, 1].imshow(ndimage.rotate(self.env.top_down_obs, -90))
-        top_down_img = arrs[1, 1].imshow(env_map.map2d_path)
-        img6 = arrs[2, 0].imshow(goal[5])
-        img7 = arrs[2, 1].imshow(goal[6])
-        img8 = arrs[2, 2].imshow(goal[7])
+        # img6 = arrs[2, 0].imshow(goal[5])
+        # img7 = arrs[2, 1].imshow(goal[6])
+        # img8 = arrs[2, 2].imshow(goal[7])
 
         # running statistics
         rewards = []
@@ -214,35 +215,33 @@ class Experiment(object):
 
         # start training
         pbar = tqdm.trange(self.max_time_steps)
-        # for t in pbar:
-        for t in range(self.max_time_steps):
+        for t in pbar:
             """ select an action using epsilon greedy"""
             # compute the epsilon
             eps = self.schedule.get_value(t)
             # get an action from epsilon greedy
-            if np.random.sample() < 1:
+            if np.random.sample() < eps:
                 action = self.env.action_space.sample()
             else:
                 action = self.agent.get_action(self.toTensor(state)) if not self.use_goal else self.agent.get_action(
-                    self.toTensor(state), self.toTensor(goal))
+                    self.toTensor(state), self.toTensor(self.last_goal))
 
             """ apply the action in the 3D maze"""
             # step in the environment
             next_state, reward, done, dist, _ = self.env.step(action)
 
-            # show the current observation and goal
-            img1.set_data(goal[0])
-            img2.set_data(goal[1])
-            img3.set_data(goal[2])
-            img4.set_data(goal[3])
-            img5.set_data(goal[4])
+            # # show the current observation and goal
+            # img1.set_data(goal[0])
+            # img2.set_data(goal[1])
+            # img3.set_data(goal[2])
+            # img4.set_data(goal[3])
+            # img5.set_data(goal[4])
             # top_down_img.set_data(ndimage.rotate(self.env.top_down_obs, -90))
-            top_down_img = arrs[1, 1].imshow(env_map.map2d_path)
-            img6.set_data(goal[5])
-            img7.set_data(goal[6])
-            img8.set_data(goal[7])
-            fig.canvas.draw()
-            plt.pause(0.0001)
+            # img6.set_data(goal[5])
+            # img7.set_data(goal[6])
+            # img8.set_data(goal[7])
+            # fig.canvas.draw()
+            # plt.pause(0.0001)
 
             """ add the transition into the replay buffer"""
             # store the replay buffer and convert the data to tensor
@@ -252,7 +251,6 @@ class Experiment(object):
 
             # check terminal
             if done or (episode_t == self.max_steps_per_episode):
-                # Debug.set_trace()
                 # compute the return
                 G = 0
                 for r in reversed(rewards):
@@ -263,12 +261,12 @@ class Experiment(object):
                 self.distance.append(dist)
                 # compute the episode number
                 episode_idx = len(self.returns)
-                print(f"Memory size={len(self.replay_buffer)} Episode={episode_idx}, Goal idx={goal_step}, Goal={pos_params[2:4]}, Maze={size}-{seed}, Dist={dist}")
+                # print(f"Episode={episode_idx}, Goal idx={goal_step}, Goal={pos_params[2:4]}, Maze={size}-{seed}, Dist={dist}")
 
                 # print the information
-                # pbar.set_description(
-                #     f'Episode: {episode_idx} | Steps: {episode_t} | Return: {G:2f} | Dist: {dist:.2f} | Init: {pos_params[0:2]} | Goal: {pos_params[2:4]}'
-                # )
+                pbar.set_description(
+                        f'Episode: {episode_idx} | Steps: {episode_t} | Return: {G:2f} | Dist: {dist:.2f} | Init: {pos_params[0:2]} | Goal: {pos_params[2:4]} | Eps: {eps:.3f}'
+                )
                 # reset the environments
                 rewards = []  # reset the rewards
                 episode_t = 0  # reset the time step counter
@@ -295,26 +293,27 @@ class Experiment(object):
                         sampled_goal_count = len(env_map.path)
                     train_episode_count = self.train_episode_num
                 # reset the environment
+                self.last_goal = goal
                 state, goal = self.env.reset(size, seed, pos_params)
             else:
                 state = next_state
                 rewards.append(reward)
                 episode_t += 1
 
-        #     # train the agent
-        #     if t > self.start_train_step:
-        #         sampled_batch = self.replay_buffer.sample(self.batch_size)
-        #         self.agent.train_one_batch(t, sampled_batch)
-        #
-        # # save the model and the statics
-        # model_save_path = os.path.join(self.save_dir, self.model_name) + ".pt"
-        # distance_save_path = os.path.join(self.save_dir, self.model_name + "_distance.npy")
-        # returns_save_path = os.path.join(self.save_dir, self.model_name + "_return.npy")
-        # lengths_save_path = os.path.join(self.save_dir, self.model_name + "_length.npy")
-        # torch.save(self.agent.policy_net.state_dict(), model_save_path)
-        # np.save(distance_save_path, self.distance)
-        # np.save(returns_save_path, self.returns)
-        # np.save(lengths_save_path, self.lengths)
+            #train the agent
+            if t > self.start_train_step:
+                sampled_batch = self.replay_buffer.sample(self.batch_size)
+                self.agent.train_one_batch(t, sampled_batch)
+
+        # save the model and the statics
+        model_save_path = os.path.join(self.save_dir, self.model_name) + ".pt"
+        distance_save_path = os.path.join(self.save_dir, self.model_name + "_distance.npy")
+        returns_save_path = os.path.join(self.save_dir, self.model_name + "_return.npy")
+        lengths_save_path = os.path.join(self.save_dir, self.model_name + "_length.npy")
+        torch.save(self.agent.policy_net.state_dict(), model_save_path)
+        np.save(distance_save_path, self.distance)
+        np.save(returns_save_path, self.returns)
+        np.save(lengths_save_path, self.lengths)
 
     def map_sampling(self, env_map, maze_list, seed_list, sample_pos=False):
         """
@@ -357,17 +356,17 @@ class Experiment(object):
         """
         if not self.use_goal:
             return self.TRANSITION(state=self.toTensor(state),
-                                   action=torch.tensor(action).long().view(-1, 1),
-                                   reward=torch.tensor(reward).float().view(-1, 1),
+                                   action=torch.tensor(action, dtype=torch.int8).view(-1, 1),
+                                   reward=torch.tensor(reward, dtype=torch.int8).view(-1, 1),
                                    next_state=self.toTensor(next_state),
-                                   done=torch.tensor(done).view(-1, 1))
+                                   done=torch.tensor(done, dtype=torch.int8).view(-1, 1))
         else:
             return self.TRANSITION(state=self.toTensor(state),
-                                   action=torch.tensor(action).long().view(-1, 1),
-                                   reward=torch.tensor(reward).float().view(-1, 1),
+                                   action=torch.tensor(action, dtype=torch.int8).view(-1, 1),
+                                   reward=torch.tensor(reward, dtype=torch.int8).view(-1, 1),
                                    next_state=self.toTensor(next_state),
                                    goal=self.toTensor(goal),
-                                   done=torch.tensor(done).view(-1, 1))
+                                   done=torch.tensor(done, dtype=torch.int8).view(-1, 1))
 
     @staticmethod
     def toTensor(obs_list):

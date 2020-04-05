@@ -1,6 +1,8 @@
 import torch
 from torch import nn
 import numpy as np
+from utils import mapper
+import IPython.terminal.debugger as Debug
 
 
 class GoalDeepQNet(nn.Module):
@@ -194,6 +196,8 @@ class GoalDQNAgent(object):
 
     # select an action based on the policy network
     def get_action(self, input_state, goal):
+        input_state = input_state.float()
+        goal = goal.float()
         input_state = input_state.to(self.device)
         goal = goal.to(self.device)
         with torch.no_grad():
@@ -214,18 +218,18 @@ class GoalDQNAgent(object):
 
     def convert2tensor(self, batch):
         if len(batch._fields) == 5:
-            state = torch.cat(batch.state, dim=0).to(self.device)
-            action = torch.cat(batch.action, dim=0).to(self.device)
-            reward = torch.cat(batch.reward, dim=0).to(self.device)
-            next_state = torch.cat(batch.next_state, dim=0).to(self.device)
+            state = torch.cat(batch.state, dim=0).float().to(self.device)
+            action = torch.cat(batch.action, dim=0).long().to(self.device)
+            reward = torch.cat(batch.reward, dim=0).float().to(self.device)
+            next_state = torch.cat(batch.next_state, dim=0).float().to(self.device)
             done = torch.cat(batch.done, dim=0).to(self.device)
             return state, action, next_state, reward, done
         elif len(batch._fields) == 6:
-            state = torch.cat(batch.state, dim=0).to(self.device)
-            action = torch.cat(batch.action, dim=0).to(self.device)
-            reward = torch.cat(batch.reward, dim=0).to(self.device)
-            next_state = torch.cat(batch.next_state, dim=0).to(self.device)
-            goal = torch.cat(batch.goal, dim=0).to(self.device)
+            state = torch.cat(batch.state, dim=0).float().to(self.device)
+            action = torch.cat(batch.action, dim=0).long().to(self.device)
+            reward = torch.cat(batch.reward, dim=0).float().to(self.device)
+            next_state = torch.cat(batch.next_state, dim=0).float().to(self.device)
+            goal = torch.cat(batch.goal, dim=0).float().to(self.device)
             done = torch.cat(batch.done, dim=0).to(self.device)
             return state, action, next_state, reward, goal, done
 
