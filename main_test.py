@@ -51,6 +51,8 @@ def parse_input():
     parser.add_argument("--use_goal", type=str, default="False", help="whether using goal conditioned strategy")
     # set smaller observations
     parser.add_argument("--use_small_obs", type=str, default='True', help="whether using small observations")
+    # set goal distance
+    parser.add_argument("--goal_dist", type=int, default=1, help="distance between start and goal")
     return parser.parse_args()
 
 
@@ -159,10 +161,11 @@ if __name__ == '__main__':
         train_episode_num=inputs.train_episode_num,
         # whether use goal-conditioned strategy
         use_goal=inputs.use_goal,
-        transition=transition
+        transition=transition,
+        goal_dist=inputs.goal_dist
     )
     # run the experiments
-    my_experiment.goal_conditioned_run()
+    my_experiment.random_goal_conditioned_run()
 
 
 

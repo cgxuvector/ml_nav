@@ -237,10 +237,6 @@ class RandomMaze(gym.Env):
         # compute the distance and angle error
         dist = np.sqrt((current_pos[0] - goal_pos_3d[0])**2 + (current_pos[1] - goal_pos_3d[1])**2)
         angle_error = np.abs(current_pos[2] - self.goal_pos[2])
-        # print(f"Goal pos = ({goal_pos_3d[0]:.2f}, {goal_pos_3d[1]:.2f}, {self.goal_pos[2]:.2f}), -"
-        #       f" Now pos = ({current_pos[0]:.2f}, {current_pos[1]:.2f}, {current_pos[2]:.2f}) -"
-        #       f" Err = ({dist:.2f}, {angle_error:.2f})")
-        # print(dist)
         #if dist < 20 and angle_error < 10:
         if dist < 35:
             return 1, dist
