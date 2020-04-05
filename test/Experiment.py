@@ -37,7 +37,7 @@ class Experiment(object):
                  random_seed=1234,
                  use_replay=False,
                  sampled_goal=10,
-                 eps_start=1.0,
+                 eps_start=0.2,
                  eps_end=0.01,
                  device="cpu",
                  use_goal=False):
@@ -80,6 +80,8 @@ class Experiment(object):
         self.use_goal = use_goal
         # recycle
         self.recycle_goal = False
+        # last goal
+        self.last_goal = None
 
     def run(self):
         """
@@ -192,7 +194,7 @@ class Experiment(object):
         goal_step += 1
         # reset the environment
         state, goal = self.env.reset(size, seed, pos_params)
-
+        self.last_goal = goal
         # # plot the goal and the current observations
         # fig, arrs = plt.subplots(3, 3)
         # img1 = arrs[1, 2].imshow(goal[0])
@@ -222,7 +224,7 @@ class Experiment(object):
                 action = self.env.action_space.sample()
             else:
                 action = self.agent.get_action(self.toTensor(state)) if not self.use_goal else self.agent.get_action(
-                    self.toTensor(state), self.toTensor(goal))
+                    self.toTensor(state), self.toTensor(self.last_goal))
 
             """ apply the action in the 3D maze"""
             # step in the environment
@@ -263,7 +265,7 @@ class Experiment(object):
 
                 # print the information
                 pbar.set_description(
-                    f'Episode: {episode_idx} | Steps: {episode_t} | Return: {G:2f} | Dist: {dist:.2f} | Init: {pos_params[0:2]} | Goal: {pos_params[2:4]}'
+                        f'Episode: {episode_idx} | Steps: {episode_t} | Return: {G:2f} | Dist: {dist:.2f} | Init: {pos_params[0:2]} | Goal: {pos_params[2:4]} | Eps: {eps:.3f}'
                 )
                 # reset the environments
                 rewards = []  # reset the rewards
@@ -291,13 +293,14 @@ class Experiment(object):
                         sampled_goal_count = len(env_map.path)
                     train_episode_count = self.train_episode_num
                 # reset the environment
+                self.last_goal = goal
                 state, goal = self.env.reset(size, seed, pos_params)
             else:
                 state = next_state
                 rewards.append(reward)
                 episode_t += 1
 
-            # train the agent
+            #train the agent
             if t > self.start_train_step:
                 sampled_batch = self.replay_buffer.sample(self.batch_size)
                 self.agent.train_one_batch(t, sampled_batch)
@@ -353,17 +356,17 @@ class Experiment(object):
         """
         if not self.use_goal:
             return self.TRANSITION(state=self.toTensor(state),
-                                   action=torch.tensor(action).long().view(-1, 1),
-                                   reward=torch.tensor(reward).float().view(-1, 1),
+                                   action=torch.tensor(action, dtype=torch.int8).view(-1, 1),
+                                   reward=torch.tensor(reward, dtype=torch.int8).view(-1, 1),
                                    next_state=self.toTensor(next_state),
-                                   done=torch.tensor(done).view(-1, 1))
+                                   done=torch.tensor(done, dtype=torch.int8).view(-1, 1))
         else:
             return self.TRANSITION(state=self.toTensor(state),
-                                   action=torch.tensor(action).long().view(-1, 1),
-                                   reward=torch.tensor(reward).float().view(-1, 1),
+                                   action=torch.tensor(action, dtype=torch.int8).view(-1, 1),
+                                   reward=torch.tensor(reward, dtype=torch.int8).view(-1, 1),
                                    next_state=self.toTensor(next_state),
                                    goal=self.toTensor(goal),
-                                   done=torch.tensor(done).view(-1, 1))
+                                   done=torch.tensor(done, dtype=torch.int8).view(-1, 1))
 
     @staticmethod
     def toTensor(obs_list):
@@ -374,7 +377,7 @@ class Experiment(object):
         :param obs_list: List of the 8 observations
         :return: state tensor
         """
-        state_obs = torch.tensor(np.array(obs_list).transpose(0, 3, 1, 2)).float()
+        state_obs = torch.tensor(np.array(obs_list).transpose(0, 3, 1, 2), dtype=torch.uint8)
         return state_obs
 
 
