@@ -1,7 +1,6 @@
 import torch
 from torch import nn
 import numpy as np
-from utils import mapper
 
 
 class GoalDeepQNet(nn.Module):
@@ -10,103 +9,91 @@ class GoalDeepQNet(nn.Module):
             - No image / image feature input: fully-connected (3 layer implemented)
             - Image input: convolutional (not implemented)
     """
-    def __init__(self):
+    def __init__(self, small_obs=False):
         super(GoalDeepQNet, self).__init__()
+        self.small_obs = small_obs
         # if the convolutional flag is enabled.
-        self.conv_qNet = nn.Sequential(
-            # 3 x 64 x 64 --> 32 x 31 x 31
-            nn.Conv2d(in_channels=3, out_channels=32, kernel_size=3),
-            nn.MaxPool2d(kernel_size=2, stride=2),
-            nn.BatchNorm2d(32),
-            nn.ReLU(),
+        if not self.small_obs:
+            self.conv_qNet = nn.Sequential(
+                # 3 x 64 x 64 --> 32 x 31 x 31
+                nn.Conv2d(in_channels=3, out_channels=32, kernel_size=3),
+                nn.MaxPool2d(kernel_size=2, stride=2),
+                nn.BatchNorm2d(32),
+                nn.ReLU(),
 
-            # 32 x 31 x 31 --> 64 x 14 x 14
-            nn.Conv2d(in_channels=32, out_channels=64, kernel_size=4),
-            nn.MaxPool2d(kernel_size=2, stride=2),
-            nn.BatchNorm2d(64),
-            nn.ReLU(),
+                # 32 x 31 x 31 --> 64 x 14 x 14
+                nn.Conv2d(in_channels=32, out_channels=64, kernel_size=4),
+                nn.MaxPool2d(kernel_size=2, stride=2),
+                nn.BatchNorm2d(64),
+                nn.ReLU(),
 
-            # 64 x 14 x 14 --> 128 x 6 x 6
-            nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3),
-            nn.MaxPool2d(kernel_size=2, stride=2),
-            nn.BatchNorm2d(128),
-            nn.ReLU(),
+                # 64 x 14 x 14 --> 128 x 6 x 6
+                nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3),
+                nn.MaxPool2d(kernel_size=2, stride=2),
+                nn.BatchNorm2d(128),
+                nn.ReLU(),
 
-            # 128 x 6 x 6 --> 256 x 2 x 2
-            nn.Conv2d(in_channels=128, out_channels=256, kernel_size=3),
-            nn.MaxPool2d(kernel_size=2, stride=2),
-            nn.BatchNorm2d(256),
-            nn.ReLU(),
+                # 128 x 6 x 6 --> 256 x 2 x 2
+                nn.Conv2d(in_channels=128, out_channels=256, kernel_size=3),
+                nn.MaxPool2d(kernel_size=2, stride=2),
+                nn.BatchNorm2d(256),
+                nn.ReLU(),
 
-            # 256 x 2x 2 --> 256 x 1 x 1
-            nn.Conv2d(in_channels=256, out_channels=256, kernel_size=2),
-            nn.BatchNorm2d(256),
-            nn.ReLU()
-        )
+                # 256 x 2x 2 --> 256 x 1 x 1
+                nn.Conv2d(in_channels=256, out_channels=256, kernel_size=2),
+                nn.BatchNorm2d(256),
+                nn.ReLU()
+            )
 
-        # define the q network
-        self.fcNet = nn.Sequential(
-            nn.Linear(2048 * 2, 1024),
-            nn.ReLU(),
-            nn.Linear(1024, 4)
-        )
+            # define the q network
+            self.fcNet = nn.Sequential(
+                nn.Linear(2048 * 2, 1024),
+                nn.ReLU(),
+                nn.Linear(1024, 4)
+            )
+        else:
+            # if the convolutional flag is enabled.
+            self.conv_qNet = nn.Sequential(
+                # 3 x 32 x 32 --> 32 x 14 x 14
+                nn.Conv2d(in_channels=3, out_channels=32, kernel_size=5),
+                nn.MaxPool2d(kernel_size=2, stride=2),
+                nn.BatchNorm2d(32),
+                nn.ReLU(),
+
+                # 32 x 14 x 14 --> 64 x 6 x 6
+                nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3),
+                nn.MaxPool2d(kernel_size=2, stride=2),
+                nn.BatchNorm2d(64),
+                nn.ReLU(),
+
+                # 64 x 6 x 6 --> 128 x 2 x 2
+                nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3),
+                nn.MaxPool2d(kernel_size=2, stride=2),
+                nn.BatchNorm2d(128),
+                nn.ReLU(),
+            )
+
+            # define the q network
+            self.fcNet = nn.Sequential(
+                nn.Linear(1024 * 2, 1024),
+                nn.ReLU(),
+                nn.Linear(1024, 4)
+            )
 
     def forward(self, state, goal):
-        # compute state embedding
-        state_fea = self.conv_qNet(state).view(-1, 1 * 8 * 256)
-        goal_fea = self.conv_qNet(goal).view(-1, 1 * 8 * 256)
+        if not self.small_obs:
+            # compute state embedding
+            state_fea = self.conv_qNet(state).view(-1, 1 * 8 * 256)
+            goal_fea = self.conv_qNet(goal).view(-1, 1 * 8 * 256)
+        else:
+            # compute state embedding
+            state_fea = self.conv_qNet(state).view(-1, 1 * 8 * 128)
+            goal_fea = self.conv_qNet(goal).view(-1, 1 * 8 * 128)
         # concatenate the tensor
         state_goal_fea = torch.cat((state_fea, goal_fea), dim=1)
         # concatenate the goal with state
         x = self.fcNet(state_goal_fea)
         return x
-
-# class GoalDeepQNet(nn.Module):
-#     """
-#         Define the Q network:
-#             - No image / image feature input: fully-connected (3 layer implemented)
-#             - Image input: convolutional (not implemented)
-#     """
-#     def __init__(self):
-#         super(GoalDeepQNet, self).__init__()
-#         # if the convolutional flag is enabled.
-#         self.conv_qNet = nn.Sequential(
-#             # 3 x 32 x 32 --> 32 x 14 x 14
-#             nn.Conv2d(in_channels=3, out_channels=32, kernel_size=5),
-#             nn.MaxPool2d(kernel_size=2, stride=2),
-#             nn.BatchNorm2d(32),
-#             nn.ReLU(),
-#
-#             # 32 x 14 x 14 --> 64 x 6 x 6
-#             nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3),
-#             nn.MaxPool2d(kernel_size=2, stride=2),
-#             nn.BatchNorm2d(64),
-#             nn.ReLU(),
-#
-#             # 64 x 6 x 6 --> 128 x 2 x 2
-#             nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3),
-#             nn.MaxPool2d(kernel_size=2, stride=2),
-#             nn.BatchNorm2d(128),
-#             nn.ReLU(),
-#         )
-#
-#         # define the q network
-#         self.fcNet = nn.Sequential(
-#             nn.Linear(1024 * 2, 1024),
-#             nn.ReLU(),
-#             nn.Linear(1024, 4)
-#         )
-#
-#     def forward(self, state, goal):
-#         # compute state embedding
-#         state_fea = self.conv_qNet(state).view(-1, 1 * 8 * 128)
-#         goal_fea = self.conv_qNet(goal).view(-1, 1 * 8 * 128)
-#         # concatenate the tensor
-#         state_goal_fea = torch.cat((state_fea, goal_fea), dim=1)
-#         # concatenate the goal with state
-#         x = self.fcNet(state_goal_fea)
-#         return x
-#
 
 
 class GoalDQNAgent(object):
