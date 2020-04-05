@@ -160,19 +160,19 @@ class Experiment(object):
                 episode_t += 1
 
             # train the agent
-            if t > self.start_train_step:
-                sampled_batch = self.replay_buffer.sample(self.batch_size)
-                self.agent.train_one_batch(t, sampled_batch)
+#            if t > self.start_train_step:
+#                sampled_batch = self.replay_buffer.sample(self.batch_size)
+#                self.agent.train_one_batch(t, sampled_batch)
 
         # save the model and the statics
-        model_save_path = os.path.join(self.save_dir, self.model_name) + ".pt"
-        distance_save_path = os.path.join(self.save_dir, self.model_name + "_distance.npy")
-        returns_save_path = os.path.join(self.save_dir, self.model_name + "_return.npy")
-        lengths_save_path = os.path.join(self.save_dir, self.model_name + "_length.npy")
-        torch.save(self.agent.policy_net.state_dict(), model_save_path)
-        np.save(distance_save_path, self.distance)
-        np.save(returns_save_path, self.returns)
-        np.save(lengths_save_path, self.lengths)
+#        model_save_path = os.path.join(self.save_dir, self.model_name) + ".pt"
+#        distance_save_path = os.path.join(self.save_dir, self.model_name + "_distance.npy")
+#        returns_save_path = os.path.join(self.save_dir, self.model_name + "_return.npy")
+#        lengths_save_path = os.path.join(self.save_dir, self.model_name + "_length.npy")
+#        torch.save(self.agent.policy_net.state_dict(), model_save_path)
+#        np.save(distance_save_path, self.distance)
+#        np.save(returns_save_path, self.returns)
+#        np.save(lengths_save_path, self.lengths)
 
     def goal_conditioned_run(self):
         """
@@ -196,16 +196,16 @@ class Experiment(object):
         state, goal = self.env.reset(size, seed, pos_params)
         self.last_goal = goal
         # plot the goal and the current observations
-        fig, arrs = plt.subplots(3, 3)
-        img1 = arrs[1, 2].imshow(goal[0])
-        img2 = arrs[0, 2].imshow(goal[1])
-        img3 = arrs[0, 1].imshow(goal[2])
-        img4 = arrs[0, 0].imshow(goal[3])
-        img5 = arrs[1, 0].imshow(goal[4])
-        top_down_img = arrs[1, 1].imshow(ndimage.rotate(self.env.top_down_obs, -90))
-        img6 = arrs[2, 0].imshow(goal[5])
-        img7 = arrs[2, 1].imshow(goal[6])
-        img8 = arrs[2, 2].imshow(goal[7])
+#        fig, arrs = plt.subplots(3, 3)
+#        img1 = arrs[1, 2].imshow(goal[0])
+#        img2 = arrs[0, 2].imshow(goal[1])
+#        img3 = arrs[0, 1].imshow(goal[2])
+#        img4 = arrs[0, 0].imshow(goal[3])
+#        img5 = arrs[1, 0].imshow(goal[4])
+#        top_down_img = arrs[1, 1].imshow(ndimage.rotate(self.env.top_down_obs, -90))
+#        img6 = arrs[2, 0].imshow(goal[5])
+#        img7 = arrs[2, 1].imshow(goal[6])
+#        img8 = arrs[2, 2].imshow(goal[7])
 
         # running statistics
         rewards = []
@@ -231,17 +231,17 @@ class Experiment(object):
             next_state, reward, done, dist, _ = self.env.step(action)
 
             # show the current observation and goal
-            img1.set_data(goal[0])
-            img2.set_data(goal[1])
-            img3.set_data(goal[2])
-            img4.set_data(goal[3])
-            img5.set_data(goal[4])
-            top_down_img.set_data(ndimage.rotate(self.env.top_down_obs, -90))
-            img6.set_data(goal[5])
-            img7.set_data(goal[6])
-            img8.set_data(goal[7])
-            fig.canvas.draw()
-            plt.pause(0.0001)
+#            img1.set_data(goal[0])
+#            img2.set_data(goal[1])
+#            img3.set_data(goal[2])
+#            img4.set_data(goal[3])
+#            img5.set_data(goal[4])
+#            top_down_img.set_data(ndimage.rotate(self.env.top_down_obs, -90))
+#            img6.set_data(goal[5])
+#            img7.set_data(goal[6])
+#            img8.set_data(goal[7])
+#            fig.canvas.draw()
+#            plt.pause(0.0001)
 
             """ add the transition into the replay buffer"""
             # store the replay buffer and convert the data to tensor
