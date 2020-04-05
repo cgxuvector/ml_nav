@@ -40,7 +40,8 @@ class Experiment(object):
                  eps_start=0.2,
                  eps_end=0.01,
                  device="cpu",
-                 use_goal=False):
+                 use_goal=False,
+                 goal_dist=1):
         # environment
         self.env = env
         self.maze_list = maze_list
@@ -82,6 +83,8 @@ class Experiment(object):
         self.recycle_goal = False
         # last goal
         self.last_goal = None
+        # sample goal distance
+        self.goal_dist = goal_dist
 
     def run(self):
         """
@@ -174,11 +177,134 @@ class Experiment(object):
         np.save(returns_save_path, self.returns)
         np.save(lengths_save_path, self.lengths)
 
+    def random_goal_conditioned_run(self):
+        """
+               Run experiments using goal-conditioned DQN with the nearby goals
+               :return: None
+               """
+        # set the random seed
+        np.random.seed(self.seed_rnd)
+        # select a maze
+        size = np.random.choice(self.maze_list)
+        seed = np.random.choice(self.seed_list)
+        # select the map
+        env_map = mapper.RoughMap(size, seed, 3)
+        pos_params = env_map.get_start_goal_pos()
+        # get the start and goal positions
+        pos_params[0:2], pos_params[2:4] = env_map.sample_global_start_goal_pos(False, False, self.goal_dist)
+        # reset the environment
+        state, goal = self.env.reset(size, seed, pos_params)
+        self.last_goal = goal
+        # plot the goal and the current observations
+        fig, arrs = plt.subplots(3, 3)
+        img1 = arrs[1, 2].imshow(goal[0])
+        img2 = arrs[0, 2].imshow(goal[1])
+        img3 = arrs[0, 1].imshow(goal[2])
+        img4 = arrs[0, 0].imshow(goal[3])
+        img5 = arrs[1, 0].imshow(goal[4])
+        top_down_img = arrs[1, 1].imshow(ndimage.rotate(self.env.top_down_obs, -90))
+        # map_img = arrs[1, 1].imshow(env_map.map2d_bw)
+        img6 = arrs[2, 0].imshow(goal[5])
+        img7 = arrs[2, 1].imshow(goal[6])
+        img8 = arrs[2, 2].imshow(goal[7])
+
+        # running statistics
+        rewards = []
+        episode_t = 0
+        train_episode_count = self.train_episode_num
+
+        # start training
+        pbar = tqdm.trange(self.max_time_steps)
+        for t in pbar:
+            """ select an action using epsilon greedy"""
+            # compute the epsilon
+            eps = self.schedule.get_value(t)
+            # get an action from epsilon greedy
+            if np.random.sample() < eps:
+                action = self.env.action_space.sample()
+            else:
+                action = self.agent.get_action(self.toTensor(state)) if not self.use_goal else self.agent.get_action(
+                    self.toTensor(state), self.toTensor(self.last_goal))
+
+            """ apply the action in the 3D maze"""
+            # step in the environment
+            next_state, reward, done, dist, _ = self.env.step(action)
+
+            # show the current observation and goal
+            img1.set_data(goal[0])
+            img2.set_data(goal[1])
+            img3.set_data(goal[2])
+            img4.set_data(goal[3])
+            img5.set_data(goal[4])
+            top_down_img.set_data(ndimage.rotate(self.env.top_down_obs, -90))
+            # map_img.set_data(env_map.map2d_bw)
+            img6.set_data(goal[5])
+            img7.set_data(goal[6])
+            img8.set_data(goal[7])
+            fig.canvas.draw()
+            plt.pause(0.0001)
+
+            """ add the transition into the replay buffer"""
+            # store the replay buffer and convert the data to tensor
+            if self.use_relay_buffer:
+                trans = self.toTransition(state, action, next_state, reward, goal, done)
+                self.replay_buffer.add(trans)
+
+            # check terminal
+            if done or (episode_t == self.max_steps_per_episode):
+                # compute the return
+                G = 0
+                for r in reversed(rewards):
+                    G = r + self.gamma * G
+                # store the return, episode length, and final distance
+                self.returns.append(G)
+                self.lengths.append(episode_t)
+                self.distance.append(dist)
+                # compute the episode number
+                episode_idx = len(self.returns)
+                # print the information
+                pbar.set_description(
+                        f'Episode: {episode_idx} | Steps: {episode_t} | Return: {G:2f} | Dist: {dist:.2f} | Init: {pos_params[0:2]} | Goal: {pos_params[2:4]} | Eps: {eps:.3f}'
+                )
+                # reset the environments
+                rewards = []  # reset the rewards
+                episode_t = 0  # reset the time step counter
+
+                # for fixed start and goal positions, train it for #(train_episode_num) episodes
+                if train_episode_count > 1:
+                    train_episode_count -= 1
+                else:
+                    size, seed, pos_params, env_map = self.map_sampling(env_map, self.maze_list, self.seed_list,
+                                                                        self.fix_maze)
+                    train_episode_count = self.train_episode_num
+                # reset the environment
+                self.last_goal = goal
+                state, goal = self.env.reset(size, seed, pos_params)
+            else:
+                state = next_state
+                rewards.append(reward)
+                episode_t += 1
+
+            # train the agent
+            if t > self.start_train_step:
+                sampled_batch = self.replay_buffer.sample(self.batch_size)
+                self.agent.train_one_batch(t, sampled_batch)
+
+        # save the model and the statics
+        model_save_path = os.path.join(self.save_dir, self.model_name) + ".pt"
+        distance_save_path = os.path.join(self.save_dir, self.model_name + "_distance.npy")
+        returns_save_path = os.path.join(self.save_dir, self.model_name + "_return.npy")
+        lengths_save_path = os.path.join(self.save_dir, self.model_name + "_length.npy")
+        torch.save(self.agent.policy_net.state_dict(), model_save_path)
+        np.save(distance_save_path, self.distance)
+        np.save(returns_save_path, self.returns)
+        np.save(lengths_save_path, self.lengths)
+
     def goal_conditioned_run(self):
         """
-        Run experiments using goal-conditioned DQN with the nearby goals
-        :return: None
-        """
+               Run experiments using goal-conditioned DQN with the nearby goals
+               :return: None
+               """
         # set the random seed
         np.random.seed(self.seed_rnd)
         # select a maze
@@ -264,7 +390,7 @@ class Experiment(object):
 
                 # print the information
                 pbar.set_description(
-                        f'Episode: {episode_idx} | Steps: {episode_t} | Return: {G:2f} | Dist: {dist:.2f} | Init: {pos_params[0:2]} | Goal: {pos_params[2:4]} | Eps: {eps:.3f}'
+                    f'Episode: {episode_idx} | Steps: {episode_t} | Return: {G:2f} | Dist: {dist:.2f} | Init: {pos_params[0:2]} | Goal: {pos_params[2:4]} | Eps: {eps:.3f}'
                 )
                 # reset the environments
                 rewards = []  # reset the rewards
@@ -332,7 +458,7 @@ class Experiment(object):
         else:
             size = env_map.maze_size
             seed = env_map.maze_seed
-            start_pos, end_pos = env_map.sample_start_goal_pos(self.fix_start, self.fix_goal)
+            start_pos, end_pos = env_map.sample_global_start_goal_pos(self.fix_start, self.fix_goal, self.goal_dist)
             # positions
             pos_params = [start_pos[0],
                           start_pos[1],

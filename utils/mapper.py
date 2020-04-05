@@ -25,7 +25,7 @@ class RoughMap(object):
     """
 
     # init function
-    def __init__(self, m_size, m_seed, loc_map_size):
+    def __init__(self, m_size, m_seed, loc_map_size, step=2):
         """
         Function is used to initialize the current maps
         :param m_size: size of the maze
@@ -46,14 +46,13 @@ class RoughMap(object):
         self.map2d_txt = self.load_map('txt')  # map represented as the raw txt file
         self.init_pos = self.valid_pos[0]
         self.goal_pos = self.valid_pos[-1]
-        self.init_pos, self.goal_pos = self.sample_start_goal_pos(True, True)
 
         # obtain bw map and randomly selected initial and target goals
         self.init_pos, self.goal_pos, self.map2d_bw = self.load_map('bw')
 
         # obtain the grid world map to do the planning
         self.map2d_grid = self.load_map('grid')
-        self.path, self.map2d_path = self.generate_path()
+        self.path, self.map2d_path = self.generate_path(self.init_pos, self.goal_pos)
         # egocentric actions
         self.map_act, self.ego_act = self.path2egoaction(self.path)
         # egocentric local maps (size adjustable)
@@ -195,8 +194,8 @@ class RoughMap(object):
             raise Exception("Map Type Error: Invalid type \"{}\". Please select from \"txt\" , \"grid\" or \"bw\"". \
                             format(m_type))
 
-    def generate_path(self):
-        path = searchAlg.A_star(self.map2d_grid, self.init_pos, self.goal_pos)
+    def generate_path(self, init_pos, goal_pos):
+        path = searchAlg.A_star(self.map2d_grid, init_pos, goal_pos)
         path_map = self.show_path(path, self.map2d_grid)
         return path, path_map
 
@@ -333,6 +332,7 @@ class RoughMap(object):
 
         return local_maps, pad_map
 
+    # get the init and goal positions
     def get_start_goal_pos(self):
         pos_params = [self.init_pos[0],
                       self.init_pos[1],
@@ -341,16 +341,34 @@ class RoughMap(object):
                       0]  # [init_pos, goal_pos, init_orientation]
         return pos_params
 
-    def sample_start_goal_pos(self, fix_init, fix_goal):
-        # sample the start position
+    # sample the init and goal positions from the valid positions
+    def sample_global_start_goal_pos(self, fix_init, fix_goal, dist):
+        """
+        Function is used to sample the init and goal positions from the valid positions.
+        :param fix_init: If it is True, the init position is fixed.
+        :param fix_goal: If it is True, the goal position is fixed.
+        :param dist: range to sample the next step
+        :return: new sampled init and goal positions.
+        """
+        # obtain valid positions
         init_positions = list(self.valid_pos)
-        init_positions.remove(self.goal_pos)
-        tmp_init_pos = self.init_pos if fix_init else random.sample(self.valid_pos, 1)[0]
+        # candidate goal positions for fixed goal
+        if fix_goal:
+            init_positions.remove(self.goal_pos)
+        tmp_init_pos = self.init_pos if fix_init else random.sample(init_positions, 1)[0]
         # sample the goal position
         goal_positions = list(self.valid_pos)
         goal_positions.remove(tmp_init_pos)
         tmp_goal_pos = self.goal_pos if fix_goal else random.sample(goal_positions, 1)[0]
-        return tmp_init_pos, tmp_goal_pos
+        # plan a new path
+        pos_path = searchAlg.A_star(self.map2d_grid, tmp_init_pos, tmp_goal_pos)
+        # sample the init and goal along the trajectory
+        valid_pos = [pos.tolist() for pos in pos_path]
+        init_pos = valid_pos[0]
+        goal_pos = valid_pos[-1] if len(valid_pos) <= dist else valid_pos[dist]
+        # update the mapper
+        self.update_mapper(init_pos, goal_pos)
+        return init_pos, goal_pos
 
     def sample_path_goal(self, current_goal, step):
         # obtain all the positions on the path
@@ -369,7 +387,6 @@ class RoughMap(object):
         # obtain all the positions on the path
         positions_on_path = [pos.tolist() for pos in self.path]
         # sample the next goal
-        # Debug.set_trace()
         new_goal = positions_on_path[step] if step < len(self.path) else positions_on_path[-1]
         return new_goal
 
@@ -394,3 +411,19 @@ class RoughMap(object):
             else:
                 goal_idx = start_idx + dist if start_idx + dist < len(self.path) else len(self.path) - 1
         return positions_on_path[start_idx], positions_on_path[goal_idx]
+
+    def update_mapper(self, new_init, new_goal):
+        # clear the old the binary map
+        self.map2d_bw[self.init_pos[0], self.init_pos[1]] = 1
+        self.map2d_bw[self.goal_pos[0], self.goal_pos[1]] = 1
+        # reset the init and goal positions on the map
+        self.map2d_bw[new_init[0], new_init[1]] = 0.8
+        self.map2d_bw[new_goal[0], new_goal[1]] = 0.2
+        # update the init and goal positions
+        self.init_pos = new_init
+        self.goal_pos = new_goal
+        # update the path using the new init and goal positions
+        self.path, self.map2d_path = self.generate_path(self.init_pos, self.goal_pos)
+
+
+
