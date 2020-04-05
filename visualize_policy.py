@@ -76,10 +76,9 @@ class VisualPolicy(object):
                           0]  # [init_pos, goal_pos, init_orientation]
 
             state, goal = my_lab.reset(size, seed, pos_params)
-
             # show the observation in rgb and depth
             fig.canvas.set_window_title("Episode {} - {} x {} Maze - {} seed".format(ep, size, size, seed))
-            # image_artist_rgb = arr[0].imshow(state[0])
+            # image_artist_rgb = arr[0].imshow(state[4])
             image_artist_rgb = arr[0].imshow(env_map.map2d_bw)
             arr[0].set_title('Front View')
             image_artist_topdown = arr[1].imshow(my_lab.top_down_obs)
@@ -89,21 +88,21 @@ class VisualPolicy(object):
             total_reward = 0
             # valid positions
             num_valid_pos = len(env_map.valid_pos)
-            max_steps = 50
+            max_steps = 200
             for t in tqdm(range(500), desc="Step loop"):
                 # for i in range(1000):
                 act = self.get_action(state, goal)
                 next_state, reward, done, dist, _ = my_lab.step(act)
-                print("  Count = ", 50 - max_steps, dist)
+                print("  Count = ", 50 - max_steps, dist, act)
                 max_steps -= 1
-                # image_artist_rgb.set_data(next_state[0])
+                # image_artist_rgb.set_data(next_state[4])
                 image_artist_rgb.set_data(env_map.map2d_bw)
                 image_artist_topdown.set_data(ndimage.rotate(my_lab.top_down_obs, -90))
 
                 fig.canvas.draw()
                 plt.pause(0.001)
                 if done or max_steps < 0:
-                    max_steps = 50
+                    max_steps = 200
                     env_map.map2d_bw[pos_params[0], pos_params[1]] = 1.0
                     env_map.map2d_bw[pos_params[2], pos_params[3]] = 1.0
                     start_pos, end_pos = env_map.sample_start_goal_pos((not self.random_start), (not self.random_goal))
@@ -125,9 +124,9 @@ if __name__ == '__main__':
     # load the agent
     # my_agent = DQNAgent(0, 0).policy_net
     my_agent = GoalDQNAgent(0, 0).policy_net
-    my_agent.load_state_dict(torch.load("./results/3-30/conditioned_double_dqn_fixed_goal_7_seed_2.pt", map_location=torch.device('cpu')))
+    my_agent.load_state_dict(torch.load("./results/4-3/goal_conditioned_double_dqn_5x5_ep_200.pt", map_location=torch.device('cpu')))
     my_agent.eval()
 
     # run the agent
-    myVis = VisualPolicy(my_agent, 7, False, False)
+    myVis = VisualPolicy(my_agent, 11, False, False)
     myVis.run()

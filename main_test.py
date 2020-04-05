@@ -84,8 +84,8 @@ if __name__ == '__main__':
                         'DEBUG.POS.TRANS',
                         'DEBUG.POS.ROT',
                         'RGB.LOOK_TOP_DOWN']
-    observation_width = 64
-    observation_height = 64
+    observation_width = 32
+    observation_height = 32
     observation_fps = 60
     if len(inputs.maze_size_list) == 1:
         maze_size = [int(inputs.maze_size_list)]

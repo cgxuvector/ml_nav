@@ -394,4 +394,3 @@ class RoughMap(object):
             else:
                 goal_idx = start_idx + dist if start_idx + dist < len(self.path) else len(self.path) - 1
         return positions_on_path[start_idx], positions_on_path[goal_idx]
-
