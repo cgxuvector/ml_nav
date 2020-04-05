@@ -49,6 +49,8 @@ def parse_input():
     parser.add_argument("--save_dir", type=str, default=None, help="saving folder")
     # set goal-conditioned
     parser.add_argument("--use_goal", type=str, default="False", help="whether using goal conditioned strategy")
+    # set smaller observations
+    parser.add_argument("--use_small_obs", type=str, default='True', help="whether using small observations")
     return parser.parse_args()
 
 
@@ -62,6 +64,8 @@ def strTobool(inputs):
     inputs.dqn_gradient_clip = True if inputs.dqn_gradient_clip == 'True' else False
     # set params of goal
     inputs.use_goal = True if inputs.use_goal == "True" else False
+    # set params of observation
+    inputs.use_small_obs = True if inputs.use_small_obs == "True" else False
     return inputs
 
 
@@ -84,8 +88,12 @@ if __name__ == '__main__':
                         'DEBUG.POS.TRANS',
                         'DEBUG.POS.ROT',
                         'RGB.LOOK_TOP_DOWN']
-    observation_width = 32
-    observation_height = 32
+    if inputs.use_small_obs:
+        observation_width = 32
+        observation_height = 32
+    else:
+        observation_width = 64
+        observation_height = 64
     observation_fps = 60
     if len(inputs.maze_size_list) == 1:
         maze_size = [int(inputs.maze_size_list)]
@@ -121,7 +129,8 @@ if __name__ == '__main__':
                                 dqn_mode=inputs.dqn_mode,
                                 gamma=0.99,
                                 gradient_clip=inputs.dqn_gradient_clip,
-                                device=inputs.device
+                                device=inputs.device,
+                                use_small_obs=inputs.use_small_obs
                             )
     else:
         raise Exception(f"{inputs.agent} is not defined. Please try the valid agent (random, dqn, actor-critic)")

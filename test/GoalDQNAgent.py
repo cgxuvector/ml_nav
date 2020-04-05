@@ -77,7 +77,7 @@ class GoalDeepQNet(nn.Module):
 
             # define the q network
             self.fcNet = nn.Sequential(
-                nn.Linear(1024 * 2, 1024),
+                nn.Linear(1024 * 2 * 4, 1024),
                 nn.ReLU(),
                 nn.Linear(1024, 4)
             )
@@ -89,8 +89,8 @@ class GoalDeepQNet(nn.Module):
             goal_fea = self.conv_qNet(goal).view(-1, 1 * 8 * 256)
         else:
             # compute state embedding
-            state_fea = self.conv_qNet(state).view(-1, 1 * 8 * 128)
-            goal_fea = self.conv_qNet(goal).view(-1, 1 * 8 * 128)
+            state_fea = self.conv_qNet(state).view(-1, 1 * 8 * 128 * 4)
+            goal_fea = self.conv_qNet(goal).view(-1, 1 * 8 * 128 * 4)
         # concatenate the tensor
         state_goal_fea = torch.cat((state_fea, goal_fea), dim=1)
         # concatenate the goal with state
@@ -107,7 +107,8 @@ class GoalDQNAgent(object):
                  dqn_mode="vanilla",
                  gamma=1.0,
                  gradient_clip=True,
-                 device="cpu"
+                 device="cpu",
+                 use_small_obs=False
                  ):
         """
         Init the DQN agent
@@ -123,8 +124,8 @@ class GoalDQNAgent(object):
         self.device = torch.device(device)
         """ DQN configurations"""
         # create the policy network and target network
-        self.policy_net = GoalDeepQNet()
-        self.target_net = GoalDeepQNet()
+        self.policy_net = GoalDeepQNet(use_small_obs)
+        self.target_net = GoalDeepQNet(use_small_obs)
         self.target_net.load_state_dict(self.policy_net.state_dict())
         self.policy_net = self.policy_net.to(device)
         self.target_net = self.target_net.to(device)
@@ -202,7 +203,6 @@ class GoalDQNAgent(object):
         goal = goal.to(self.device)
         with torch.no_grad():
             goal_q_values = self.policy_net(input_state, goal)
-            # action = q_values.max(0)[1].item()
             action = goal_q_values.max(1)[1].item()
         return action
 
