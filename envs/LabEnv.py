@@ -13,10 +13,19 @@
             def close
             def seed
         Note: the extra params in __init__() are keyword arguments
+
+    Notes:
+        - State observation: egocentric counter-clocked 360 degree observations (8 frames)
+        - Goal observation: counter-clocked 360 degree observations (8 frames) but the front orientation is fixed to be
+                            [0, 45, 90, 135, 180, 225, 270, 315]
 """
 import gym
 import numpy as np
 import deepmind_lab
+import matplotlib.pyplot as plt
+from scipy import ndimage
+import IPython.terminal.debugger as Debug
+plt.rcParams.update({'font.size': 8})
 
 
 def _action(*entries):
@@ -49,7 +58,7 @@ VALID_OBS = ['RGBD_INTERLEAVED',
 
 # customize Deepmind Lab environment
 class RandomMaze(gym.Env):
-    def __init__(self, observations, width, height, fps, set_goal=True, set_texture=False):
+    def __init__(self, observations, width, height, fps, set_goal=True, set_texture=False, reward_type='sparse-0'):
         """
         Initialization
         :param observations: list of valid observations
@@ -110,6 +119,9 @@ class RandomMaze(gym.Env):
         self.maze_size = 0
         # top down view for debugging or policy visualization
         self.top_down_obs = None
+        # reward configurations
+        self.reward_type = reward_type
+        self.dist_epsilon = 35
 
     # reset function
     def reset(self, maze_size=5, maze_seed=0, params=None):
@@ -177,7 +189,8 @@ class RandomMaze(gym.Env):
             # update the current distance between the agent and the goal
             self._last_distance = dist
             # update the rewards
-            reward = 0.0 if terminal else self.compute_reward(-1)
+            # reward = 0.0 if terminal else self.compute_reward(-1)
+            reward = self.compute_reward(dist)
             # update the observations
             next_obs = None if terminal else [self._current_state[key] for key in self._current_state.keys()][0:8]
             self._last_observation = next_obs if not terminal else np.copy(self._last_observation)
@@ -240,9 +253,14 @@ class RandomMaze(gym.Env):
         else:
             return 0, dist
 
-    @staticmethod
-    def compute_reward(dist):
-        return dist
+    def compute_reward(self, dist):
+        if self.reward_type == 'sparse-0':
+            reward = 1 if dist < self.dist_epsilon else 0
+        elif self.reward_type == 'sparse-1':
+            reward = 0 if dist < self.dist_epsilon else -1
+        elif self.reward_type == 'dense-euclidean':
+            reward = dist
+        return reward
 
     @staticmethod
     def position_map2maze(pos, size):
@@ -251,3 +269,117 @@ class RandomMaze(gym.Env):
         #      2D map: x, y
         #      3D maze: (y + 1 - 1) * 100 + 50, (maze_size - x) * 100 + 50
         return [(pos[1] + 1 - 1) * 100 + 50, (size - pos[0] - 1) * 100 + 50]
+
+
+# """  Test code
+# """
+#
+#
+# def env_test(view_name):
+#     # necessary observations (correct: this is the egocentric observations (following the counter clock direction))
+#     observation_list = ['RGB.LOOK_EAST',
+#                         'RGB.LOOK_NORTH_EAST',
+#                         'RGB.LOOK_NORTH',
+#                         'RGB.LOOK_NORTH_WEST',
+#                         'RGB.LOOK_WEST',
+#                         'RGB.LOOK_SOUTH_WEST',
+#                         'RGB.LOOK_SOUTH',
+#                         'RGB.LOOK_SOUTH_EAST',
+#                         'RGB.LOOK_RANDOM',
+#                         'DEBUG.POS.TRANS',
+#                         'DEBUG.POS.ROT',
+#                         'RGB.LOOK_TOP_DOWN']
+#     observation_width = 32
+#     observation_height = 32
+#     observation_fps = 60
+#
+#     # create the environment
+#     my_lab = RandomMaze(observation_list, observation_width, observation_height, observation_fps, reward_type='sparse-1')
+#
+#     # episodes
+#     episode_num = 100
+#
+#     # maze size and seeds
+#     size = 5
+#     seed = 0
+#     init_pos = [1, 3, 0]
+#     goal_pos = [1, 2, 0]
+#
+#     # load map
+#     # env_map = mapper.RoughMap(size, seed, 3)
+#     # reset the environment using the size and seed
+#     pos_params = [init_pos[0],
+#                   init_pos[1],
+#                   goal_pos[0],
+#                   goal_pos[1],
+#                   init_pos[2],
+#                   goal_pos[2]]  # [init_pos, goal_pos, init_orientation]
+#     state, goal = my_lab.reset(size, seed, pos_params)
+#
+#     # plot the goal and the current observations
+#     fig, arrs = plt.subplots(3, 3)
+#     fig.canvas.set_window_title("Egocentric 360 Degree view")
+#     if view_name == 'goal':
+#         view_state = goal
+#     else:
+#         view_state = state
+#     # agent-based egocentric 360 degree observations
+#     arrs[0, 1].set_title("front")
+#     img1 = arrs[0, 1].imshow(view_state[0])
+#     arrs[0, 0].set_title("front-left")
+#     img2 = arrs[0, 0].imshow(view_state[1])
+#     arrs[1, 0].set_title("left")
+#     img3 = arrs[1, 0].imshow(view_state[2])
+#     arrs[2, 0].set_title("back-left")
+#     img4 = arrs[2, 0].imshow(view_state[3])
+#     arrs[2, 1].set_title("back")
+#     img5 = arrs[2, 1].imshow(view_state[4])
+#     arrs[1, 1].set_title("top-down")
+#     top_down_img = arrs[1, 1].imshow(ndimage.rotate(my_lab.top_down_obs, 0))
+#     arrs[2, 2].set_title("back-right")
+#     img6 = arrs[2, 2].imshow(view_state[5])
+#     arrs[1, 2].set_title("right")
+#     img7 = arrs[1, 2].imshow(view_state[6])
+#     arrs[0, 2].set_title("front-right")
+#     img8 = arrs[0, 2].imshow(view_state[7])
+#
+#     # show the policy
+#     max_steps = 40
+#     for ep in range(episode_num):  # run #episode_num episodes
+#         print(f"Episode = {ep+1}, Maze size = {size}, Init = {pos_params[0:2]}, Goal = {pos_params[2:4]}")
+#         for t in range(max_steps):  # for each episode, run #max_steps time steps
+#             # randomly select one action
+#             act = my_lab.action_space.sample()
+#             # step in the environment
+#             next_state, reward, done, dist, _ = my_lab.step(act)
+#             print("step = {}, dist = {}, reward = {}".format(t+1, dist, reward))
+#             # show the current observation and goal
+#             img1.set_data(view_state[0])
+#             img2.set_data(view_state[1])
+#             img3.set_data(view_state[2])
+#             img4.set_data(view_state[3])
+#             img5.set_data(view_state[4])
+#             top_down_img.set_data(ndimage.rotate(my_lab.top_down_obs, 0))
+#             img6.set_data(view_state[5])
+#             img7.set_data(view_state[6])
+#             img8.set_data(view_state[7])
+#             fig.canvas.draw()
+#             plt.pause(0.0001)
+#             # check terminal
+#             if dist < 35:
+#                 break
+#             else:
+#                 if view_name == "goal":
+#                     view_state = goal
+#                 else:
+#                     view_state = state
+#
+#         state, goal = my_lab.reset(size, seed, pos_params)
+#         if view_name == "goal":
+#             view_state = goal
+#         else:
+#             view_state = state
+#     plt.cla()
+#
+#
+# env_test("goal")

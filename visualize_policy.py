@@ -153,7 +153,7 @@ class VisualPolicy(object):
             # load map
             env_map = mapper.RoughMap(size, seed, 3)
             # define the init position and goal position
-            init_pos = [5, 1]
+            init_pos = [1, 1]
             goal_pos = [3, 3]
             env_map.update_mapper(init_pos, goal_pos)
             subgoal_count = 1
