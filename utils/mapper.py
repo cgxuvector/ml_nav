@@ -338,6 +338,7 @@ class RoughMap(object):
                       self.init_pos[1],
                       self.goal_pos[0],
                       self.goal_pos[1],
+                      0,
                       0]  # [init_pos, goal_pos, init_orientation]
         return pos_params
 
