@@ -108,7 +108,7 @@ class RandomMaze(gym.Env):
         self.orientations = np.arange(0, 360, 45)
         # map info
         self.maze_size = 0
-        # debug
+        # top down view for debugging or policy visualization
         self.top_down_obs = None
 
     # reset function
@@ -121,9 +121,8 @@ class RandomMaze(gym.Env):
         # store the size
         self.maze_size = maze_size
         # store the start and goal positions in 2D map
-        tmp_ori = 0
-        self.start_pos = [params[0], params[1], tmp_ori]
-        self.goal_pos = [params[2], params[3], tmp_ori]  # default goal orientation is 0.
+        self.start_pos = [params[0], params[1], params[4]]
+        self.goal_pos = [params[2], params[3], params[5]]  # default goal orientation is 0.
 
         """ send customized configurations to Deepmind """
         # send maze
@@ -133,13 +132,13 @@ class RandomMaze(gym.Env):
         self._lab.write_property("params.agent_pos.x", str(self.start_pos[0] + 1))
         self._lab.write_property("params.agent_pos.y", str(self.start_pos[1] + 1))
         self._lab.write_property("params.agent_pos.theta", str(self.start_pos[2]))
-        # send target position (uncomment to use the terminal in deepmind)
+        # send target position (uncomment to use the customized terminal)
         # self._lab.write_property("params.goal_pos.x", str(self.goal_pos[0] + 1))
         # self._lab.write_property("params.goal_pos.y", str(self.goal_pos[1] + 1))
         # send the view position
         self._lab.write_property("params.view_pos.x", str(self.goal_pos[0] + 1))
         self._lab.write_property("params.view_pos.y", str(self.goal_pos[1] + 1))
-
+        self._lab.write_property("params.view_pos.theta", str(self.goal_pos[2]))
         """ initialize the Deepmind maze """
         # reset the agent
         self._lab.reset()
@@ -236,8 +235,6 @@ class RandomMaze(gym.Env):
         goal_pos_3d = self.position_map2maze(self.goal_pos, self.maze_size)
         # compute the distance and angle error
         dist = np.sqrt((current_pos[0] - goal_pos_3d[0])**2 + (current_pos[1] - goal_pos_3d[1])**2)
-        angle_error = np.abs(current_pos[2] - self.goal_pos[2])
-        #if dist < 20 and angle_error < 10:
         if dist < 35:
             return 1, dist
         else:
