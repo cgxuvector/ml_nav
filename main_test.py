@@ -110,7 +110,7 @@ if __name__ == '__main__':
     assert set(maze_seed) <= set(DEFAULT_SEED), f"Input contains invalid maze seed. Expect a subset of {DEFAULT_SEED}, " \
                                                 f"but get {maze_seed}."
     # create the environment
-    my_lab = RandomMaze(observation_list, observation_width, observation_height, observation_fps)
+    my_lab = RandomMaze(observation_list, observation_width, observation_height, observation_fps, reward_type="sparse-1")
 
     """ Set up the agent """
     if inputs.agent == 'random':
@@ -162,10 +162,11 @@ if __name__ == '__main__':
         # whether use goal-conditioned strategy
         use_goal=inputs.use_goal,
         transition=transition,
-        goal_dist=inputs.goal_dist
+        goal_dist=inputs.goal_dist,
+        random_seed=inputs.rnd_seed
     )
     # run the experiments
-    my_experiment.random_goal_conditioned_run()
+    my_experiment.random_goal_conditioned_her_run()
 
 
 

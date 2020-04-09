@@ -38,6 +38,7 @@ ACTION_LIST = [
         _action(20, 0, 0, 0, 0, 0, 0),  # look_right
         _action(0, 0, 0, 1, 0, 0, 0),  # forward
         _action(0, 0, 0, -1, 0, 0, 0),  # backward
+        # _action(0, 0, 0, 0, 0, 0, 0)  # NOOP
 ]
 
 # Valid observations
@@ -124,6 +125,10 @@ class RandomMaze(gym.Env):
         self.reward_type = reward_type
         self.dist_epsilon = 35
 
+        # position info
+        self._trans = None
+        self._rots = None
+
     # reset function
     def reset(self, maze_size=5, maze_seed=0, params=None):
         """
@@ -175,11 +180,14 @@ class RandomMaze(gym.Env):
         self._goal_observation = self.get_random_observations(self.goal_pos)
         # extract the agent current 8 observations
         self._last_observation = [self._current_state[key] for key in self._current_state.keys()][0:8]
+        # extract the agent current position
+        self._trans = self._current_state['DEBUG.POS.TRANS']
+        self._rots = self._current_state['DEBUG.POS.ROT']
         # initialize the distance to be infinite
         self._last_distance = np.inf
         # extract the current top down observations
         self.top_down_obs = self._current_state['RGB.LOOK_TOP_DOWN']
-        return self._last_observation, self._goal_observation
+        return self._last_observation, self._goal_observation, self._trans, self._rots
 
     # step function
     def step(self, action):
@@ -194,9 +202,11 @@ class RandomMaze(gym.Env):
             # get the observations after taking the action
             self._current_state = self._lab.observations()
             # get the current position
-            pos_x, pos_y, pos_z = self._current_state['DEBUG.POS.TRANS'].tolist()
+            trans = self._current_state['DEBUG.POS.TRANS']
+            pos_x, pos_y, pos_z = trans.tolist()
             # get the current orientations
-            pos_pitch, pos_yaw, pos_roll = self._current_state['DEBUG.POS.ROT'].tolist()
+            rots = self._current_state['DEBUG.POS.ROT']
+            pos_pitch, pos_yaw, pos_roll = rots.tolist()
             # check if the agent reaches the goal given the current position and orientation
             terminal, dist = self.reach_goal([pos_x, pos_y, pos_yaw])
             # update the current distance between the agent and the goal
@@ -207,17 +217,22 @@ class RandomMaze(gym.Env):
             next_obs = None if terminal else [self._current_state[key] for key in self._current_state.keys()][0:8]
             self._last_observation = next_obs if not terminal else np.copy(self._last_observation)
             self.top_down_obs = self._current_state['RGB.LOOK_TOP_DOWN'] if not terminal else np.copy(self.top_down_obs)
+            # update the positions and rotations
+            self._trans = np.copy(self._trans) if terminal else trans
+            self._rots = np.copy(self._rots) if terminal else rots
         else:
             # set the terminal reward
             reward = 0.0
             # set the terminal flag
             terminal = True
             self._last_observation = np.copy(self._last_observation)
+            self._trans = np.copy(self._trans)
+            self._rots = np.copy(self._rots)
             self._last_distance = self._last_distance
             self.top_down_obs = np.copy(self.top_down_obs)
 
         # Note, we also return the distance
-        return self._last_observation, reward, terminal, self._last_distance, dict()
+        return self._last_observation, reward, terminal, self._last_distance, self._trans, self._rots, dict()
 
     # render function
     def render(self, mode='rgb_array', close=False):
@@ -260,7 +275,7 @@ class RandomMaze(gym.Env):
         goal_pos_3d = self.position_map2maze(self.goal_pos, self.maze_size)
         # compute the distance and angle error
         dist = self.compute_distance(current_pos, goal_pos_3d)
-        if dist < 35:
+        if dist < self.dist_epsilon:
             return 1, dist
         else:
             return 0, dist
@@ -369,6 +384,7 @@ class RandomMaze(gym.Env):
 #         for t in range(max_steps):  # for each episode, run #max_steps time steps
 #             # randomly select one action
 #             act = my_lab.action_space.sample()
+#             act = 4
 #             # step in the environment
 #             next_state, reward, done, dist, _ = my_lab.step(act)
 #             print("step = {}, dist = {}, reward = {}".format(t+1, dist, reward))
@@ -391,7 +407,7 @@ class RandomMaze(gym.Env):
 #                 if view_name == "goal":
 #                     view_state = goal
 #                 else:
-#                     view_state = state
+#                     view_state = next_state
 #
 #         state, goal = my_lab.reset(size, seed, pos_params)
 #         if view_name == "goal":
@@ -401,4 +417,4 @@ class RandomMaze(gym.Env):
 #     plt.cla()
 #
 #
-# env_test("goal")
+# env_test("state")
