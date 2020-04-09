@@ -22,11 +22,11 @@ def plot_line_chart(data, name, x_label, y_label, smooth_win_size, color, start,
 
 
 if __name__ == '__main__':
-    root_dir = '../results/4-3/'
-    data_name = 'goal_conditioned_double_dqn_5x5_ep_200_return.npy'
+    root_dir = '../results/4-6/'
+    data_name = 'random_goal_conditioned_double_dqn_5x5_ep_200_dist_2_distance.npy'
     d = np.load(root_dir + data_name)
     start = 0
     end = d.shape[0]
     # plot_line_chart(d, f"Sub-goal {end}", "Episode", "Distance", 50, ['lightsalmon', '-r'], start, end)
 
-    plot_line_chart(d, "Double DQN in 5 x 5 Maze ", "Episode", "Discounted cumulative rewards", 100, ['lightgreen', '-g'], start, end)
+    plot_line_chart(d, "Random Goal Double DQN in 5 x 5 Maze ", "Episode", "Distance", 100, ['lightsalmon', '-r'], start, end)

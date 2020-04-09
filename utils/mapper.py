@@ -25,7 +25,7 @@ class RoughMap(object):
     """
 
     # init function
-    def __init__(self, m_size, m_seed, loc_map_size, step=2):
+    def __init__(self, m_size, m_seed, loc_map_size):
         """
         Function is used to initialize the current maps
         :param m_size: size of the maze
@@ -338,6 +338,7 @@ class RoughMap(object):
                       self.init_pos[1],
                       self.goal_pos[0],
                       self.goal_pos[1],
+                      0,
                       0]  # [init_pos, goal_pos, init_orientation]
         return pos_params
 
@@ -398,7 +399,7 @@ class RoughMap(object):
         # sample a start position
         start_idx = np.random.choice(len(self.path), 1).item()
         # sample a pair from the path
-        if np.random.sample() < 0.5:
+        if random.uniform(0, 1) < 0.5:
             # select goal on the left
             if start_idx == 0:
                 goal_idx = start_idx + dist if start_idx + dist < len(self.path) else len(self.path) - 1

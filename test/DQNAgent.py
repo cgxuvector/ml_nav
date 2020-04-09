@@ -112,7 +112,7 @@ class DQNAgent(object):
             self.target_net.load_state_dict(self.policy_net.state_dict())
         else:  # soft update
             for param, target_param in zip(self.policy_net.parameters(), self.target_net.parameters()):
-                target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
+                target_param.data.copy_((1-self.tau) * param.data + self.tau * target_param.data)
 
     # update the policy network
     def update_policy_net(self, batch_data):
