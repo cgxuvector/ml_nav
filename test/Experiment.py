@@ -93,7 +93,7 @@ class Experiment(object):
         self.init_orientation_space = np.linspace(0, 360, num=37).tolist()
         self.goal_orientation_space = np.linspace(0, 315, num=8).tolist()
         # future strategy
-        self.her_future_k=future_k
+        self.her_future_k = future_k
 
     def run(self):
         """
