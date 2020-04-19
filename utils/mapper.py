@@ -50,8 +50,6 @@ class RoughMap(object):
         self.init_pos = self.valid_pos[0]
         self.goal_pos = self.valid_pos[-1]
 
-        # Debug.set_trace()
-
         # obtain bw map and randomly selected initial and target goals
         self.init_pos, self.goal_pos, self.map2d_bw = self.load_map('bw')
 

@@ -1,43 +1,40 @@
 import deepmind_lab
 import numpy as np
 from collections import defaultdict
-import random
-from utils import mapper
+from scipy import ndimage
 import matplotlib.pyplot as plt
 import IPython.terminal.debugger as Debug
 
 
+# actions in Deepmind
 def _action(*entries):
     return np.array(entries, dtype=np.intc)
 
 
-# actions in Deepmind
 ACTION_LIST = [
         _action(-20, 0, 0, 0, 0, 0, 0),  # look_left
         _action(20, 0, 0, 0, 0, 0, 0),  # look_right
         _action(0, 0, 0, 1, 0, 0, 0),  # forward
         _action(0, 0, 0, -1, 0, 0, 0),  # backward
-        # _action(0, 0, 0, 0, 0, 0, 0),  # NOOP
 ]
 
 
-# Valid observations
+# valid observations
 VALID_OBS = ['RGBD_INTERLEAVED',
-             'RGB.LOOK_TOP_DOWN',
-             'RGB.LOOK_PANORAMA',
-             'RGB.LOOK_RANDOM',
+             'RGB.LOOK_PANORAMA_VIEW',
+             'RGB.LOOK_TOP_DOWN_VIEW',
              'DEBUG.POS.TRANS',
              'DEBUG.POS.ROT']
 
 
-# customize Deepmind Lab environment
+# Deepmind domain for random mazes with random start and goal positions
 class RandomMazeV1(object):
-    def __init__(self, level, observations, configs):
+    def __init__(self, level, observations, configs, reward_type='sparse-0', dist_epsilon=35):
         """
-
-        :param level:
-        :param observations:
-        :param configs:
+        Create gym-like domain interface
+        :param level: name of the level (currently we only support one name "nav_random_nav")
+        :param observations: list of observations [front view, panoramic view, top down view]
+        :param configs: configuration of the lab [width, height, fps]
         """
         """ set up the 3D maze using default settings"""
         # set the level name
@@ -47,7 +44,7 @@ class RandomMazeV1(object):
         # check the validation of the observations
         assert set(observations) <= set(VALID_OBS), f"Observations contain invalid observations. Please check the " \
                                                     f"valid list here {VALID_OBS}."
-        self._observation_names = observations
+        self._observation_names = observations + ['RGB.LOOK_RANDOM_VIEW', 'DEBUG.POS.TRANS', 'DEBUG.POS.ROT']
         # create the lab maze environment with default settings
         self._lab = deepmind_lab.Lab(self._level_name,
                                      self._observation_names,
@@ -92,39 +89,51 @@ class RandomMazeV1(object):
         # global orientations: [0, 45, 90, 135, 180, 225, 270, 315]
         self.orientations = np.arange(0, 360, 45)
         # reward configurations
-        self.reward_type = "sparse-0"
+        self.reward_type = reward_type
         # terminal conditions
-        self.dist_epsilon = 35
+        self.dist_epsilon = dist_epsilon
+
+        # plotting objects
+        self.fig, self.arrays = None, None
+        self.img_artists = []
 
     # reset function
     def reset(self, configs):
-        # check the input type
+        """
+        Reset function based on configurations
+        :param configs:
+        :return:
+        """
+        """ Check configurations validation """
         assert type(configs) == defaultdict, f"Invalid configuration type. It should be collections.defaultdict, " \
                                              f"but get {type(configs)}"
-        # update the maze using the input configurations
+
+        """ 3D maze configurations """
+        """
+            if configs['update'] is true, update the whole maze. 
+                -- name
+                -- size
+                -- random seed
+                -- texture
+                -- decal posters on the wall
+                -- maze layout in txt file
+            
+            if configs['update'] is false, the maze won't be update
+            only the start and goal positions might be updated.
+        """
         if configs['update']:
-            """ 3D maze configurations """
             # initialize the name
             self.maze_name = configs['maze_name'] if configs['maze_name'] else self.maze_name
             # initialize the size
             self.maze_size = configs['maze_size'] if configs['maze_size'] else self.maze_size
             # initialize the seed
             self.maze_seed = configs['maze_seed'] if configs['maze_seed'] else self.maze_seed
-            # initialize the map
-            self.maze_map_txt = configs['maze_map_txt'] if configs['maze_map_txt'] else self.maze_map_txt
             # initialize the texture
             self.maze_texture = configs['maze_texture'] if configs['maze_texture'] else self.maze_texture
             # initialize the wall posters
             self.maze_decal_freq = configs['maze_decal_freq'] if configs['maze_decal_freq'] else self.maze_decal_freq
-
-            """ navigation configurations"""
-            # initialize the start and goal positions
-            self.start_pos = configs['start_pos'] if configs['start_pos'] else self.start_pos
-            self.goal_pos = configs['goal_pos'] if configs['goal_pos'] else self.goal_pos
-            print("Map pos = ", self.start_pos, self.goal_pos)
-            self.start_pos = self.position_map2maze(self.start_pos, self.maze_size)
-            self.goal_pos = self.position_map2maze(self.goal_pos, self.maze_size)
-            print("Maze pos = ", self.start_pos, self.goal_pos)
+            # initialize the map
+            self.maze_map_txt = configs['maze_map_txt'] if configs['maze_map_txt'] else self.maze_map_txt
 
             """ send the parameters to lua """
             # send the maze configurations
@@ -134,11 +143,22 @@ class RandomMazeV1(object):
             self._lab.write_property("params.maze_configs.texture", self.maze_texture)
             self._lab.write_property("params.maze_configs.decal_freq", str(self.maze_decal_freq))
             self._lab.write_property("params.maze_configs.map_txt", self.maze_map_txt)
-            # send initial position
+
+        """ Navigation configurations"""
+        """
+            start amd goal positions will be updated if configs['start_pos'] and configs['goal_pos'] are not NONE.
+        """
+        # send initial position
+        if configs['start_pos']:
+            self.start_pos = configs['start_pos'] if configs['start_pos'] else self.start_pos
+            self.start_pos = self.position_map2maze(self.start_pos, self.maze_size)
             self._lab.write_property("params.start_pos.x", str(self.start_pos[0]))
             self._lab.write_property("params.start_pos.y", str(self.start_pos[1]))
             self._lab.write_property("params.start_pos.yaw", str(self.start_pos[2]))
-            # send target position
+        # send target position
+        if configs['goal_pos']:
+            self.goal_pos = configs['goal_pos'] if configs['goal_pos'] else self.goal_pos
+            self.goal_pos = self.position_map2maze(self.goal_pos, self.maze_size)
             self._lab.write_property("params.goal_pos.x", str(self.goal_pos[0]))
             self._lab.write_property("params.goal_pos.y", str(self.goal_pos[1]))
             self._lab.write_property("params.goal_pos.yaw", str(self.goal_pos[2]))
@@ -147,6 +167,9 @@ class RandomMazeV1(object):
             self._lab.write_property("params.view_pos.y", str(self.goal_pos[1]))
             self._lab.write_property("params.view_pos.z", str(31.125))
             self._lab.write_property("params.view_pos.yaw", str(self.goal_pos[2]))
+
+        """ update the environment """
+        if configs['update']:
             self._lab.reset(episode=0)
         else:
             self._lab.reset()
@@ -155,9 +178,10 @@ class RandomMazeV1(object):
         # initialize the current state
         self._current_state = self._lab.observations()
         # initialize the current observations
-        self._last_observation = self._current_state['RGB.LOOK_PANORAMA']
+        # By default, the observation for current state is the first observation
+        self._last_observation = self._current_state[self._observation_names[0]]
         # initialize the top down view
-        self._top_down_obs = self._current_state['RGB.LOOK_TOP_DOWN']
+        self._top_down_obs = self._current_state['RGB.LOOK_TOP_DOWN_VIEW']
         # initialize the goal observations
         self._goal_observation = self.get_random_observations(self.goal_pos)
         # initialize the positions and orientations
@@ -179,9 +203,9 @@ class RandomMazeV1(object):
             # get the next state
             self._current_state = self._lab.observations()
             # get the next observations
-            self._last_observation = self._current_state['RGB.LOOK_PANORAMA']
+            self._last_observation = self._current_state[self._observation_names[0]]
             # get the next top down observations
-            self._top_down_obs = self._current_state['RGB.LOOK_TOP_DOWN']
+            self._top_down_obs = self._current_state['RGB.LOOK_TOP_DOWN_VIEW']
             # get the next position
             pos_x, pos_y, pos_z = self._current_state['DEBUG.POS.TRANS'].tolist()
             # get the next orientations
@@ -245,8 +269,8 @@ class RandomMazeV1(object):
         self._lab.write_property("params.view_pos.y", str(pos[1] + 1))
         for a in angles:
             self._lab.write_property("params.view_pos.yaw", str(a))
-            ego_observations.append(self._lab.observations()['RGB.LOOK_RANDOM'])
-        return ego_observations
+            ego_observations.append(self._lab.observations()['RGB.LOOK_RANDOM_VIEW'])
+        return np.array(ego_observations, dtype=np.uint8)
 
     def reach_goal(self, current_pos):
         # compute the distance and angle error
@@ -267,6 +291,59 @@ class RandomMazeV1(object):
             raise Exception("Invalid reward type, Desired one in sparse-0, sparse-1, dense-euclidean but get {}"
                             .format(self.reward_type))
         return reward
+
+    # show the panoramic view
+    def show_panorama_view(self, time_step=None, obs_type='agent'):
+        assert len(self._last_observation.shape) == 4, f"Invalid observation, expected observation should be " \
+                                                       f"RGB.LOOK_PANORAMA_VIEW, but get {self._observation_names[0]}." \
+                                                       f" Please check the observation list. The first one should be " \
+                                                       f"RGB.LOOK_PANORAMA_VIEW."
+        # set the observation: agent view or goal view
+        if obs_type == 'agent':
+            observations = self._last_observation
+        else:
+            observations = self._goal_observation
+        # init or update data
+        if time_step is None:
+            self.fig, self.arrays = plt.subplots(3, 3)
+            self.img_artists.append(self.arrays[0, 1].imshow(observations[0]))
+            self.img_artists.append(self.arrays[0, 0].imshow(observations[1]))
+            self.img_artists.append(self.arrays[1, 0].imshow(observations[2]))
+            self.img_artists.append(self.arrays[1, 1].imshow(ndimage.rotate(self._top_down_obs, -90)))
+            self.img_artists.append(self.arrays[2, 0].imshow(observations[3]))
+            self.img_artists.append(self.arrays[2, 1].imshow(observations[4]))
+            self.img_artists.append(self.arrays[2, 2].imshow(observations[5]))
+            self.img_artists.append(self.arrays[1, 2].imshow(observations[6]))
+            self.img_artists.append(self.arrays[0, 2].imshow(observations[7]))
+        else:
+            self.img_artists[0].set_data(observations[0])
+            self.img_artists[1].set_data(observations[1])
+            self.img_artists[2].set_data(observations[2])
+            self.img_artists[3].set_data(ndimage.rotate(self._top_down_obs, -90))
+            self.img_artists[4].set_data(observations[3])
+            self.img_artists[5].set_data(observations[4])
+            self.img_artists[6].set_data(observations[5])
+            self.img_artists[7].set_data(observations[6])
+            self.img_artists[8].set_data(observations[7])
+        self.fig.canvas.draw()
+        plt.pause(0.0001)
+
+    # show the front view
+    def show_front_view(self, time_step=None):
+        assert len(self._last_observation.shape) == 3, f"Invalid observation, expected observation should be " \
+                                                       f"RGBD_INTERLEAVED, but get {self._observation_names[0]}." \
+                                                       f" Please check the observation list. The first one should be" \
+                                                       f" RGBD_INTERLEAVED."
+        # init or update data
+        if time_step is None:
+            self.fig, self.arrays = plt.subplots(1, 2)
+            self.img_artists.append(self.arrays[0].imshow(self._last_observation))
+            self.img_artists.append(self.arrays[1].imshow(ndimage.rotate(self._top_down_obs, -90)))
+        else:
+            self.img_artists[0].set_data(self._last_observation)
+            self.img_artists[1].set_data(ndimage.rotate(self._top_down_obs, -90))
+        self.fig.canvas.draw()
+        plt.pause(0.0001)
 
     @staticmethod
     def compute_distance(pos_1, pos_2):
