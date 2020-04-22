@@ -4,6 +4,7 @@ from collections import defaultdict
 from scipy import ndimage
 import matplotlib.pyplot as plt
 import IPython.terminal.debugger as Debug
+
 plt.rcParams.update({'font.size': 8})
 
 
@@ -13,11 +14,11 @@ def _action(*entries):
 
 
 ACTION_LIST = [
-        _action(-20, 0, 0, 0, 0, 0, 0),  # look_left
-        _action(20, 0, 0, 0, 0, 0, 0),  # look_right
-        _action(0, 0, 0, 1, 0, 0, 0),  # forward
-        _action(0, 0, 0, -1, 0, 0, 0),  # backward
-        _action(0, 0, 0, 0, 0, 0, 0)
+    _action(-20, 0, 0, 0, 0, 0, 0),  # look_left
+    _action(20, 0, 0, 0, 0, 0, 0),  # look_right
+    _action(0, 0, 0, 1, 0, 0, 0),  # forward
+    _action(0, 0, 0, -1, 0, 0, 0),  # backward
+    _action(0, 0, 0, 0, 0, 0, 0)  # NOOP
 ]
 
 
@@ -30,7 +31,7 @@ VALID_OBS = ['RGBD_INTERLEAVED',
 
 
 # Deepmind domain for random mazes with random start and goal positions
-class RandomMazeV1(object):
+class RandomMazeTileRaw(object):
     def __init__(self, level, observations, configs, reward_type='sparse-0', dist_epsilon=35):
         """
         Create gym-like domain interface
@@ -83,10 +84,13 @@ class RandomMazeV1(object):
         self.maze_texture = "MISHMASH"
         # maze wall posters proportion (default)
         self.maze_decal_freq = "0.1"
+        # maze valid positions on the txt map
+        self.maze_valid_positions = None
 
         """ configurable parameters for the navigation"""
         # start and goal position w.r.t. rough map
         self.start_pos = [1, 1, 0]
+        self.current_pos = None
         self.goal_pos = [3, 3, 0]
         # global orientations: [0, 45, 90, 135, 180, 225, 270, 315]
         self.orientations = np.arange(0, 360, 45)
@@ -119,7 +123,7 @@ class RandomMazeV1(object):
                 -- texture
                 -- decal posters on the wall
                 -- maze layout in txt file
-            
+
             if configs['update'] is false, the maze won't be update
             only the start and goal positions might be updated.
         """
@@ -136,6 +140,8 @@ class RandomMazeV1(object):
             self.maze_decal_freq = configs['maze_decal_freq'] if configs['maze_decal_freq'] else self.maze_decal_freq
             # initialize the map
             self.maze_map_txt = configs['maze_map_txt'] if configs['maze_map_txt'] else self.maze_map_txt
+            # initialize the valid positions
+            self.maze_valid_positions = configs['maze_valid_pos'] if configs['maze_valid_pos'] else self.maze_valid_positions
 
             """ send the parameters to lua """
             # send the maze configurations
@@ -167,7 +173,7 @@ class RandomMazeV1(object):
             # send the view position
             self._lab.write_property("params.view_pos.x", str(maze_goal_pos[0]))
             self._lab.write_property("params.view_pos.y", str(maze_goal_pos[1]))
-            self._lab.write_property("params.view_pos.z", str(31.125))
+            self._lab.write_property("params.view_pos.z", str(40))
             self._lab.write_property("params.view_pos.yaw", str(maze_goal_pos[2]))
 
         """ update the environment """
@@ -179,16 +185,17 @@ class RandomMazeV1(object):
         """ initialize the 3D maze"""
         # initialize the current state
         self._current_state = self._lab.observations()
+        # initialize the current position
+        self.current_pos = self.start_pos
         # initialize the current observations
-        # By default, the observation for current state is the first observation
-        self._last_observation = self._current_state[self._observation_names[0]]
+        self._last_observation = self.get_random_observations(self.current_pos)
         # initialize the top down view
         self._top_down_obs = self._current_state['RGB.LOOK_TOP_DOWN_VIEW']
         # initialize the goal observations
         self._goal_observation = self.get_random_observations(self.goal_pos)
         # initialize the positions and orientations
-        self._trans = self._current_state['DEBUG.POS.TRANS']
-        self._rots = self._current_state['DEBUG.POS.ROT']
+        self._trans = self.position_map2maze(self.current_pos, self.maze_size)
+        self._rots = None
         # initialize the distance
         self._last_distance = np.inf
 
@@ -197,21 +204,34 @@ class RandomMazeV1(object):
     # step function
     def step(self, action):
         """ step #(num_steps) in Deepmind Lab"""
-        # take one step in the environment
-        self._lab.step(ACTION_LIST[action], num_steps=4)
+        # compute the next position
+        if action == 'up':
+            next_pos = list(np.array(self.current_pos) + np.array([-1, 0, 0]))
+            self.current_pos = next_pos if next_pos[0:2] in self.maze_valid_positions else self.current_pos
+        elif action == 'down':
+            next_pos = list(np.array(self.current_pos) + np.array([1, 0, 0]))
+            self.current_pos = next_pos if next_pos[0:2] in self.maze_valid_positions else self.current_pos
+        elif action == 'left':
+            next_pos = list(np.array(self.current_pos) + np.array([0, -1, 0]))
+            self.current_pos = next_pos if next_pos[0:2] in self.maze_valid_positions else self.current_pos
+        elif action == 'right':
+            next_pos = list(np.array(self.current_pos) + np.array([0, 1, 0]))
+            self.current_pos = next_pos if next_pos[0:2] in self.maze_valid_positions else self.current_pos
+        else:
+            raise Exception(f"Invalid action name. Expected up, down, left, right, but get {action}.")
 
         """ check the terminal and return observations"""
         if self._lab.is_running():  # If the maze is still running
             # get the next state
             self._current_state = self._lab.observations()
             # get the next observations
-            self._last_observation = self._current_state[self._observation_names[0]]
+            self._last_observation = self.get_random_observations(self.current_pos)
             # get the next top down observations
             self._top_down_obs = self._current_state['RGB.LOOK_TOP_DOWN_VIEW']
             # get the next position
-            pos_x, pos_y, pos_z = self._current_state['DEBUG.POS.TRANS'].tolist()
+            pos_x, pos_y, pos_z = self.position_map2maze(self.current_pos, self.maze_size)
             # get the next orientations
-            pos_pitch, pos_yaw, pos_roll = self._current_state['DEBUG.POS.ROT'].tolist()
+            pos_pitch, pos_yaw, pos_roll = 0, 0, 0
             # check if the agent reaches the goal given the current position and orientation
             terminal, dist = self.reach_goal([pos_x, pos_y, pos_yaw])
             # update the current distance between the agent and the goal
@@ -243,7 +263,7 @@ class RandomMazeV1(object):
         if mode == 'rgb_array':
             return self._lab.observations()
         else:
-            super(RandomMazeV1, self).render(mode=mode)  # just raise an exception
+            super(RandomMazeTileRaw, self).render(mode=mode)  # just raise an exception
 
     # close the deepmind
     def close(self):
@@ -260,6 +280,8 @@ class RandomMazeV1(object):
         :param pos: List contains [x, y, ori]
         :return: List of egocentric observations at position (x, y)
         """
+        # convert to maze positions
+        pos = self.position_map2maze(pos, self.maze_size)
         # store observations
         ego_observations = []
         # re-arrange the observations of the agent
@@ -267,8 +289,9 @@ class RandomMazeV1(object):
         re_arranged_ori_indices = list(range(ori_idx, 8, 1)) + list(range(0, ori_idx, 1))
         angles = self.orientations[re_arranged_ori_indices]
         # obtain the egocentric observations
-        self._lab.write_property("params.view_pos.x", str(pos[0] + 1))
-        self._lab.write_property("params.view_pos.y", str(pos[1] + 1))
+        self._lab.write_property("params.view_pos.x", str(pos[0]))
+        self._lab.write_property("params.view_pos.y", str(pos[1]))
+        self._lab.write_property("params.view_pos.z", str(40))
         for a in angles:
             self._lab.write_property("params.view_pos.yaw", str(a))
             ego_observations.append(self._lab.observations()['RGB.LOOK_RANDOM_VIEW'])
@@ -276,7 +299,8 @@ class RandomMazeV1(object):
 
     def reach_goal(self, current_pos):
         # compute the distance and angle error
-        dist = self.compute_distance(current_pos, self.goal_pos)
+        goal_pos = self.position_map2maze(self.goal_pos, self.maze_size)
+        dist = self.compute_distance(current_pos, goal_pos)
         if dist < self.dist_epsilon:
             return 1, dist
         else:
@@ -347,6 +371,7 @@ class RandomMazeV1(object):
             self.img_artists[8].set_data(observations[7])
         self.fig.canvas.draw()
         plt.pause(0.0001)
+        return self.fig
 
     # show the front view
     def show_front_view(self, map, time_step=None):
@@ -369,7 +394,7 @@ class RandomMazeV1(object):
 
     @staticmethod
     def compute_distance(pos_1, pos_2):
-        return np.sqrt((pos_1[0] - pos_2[0])**2 + (pos_1[1] - pos_2[1])**2)
+        return np.sqrt((pos_1[0] - pos_2[0]) ** 2 + (pos_1[1] - pos_2[1]) ** 2)
 
     @staticmethod
     def position_map2maze(pos, size):

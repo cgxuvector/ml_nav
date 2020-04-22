@@ -1,8 +1,12 @@
 import random
+import numpy as np
 from utils import mapper
 from envs.LabEnvV1 import RandomMazeV1
+from envs.LabEnvV2 import RandomMazeTileRaw
 from collections import defaultdict
+from agent import RandomAgent
 import IPython.terminal.debugger as Debug
+import matplotlib.pyplot as plt
 
 
 def run_demo():
@@ -23,8 +27,8 @@ def run_demo():
     }
 
     # maze sizes and seeds
-    maze_size_list = [5, 7, 9]
-    maze_seed_list = [1, 2, 3]
+    maze_size_list = [7]
+    maze_seed_list = [1]
 
     # maze
     theme_list = ["TRON", "MINESWEEPER", "TETRIS", "GO", "PACMAN", "INVISIBLE_WALLS"]
@@ -36,9 +40,9 @@ def run_demo():
     env_map = mapper.RoughMap(size, seed, 3, False)
 
     # create the map environment
-    myEnv = RandomMazeV1(level,
-                         observation_list,
-                         configurations)
+    myEnv = RandomMazeTileRaw(level,
+                              observation_list,
+                              configurations)
 
     # initialize the maze environment
     maze_configs = defaultdict(lambda: None)
@@ -48,6 +52,7 @@ def run_demo():
     maze_configs["maze_texture"] = random.sample(theme_list, 1)[0]  # string type name in theme_list
     maze_configs["maze_decal_freq"] = random.sample(decal_list, 1)[0]  # float number in decal_list
     maze_configs["maze_map_txt"] = "".join(env_map.map2d_txt)  # string type map
+    maze_configs["maze_valid_pos"] = env_map.valid_pos  # list of valid positions
     # initialize the maze start and goal positions
     maze_configs["start_pos"] = env_map.init_pos + [0]  # start position on the txt map [rows, cols, orientation]
     maze_configs["goal_pos"] = env_map.goal_pos + [0]  # goal position on the txt map [rows, cols, orientation]
@@ -55,71 +60,99 @@ def run_demo():
     # set the maze
     myEnv.reset(maze_configs)
 
-    # # create observation windows
-    # myEnv._last_observation = myEnv.get_random_observations(myEnv.position_map2maze([1, 3, 0], myEnv.maze_size))
-    myEnv.show_panorama_view()
-    # myEnv.show_front_view()
+    # create observation windows
+    fig = myEnv.show_panorama_view(obs_type='agent')
+    # myEnv.show_front_view(map=env_map)
 
     # start test
     time_steps_num = 10000
     random.seed(maze_configs["maze_seed"])
-    ep = 0
-    pos_len = 1
+    actions = ['up', 'down', 'left', 'right']
+
+    for i in range(20):
+        myEnv._lab.step(np.array([0, 0, 0, 0, 0, 0, 0], dtype=np.intc))
+
     for t in range(time_steps_num):
-        # sample an action
-        act = random.sample(range(4), 1)[0]
-        # agent takes the action
-        myEnv.step(act)
 
-        # for a random maze view
-        # myEnv._last_observation = myEnv.get_random_observations(myEnv.position_map2maze([1, 3, 0], myEnv.maze_size))
+        action = np.random.choice(actions, 1).item()
+
+        _, reward, done, dist, _, _, _ = myEnv.step(action)
+
+        print("Step = {}, Action = {}, Reward = {}, dist = {}, done = {}".format(t+1, action, reward, dist, done))
+
         # for the panorama view
-        myEnv.show_panorama_view(t)
+        fig = myEnv.show_panorama_view(t, obs_type='agent')
         # for the front view
-        # myEnv.show_front_view(t)
+        # myEnv.show_front_view(map=env_map, time_step=t)
 
-        # test episode length is 20
-        if t % 20 == 0:
-            ep += 1
-            # reset the whole maze after 10 episodes
-            if ep % 10 == 0:
-                # randomly sample a maze
-                size = random.sample(maze_size_list, 1)[0]
-                seed = random.sample(maze_seed_list, 1)[0]
-                env_map = mapper.RoughMap(size, seed, 3, False)
-                # set the new maze params
-                maze_configs["maze_name"] = f"maze_{size}x{size}"
-                maze_configs["maze_size"] = [size, size]
-                maze_configs["maze_seed"] = '1234'
-                maze_configs["maze_map_txt"] = "".join(env_map.map2d_txt)
-                maze_configs["start_pos"] = env_map.init_pos + [0]
-                maze_configs["goal_pos"] = env_map.goal_pos + [0]
-                maze_configs["maze_decal_freq"] = random.sample(decal_list, 1)[0]
-                maze_configs["maze_texture"] = random.sample(theme_list, 1)[0]
-                maze_configs["update"] = True
-                # set the maze
-                myEnv.reset(maze_configs)
-                pos_len = 1
-            else:  # for a fixed maze, sequentially set the start along the valid positions on the map
-                # e.g. 5x5 maze txt
-                #    ---------> cols
-                #    | * * * * *
-                #    | * P     *
-                #    | *   * * *
-                #    | *     G *
-                #    | * * * * *
-                #   rows
-                #     P = (1, 1)
-                #     G = (3, 3)
-                #    type = [rows, cols, orientation]
-                #    start_pos = (1, 1, 0)
-                #    goal_pos = (3, 3, 0)
-                #   where 0 is the orientation in [0, 360]
-                maze_configs["start_pos"] = env_map.valid_pos[pos_len] + [0]
-                pos_len = pos_len + 1 if pos_len + 1 < len(env_map.valid_pos) else len(env_map.valid_pos) - 1
-                maze_configs["goal_pos"] = env_map.goal_pos + [0]
-                maze_configs["update"] = False
-                myEnv.reset(maze_configs)
+        if done or t % 100 == 0:
+            # randomly sample a maze
+            size = random.sample(maze_size_list, 1)[0]
+            seed = random.sample(maze_seed_list, 1)[0]
+            env_map = mapper.RoughMap(size, seed, 3, False)
+            # set the new maze params
+            maze_configs["maze_name"] = f"maze_{size}x{size}"
+            maze_configs["maze_size"] = [size, size]
+            maze_configs["maze_seed"] = '1234'
+            maze_configs["maze_map_txt"] = "".join(env_map.map2d_txt)
+            maze_configs["maze_decal_freq"] = random.sample(decal_list, 1)[0]
+            maze_configs["maze_texture"] = random.sample(theme_list, 1)[0]
+            maze_configs["maze_valid_pos"] = env_map.valid_pos
+            # set the start and goal positions
+            maze_configs["start_pos"] = env_map.init_pos + [0]
+            maze_configs["goal_pos"] = env_map.goal_pos + [0]
+            maze_configs["update"] = True
+            # reset the maze
+            myEnv.reset(maze_configs)
+            for i in range(40):
+                myEnv._lab.step(np.array([0, 0, 0, 0, 0, 0, 0], dtype=np.intc))
+
+
+        # # reset the whole maze after 10 episodes
+        # if pos_len == len(env_map.path) - 1:
+        #     # randomly sample a maze
+        #     size = random.sample(maze_size_list, 1)[0]
+        #     seed = random.sample(maze_seed_list, 1)[0]
+        #     env_map = mapper.RoughMap(size, seed, 3, False)
+        #     # set the new maze params
+        #     maze_configs["maze_name"] = f"maze_{size}x{size}"
+        #     maze_configs["maze_size"] = [size, size]
+        #     maze_configs["maze_seed"] = '1234'
+        #     maze_configs["maze_map_txt"] = "".join(env_map.map2d_txt)
+        #     maze_configs["maze_decal_freq"] = random.sample(decal_list, 1)[0]
+        #     maze_configs["maze_texture"] = random.sample(theme_list, 1)[0]
+        #     maze_configs["maze_valid_pos"] = env_map.valid_pos
+        #     # set the start and goal positions
+        #     maze_configs["start_pos"] = env_map.init_pos + [0]
+        #     maze_configs["goal_pos"] = env_map.goal_pos + [0]
+        #     maze_configs["update"] = True
+        #     # reset the maze
+        #     myEnv.reset(maze_configs)
+        #     pos_len = 1
+        #     break
+        # else:  # for a fixed maze, sequentially set the start along the valid positions on the map
+        #     # e.g. 5x5 maze txt
+        #     #    ---------> cols
+        #     #    | * * * * *
+        #     #    | * P     *
+        #     #    | *   * * *
+        #     #    | *     G *
+        #     #    | * * * * *
+        #     #   rows
+        #     #     P = (1, 1)
+        #     #     G = (3, 3)
+        #     #    type = [rows, cols, orientation]
+        #     #    start_pos = (1, 1, 0)
+        #     #    goal_pos = (3, 3, 0)
+        #     #   where 0 is the orientation in [0, 360]
+        #     maze_configs["start_pos"] = list(env_map.path[pos_len]) + [0]
+        #     pos_len = pos_len + 1 if pos_len + 1 < len(env_map.path) else len(env_map.path) - 1
+        #     # maze_configs["goal_pos"] = env_map.goal_pos + [0]
+        #     myEnv._goal_observation = myEnv.get_random_observations(maze_configs['start_pos'])
+        #     maze_configs["update"] = False
+        #     # myEnv.step(4)
+        #     print(maze_configs['start_pos'], maze_configs['goal_pos'])
+        #     # myEnv.reset(maze_configs)
 
 
 if __name__ == '__main__':
