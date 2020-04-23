@@ -21,12 +21,26 @@ def plot_line_chart(data, name, x_label, y_label, smooth_win_size, color, start,
     plt.show()
 
 
+def success_rate():
+    maze_size = [5, 7, 9, 11]
+    for size in maze_size:
+        dist_data = np.load(f'../results/4-9/her_random_goal_conditioned_double_dqn_{size}x{size}_ep_100_dist_2_distance.npy')
+        len_data = np.load(f'../results/4-9/her_random_goal_conditioned_double_dqn_{size}x{size}_ep_100_dist_2_length.npy')
+        success_count = 0
+        total_count = len_data.shape[0]
+        for i in range(total_count):
+            if dist_data[i] <= 35 and len_data[i] < 20:
+                success_count += 1
+        print(f"Success rate of {size} = {success_count / total_count}")
+
+
 if __name__ == '__main__':
-    root_dir = '../results/4-6/'
-    data_name = 'random_goal_conditioned_double_dqn_5x5_ep_200_dist_2_distance.npy'
+    root_dir = '../results/4-9/'
+    data_name = 'her_random_goal_conditioned_double_dqn_5x5_ep_100_dist_2_distance.npy'
     d = np.load(root_dir + data_name)
     start = 0
     end = d.shape[0]
     # plot_line_chart(d, f"Sub-goal {end}", "Episode", "Distance", 50, ['lightsalmon', '-r'], start, end)
 
-    plot_line_chart(d, "Random Goal Double DQN in 5 x 5 Maze ", "Episode", "Distance", 100, ['lightsalmon', '-r'], start, end)
+    # plot_line_chart(d, "HER Random Goal Double DQN in 5 x 5 Maze with HER", "Episode", "Distance", 100, ['lightsalmon', '-r'], start, end)
+    success_rate()

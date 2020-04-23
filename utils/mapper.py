@@ -25,13 +25,16 @@ class RoughMap(object):
     """
 
     # init function
-    def __init__(self, m_size, m_seed, loc_map_size):
+    def __init__(self, m_size, m_seed, loc_map_size=3, use_apple_reward=False):
         """
         Function is used to initialize the current maps
         :param m_size: size of the maze
         :param m_seed: size of the random seed
         :param loc_map_size: size of the local map
         """
+        # flag of using intrinsic reward
+        self.use_apple_reward = use_apple_reward
+
         # map parameters
         self.maze_size = m_size
         self.maze_seed = m_seed
@@ -59,6 +62,13 @@ class RoughMap(object):
         self.map2d_rough = np.ones(self.map2d_grid.shape) - self.map2d_grid
         self.local_maps, self.map2d_roughPadded = self.crop_local_maps(self.path)
 
+    @staticmethod
+    def remove_apples(txt):
+        txt_apple_removed = []
+        for l in txt:
+            txt_apple_removed.append(l.replace('A', ' ', len(l)))
+        return txt_apple_removed
+
     # load txt map
     def load_map(self, m_type):
         """
@@ -74,9 +84,10 @@ class RoughMap(object):
         if m_type == 'txt':  # txt map
             with open(map_path, 'r') as f:
                 map_txt = f.readlines()
+                map_txt = map_txt if self.use_apple_reward else self.remove_apples(map_txt)
                 for i_idx, l in enumerate(map_txt):
                     for j_idx, s in enumerate(l):
-                        if s == ' ':
+                        if s != '\n' and s != '*':
                             self.valid_pos.append([i_idx, j_idx])
             return map_txt
         elif m_type == 'bw':
@@ -425,6 +436,7 @@ class RoughMap(object):
         self.goal_pos = new_goal
         # update the path using the new init and goal positions
         self.path, self.map2d_path = self.generate_path(self.init_pos, self.goal_pos)
-
+        # update the action
+        self.map_act, self.ego_act = self.path2egoaction(self.path)
 
 

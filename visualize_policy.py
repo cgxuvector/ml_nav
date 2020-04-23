@@ -25,6 +25,9 @@ class VisualPolicy(object):
         self.maze_size = maze_size
         self.random_start = random_start
         self.random_goal = random_goal
+        # orientation space
+        self.init_orientation_space = np.linspace(0, 360, num=37).tolist()
+        self.goal_orientation_space = np.linspace(0, 315, num=8).tolist()
 
     def get_action(self, state, goal):
         state = torch.tensor(np.array(state).transpose(0, 3, 1, 2)).float()
@@ -68,15 +71,17 @@ class VisualPolicy(object):
 
             # load map
             env_map = mapper.RoughMap(size, seed, 3)
-            # # reset the environment using the size and seed
+
+            # reset the environment using the size and seed
             pos_params = [env_map.init_pos[0],
                           env_map.init_pos[1],
                           env_map.goal_pos[0],
                           env_map.goal_pos[1],
+                          0,
                           0]  # [init_pos, goal_pos, init_orientation]
+
             # update the postions
             pos_params[0:2], pos_params[2:4] = env_map.sample_global_start_goal_pos(self.random_start, self.random_goal, 2)
-
             state, goal = my_lab.reset(size, seed, pos_params)
             # show the observation in rgb and depth
             fig.canvas.set_window_title("Episode {} - {} x {} Maze - {} seed".format(ep, size, size, seed))
@@ -222,9 +227,9 @@ if __name__ == '__main__':
     # load the agent
     # my_agent = DQNAgent(0, 0).policy_net
     my_agent = GoalDQNAgent(0, 0, use_small_obs=True).policy_net
-    my_agent.load_state_dict(torch.load("./results/4-6/random_goal_conditioned_double_dqn_9x9_ep_200_dist_2.pt", map_location=torch.device('cpu')))
+    my_agent.load_state_dict(torch.load("./results/4-6/random_goal_conditioned_double_dqn_5x5_ep_200_dist_2.pt", map_location=torch.device('cpu')))
     my_agent.eval()
 
     # run the agent
     myVis = VisualPolicy(my_agent, 9, True, True)
-    myVis.run()
+    myVis.init_run()
