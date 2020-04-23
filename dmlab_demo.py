@@ -14,7 +14,7 @@ def run_demo():
     level = "nav_random_maze"
 
     # desired observations
-    observation_list = [
+    observation_list = ['RGBD_INTERLEAVED',
                         'RGB.LOOK_PANORAMA_VIEW',
                         'RGB.LOOK_TOP_DOWN_VIEW'
                         ]
@@ -27,11 +27,12 @@ def run_demo():
     }
 
     # maze sizes and seeds
-    maze_size_list = [7]
-    maze_seed_list = [1]
+    maze_size_list = [5, 7, 9, 11, 13]
+    maze_seed_list = [1, 2, 3, 4, 5, 6, 7]
 
     # maze
-    theme_list = ["TRON", "MINESWEEPER", "TETRIS", "GO", "PACMAN", "INVISIBLE_WALLS"]
+    # theme_list = ["TRON", "MINESWEEPER", "TETRIS", "GO", "PACMAN", "INVISIBLE_WALLS"]
+    theme_list = ['INVISIBLE_WALLS']
     decal_list = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
 
     # mapper
@@ -61,8 +62,8 @@ def run_demo():
     myEnv.reset(maze_configs)
 
     # create observation windows
-    fig = myEnv.show_panorama_view(obs_type='agent')
-    # myEnv.show_front_view(map=env_map)
+    # fig = myEnv.show_panorama_view(obs_type='agent')
+    myEnv.show_front_view()
 
     # start test
     time_steps_num = 10000
@@ -72,20 +73,25 @@ def run_demo():
     for i in range(20):
         myEnv._lab.step(np.array([0, 0, 0, 0, 0, 0, 0], dtype=np.intc))
 
+    act_idx = 0
     for t in range(time_steps_num):
 
-        action = np.random.choice(actions, 1).item()
+        # select one action
+        # action = np.random.choice(actions, 1).item()
+        action = env_map.map_act[act_idx]
+        act_idx += 1
 
+        # take one step
         _, reward, done, dist, _, _, _ = myEnv.step(action)
 
         print("Step = {}, Action = {}, Reward = {}, dist = {}, done = {}".format(t+1, action, reward, dist, done))
 
         # for the panorama view
-        fig = myEnv.show_panorama_view(t, obs_type='agent')
+        # fig = myEnv.show_panorama_view(time_step=t, obs_type='agent')
         # for the front view
-        # myEnv.show_front_view(map=env_map, time_step=t)
+        myEnv.show_front_view(time_step=t)
 
-        if done or t % 100 == 0:
+        if done or t + 1 % 100 == 0:
             # randomly sample a maze
             size = random.sample(maze_size_list, 1)[0]
             seed = random.sample(maze_seed_list, 1)[0]
@@ -104,7 +110,8 @@ def run_demo():
             maze_configs["update"] = True
             # reset the maze
             myEnv.reset(maze_configs)
-            for i in range(40):
+            act_idx = 0
+            for i in range(100):
                 myEnv._lab.step(np.array([0, 0, 0, 0, 0, 0, 0], dtype=np.intc))
 
 

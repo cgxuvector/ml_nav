@@ -436,6 +436,7 @@ class RoughMap(object):
         self.goal_pos = new_goal
         # update the path using the new init and goal positions
         self.path, self.map2d_path = self.generate_path(self.init_pos, self.goal_pos)
-
+        # update the action
+        self.map_act, self.ego_act = self.path2egoaction(self.path)
 
 

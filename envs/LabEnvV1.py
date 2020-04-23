@@ -346,7 +346,7 @@ class RandomMazeV1(object):
             self.img_artists[7].set_data(observations[6])
             self.img_artists[8].set_data(observations[7])
         self.fig.canvas.draw()
-        plt.pause(0.0001)
+        plt.pause(1)
 
     # show the front view
     def show_front_view(self, map, time_step=None):

@@ -22,12 +22,14 @@ ACTION_LIST = [
 ]
 
 
+ACTION_LIST_TILE = ['up', 'down', 'left', 'right']
+
+
 # valid observations
 VALID_OBS = ['RGBD_INTERLEAVED',
              'RGB.LOOK_PANORAMA_VIEW',
-             'RGB.LOOK_TOP_DOWN_VIEW',
-             'DEBUG.POS.TRANS',
-             'DEBUG.POS.ROT']
+             'RGB.LOOK_TOP_DOWN_VIEW'
+            ]
 
 
 # Deepmind domain for random mazes with random start and goal positions
@@ -47,7 +49,7 @@ class RandomMazeTileRaw(object):
         # check the validation of the observations
         assert set(observations) <= set(VALID_OBS), f"Observations contain invalid observations. Please check the " \
                                                     f"valid list here {VALID_OBS}."
-        self._observation_names = observations + ['RGB.LOOK_RANDOM_VIEW', 'DEBUG.POS.TRANS', 'DEBUG.POS.ROT']
+        self._observation_names = observations + ['RGB.LOOK_RANDOM_VIEW']
         # create the lab maze environment with default settings
         self._lab = deepmind_lab.Lab(self._level_name,
                                      self._observation_names,
@@ -167,9 +169,9 @@ class RandomMazeTileRaw(object):
         if configs['goal_pos']:
             self.goal_pos = configs['goal_pos'] if configs['goal_pos'] else self.goal_pos
             maze_goal_pos = self.position_map2maze(self.goal_pos, self.maze_size)
-            self._lab.write_property("params.goal_pos.x", str(maze_goal_pos[0]))
-            self._lab.write_property("params.goal_pos.y", str(maze_goal_pos[1]))
-            self._lab.write_property("params.goal_pos.yaw", str(maze_goal_pos[2]))
+            # self._lab.write_property("params.goal_pos.x", str(maze_goal_pos[0]))
+            # self._lab.write_property("params.goal_pos.y", str(maze_goal_pos[1]))
+            # self._lab.write_property("params.goal_pos.yaw", str(maze_goal_pos[2]))
             # send the view position
             self._lab.write_property("params.view_pos.x", str(maze_goal_pos[0]))
             self._lab.write_property("params.view_pos.y", str(maze_goal_pos[1]))
@@ -181,6 +183,9 @@ class RandomMazeTileRaw(object):
             self._lab.reset(episode=0)
         else:
             self._lab.reset()
+
+        for i in range(10):
+            self._lab.step(ACTION_LIST[4], num_steps=4)
 
         """ initialize the 3D maze"""
         # initialize the current state
@@ -202,8 +207,9 @@ class RandomMazeTileRaw(object):
         return self._last_observation, self._goal_observation, self._trans, self._rots
 
     # step function
-    def step(self, action):
+    def step(self, act):
         """ step #(num_steps) in Deepmind Lab"""
+        action = ACTION_LIST_TILE[act]
         # compute the next position
         if action == 'up':
             next_pos = list(np.array(self.current_pos) + np.array([-1, 0, 0]))
@@ -374,7 +380,7 @@ class RandomMazeTileRaw(object):
         return self.fig
 
     # show the front view
-    def show_front_view(self, map, time_step=None):
+    def show_front_view(self, time_step=None):
         assert len(self._last_observation.shape) == 3, f"Invalid observation, expected observation should be " \
                                                        f"RGBD_INTERLEAVED, but get {self._observation_names[0]}." \
                                                        f" Please check the observation list. The first one should be" \
@@ -382,12 +388,10 @@ class RandomMazeTileRaw(object):
         # init or update data
         if time_step is None:
             self.fig, self.arrays = plt.subplots(1, 2)
-            # self.img_artists.append(self.arrays[0].imshow(self._last_observation))
-            self.img_artists.append(self.arrays[0].imshow(map.map2d_path))
+            self.img_artists.append(self.arrays[0].imshow(self._last_observation[0]))
             self.img_artists.append(self.arrays[1].imshow(ndimage.rotate(self._top_down_obs, -90)))
         else:
-            # self.img_artists[0].set_data(self._last_observation)
-            self.img_artists[0].set_data(map.map2d_path)
+            self.img_artists[0].set_data(self._last_observation[0])
             self.img_artists[1].set_data(ndimage.rotate(self._top_down_obs, -90))
         self.fig.canvas.draw()
         plt.pause(0.0001)
@@ -402,6 +406,4 @@ class RandomMazeTileRaw(object):
         # Note: the relation between the positions on the 2D map and the 3D maze is as follows:
         #      2D map: row, col
         #      3D maze: (y + 1 - 1) * 100 + 50, (maze_size - x) * 100 + 50
-        # print(pos)
-        # print([pos[1] * 100 + 5, (size[1] - pos[0] - 1) * 100 + 5, pos[2]])
         return [pos[1] * 100 + 50, (size[1] - pos[0] - 1) * 100 + 50, pos[2]]
