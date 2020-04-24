@@ -135,6 +135,7 @@ class GoalDQNAgent(object):
         self.gamma = gamma
         self.tau = soft_target_update_tau  # parameters for soft target update
         self.soft_update = True if soft_target_update_tau else False  # flag for soft update
+        self.soft_update = False
         self.freq_update_target = target_update_frequency
         self.freq_update_policy = policy_update_frequency
         self.optimizer = torch.optim.Adam(self.policy_net.parameters(),

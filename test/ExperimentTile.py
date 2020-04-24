@@ -324,7 +324,7 @@ class Experiment(object):
             # initialize the update flag
             maze_configs["update"] = True  # update flag
         else:
-            init_pos, goal_pos = self.env_map.sample_global_start_goal_pos(self.fix_start, self.fix_goal, dist=10)
+            init_pos, goal_pos = self.env_map.sample_global_start_goal_pos(self.fix_start, self.fix_goal, dist=1000)
             self.env_map.update_mapper(init_pos, goal_pos)
             # print(init_pos, goal_pos)
             # print(self.env_map.map_act)
