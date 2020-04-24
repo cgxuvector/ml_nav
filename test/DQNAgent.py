@@ -10,87 +10,103 @@ class DeepQNet(nn.Module):
             - No image / image feature input: fully-connected (3 layer implemented)
             - Image input: convolutional (not implemented)
     """
-    def __init__(self, small_obs=False):
+    def __init__(self, small_obs=False, true_state=False):
         super(DeepQNet, self).__init__()
+        # set the small observation
         self.small_obs = small_obs
-        # if the convolutional flag is enabled.
-        if not self.small_obs:
-            self.conv_qNet = nn.Sequential(
-                # 3 x 64 x 64 --> 32 x 31 x 31
-                nn.Conv2d(in_channels=3, out_channels=32, kernel_size=3),
-                nn.MaxPool2d(kernel_size=2, stride=2),
-                nn.BatchNorm2d(32),
-                nn.ReLU(),
-
-                # 32 x 31 x 31 --> 64 x 14 x 14
-                nn.Conv2d(in_channels=32, out_channels=64, kernel_size=4),
-                nn.MaxPool2d(kernel_size=2, stride=2),
-                nn.BatchNorm2d(64),
-                nn.ReLU(),
-
-                # 64 x 14 x 14 --> 128 x 6 x 6
-                nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3),
-                nn.MaxPool2d(kernel_size=2, stride=2),
-                nn.BatchNorm2d(128),
-                nn.ReLU(),
-
-                # 128 x 6 x 6 --> 256 x 2 x 2
-                nn.Conv2d(in_channels=128, out_channels=256, kernel_size=3),
-                nn.MaxPool2d(kernel_size=2, stride=2),
-                nn.BatchNorm2d(256),
-                nn.ReLU(),
-
-                # 256 x 2x 2 --> 256 x 1 x 1
-                nn.Conv2d(in_channels=256, out_channels=256, kernel_size=2),
-                nn.BatchNorm2d(256),
-                nn.ReLU()
-            )
-
-            # define the q network
-            self.fcNet = nn.Sequential(
-                nn.Linear(2048, 1024),
-                nn.ReLU(),
-                nn.Linear(1024, 4)
-            )
-        else:
+        # set the state to be true state
+        self.true_state = true_state
+        if not self.true_state:
             # if the convolutional flag is enabled.
-            self.conv_qNet = nn.Sequential(
-                # 3 x 32 x 32 --> 32 x 14 x 14
-                nn.Conv2d(in_channels=3, out_channels=32, kernel_size=5),
-                nn.MaxPool2d(kernel_size=2, stride=2),
-                nn.BatchNorm2d(32),
-                nn.ReLU(),
+            if not self.small_obs:
+                self.conv_qNet = nn.Sequential(
+                    # 3 x 64 x 64 --> 32 x 31 x 31
+                    nn.Conv2d(in_channels=3, out_channels=32, kernel_size=3),
+                    nn.MaxPool2d(kernel_size=2, stride=2),
+                    nn.BatchNorm2d(32),
+                    nn.ReLU(),
 
-                # 32 x 14 x 14 --> 64 x 6 x 6
-                nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3),
-                nn.MaxPool2d(kernel_size=2, stride=2),
-                nn.BatchNorm2d(64),
-                nn.ReLU(),
+                    # 32 x 31 x 31 --> 64 x 14 x 14
+                    nn.Conv2d(in_channels=32, out_channels=64, kernel_size=4),
+                    nn.MaxPool2d(kernel_size=2, stride=2),
+                    nn.BatchNorm2d(64),
+                    nn.ReLU(),
 
-                # 64 x 6 x 6 --> 128 x 2 x 2
-                nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3),
-                nn.MaxPool2d(kernel_size=2, stride=2),
-                nn.BatchNorm2d(128),
-                nn.ReLU(),
-            )
+                    # 64 x 14 x 14 --> 128 x 6 x 6
+                    nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3),
+                    nn.MaxPool2d(kernel_size=2, stride=2),
+                    nn.BatchNorm2d(128),
+                    nn.ReLU(),
 
-            # define the q network
+                    # 128 x 6 x 6 --> 256 x 2 x 2
+                    nn.Conv2d(in_channels=128, out_channels=256, kernel_size=3),
+                    nn.MaxPool2d(kernel_size=2, stride=2),
+                    nn.BatchNorm2d(256),
+                    nn.ReLU(),
+
+                    # 256 x 2x 2 --> 256 x 1 x 1
+                    nn.Conv2d(in_channels=256, out_channels=256, kernel_size=2),
+                    nn.BatchNorm2d(256),
+                    nn.ReLU()
+                )
+
+                # define the q network
+                self.fcNet = nn.Sequential(
+                    nn.Linear(2048, 1024),
+                    nn.ReLU(),
+                    nn.Linear(1024, 4)
+                )
+            else:
+                # if the convolutional flag is enabled.
+                self.conv_qNet = nn.Sequential(
+                    # 3 x 32 x 32 --> 32 x 14 x 14
+                    nn.Conv2d(in_channels=3, out_channels=32, kernel_size=5),
+                    nn.MaxPool2d(kernel_size=2, stride=2),
+                    nn.BatchNorm2d(32),
+                    nn.ReLU(),
+
+                    # 32 x 14 x 14 --> 64 x 6 x 6
+                    nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3),
+                    nn.MaxPool2d(kernel_size=2, stride=2),
+                    nn.BatchNorm2d(64),
+                    nn.ReLU(),
+
+                    # 64 x 6 x 6 --> 128 x 2 x 2
+                    nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3),
+                    nn.MaxPool2d(kernel_size=2, stride=2),
+                    nn.BatchNorm2d(128),
+                    nn.ReLU(),
+                )
+
+                # define the q network
+                self.fcNet = nn.Sequential(
+                    nn.Linear(1024 * 4, 1024),
+                    nn.ReLU(),
+                    nn.Linear(1024, 4),
+                    nn.Identity()
+                )
+        else:
             self.fcNet = nn.Sequential(
-                nn.Linear(1024 * 4, 1024),
+                nn.Linear(3, 256),
                 nn.ReLU(),
-                nn.Linear(1024, 4)
+                nn.Linear(256, 256),
+                nn.ReLU(),
+                nn.Linear(256, 4),
+                nn.Identity()
             )
 
     def forward(self, state):
-        if not self.small_obs:
-            # compute state embedding
-
-            state_fea = self.conv_qNet(state).view(-1, 1 * 8 * 256)
+        if not self.true_state:
+            if not self.small_obs:
+                # compute state embedding
+                state_fea = self.conv_qNet(state).view(-1, 1 * 8 * 256)
+            else:
+                # compute state embedding
+                state_fea = self.conv_qNet(state).view(-1, 1 * 8 * 128 * 4)
+            # concatenate the goal with state
+            x = self.fcNet(state_fea)
         else:
-            # compute state embedding
-            state_fea = self.conv_qNet(state).view(-1, 1 * 8 * 128 * 4)
-        # concatenate the goal with state
-        x = self.fcNet(state_fea)
+            x = self.fcNet(state)
         return x
 
 
@@ -104,7 +120,8 @@ class DQNAgent(object):
                  gamma=1.0,
                  gradient_clip=True,
                  device="cpu",
-                 use_small_obs=False
+                 use_small_obs=False,
+                 use_true_state=False
                  ):
         """
         Init the DQN agent
@@ -118,10 +135,11 @@ class DQNAgent(object):
         :param device: device to use
         """
         self.device = torch.device(device)
+        self.use_true_state = use_true_state
         """ DQN configurations"""
         # create the policy network and target network
-        self.policy_net = DeepQNet(use_small_obs)
-        self.target_net = DeepQNet(use_small_obs)
+        self.policy_net = DeepQNet(use_small_obs, use_true_state)
+        self.target_net = DeepQNet(use_small_obs, use_true_state)
         self.target_net.load_state_dict(self.policy_net.state_dict())
         self.policy_net = self.policy_net.to(device)
         self.target_net = self.target_net.to(device)
@@ -157,6 +175,7 @@ class DQNAgent(object):
         state, action, next_state, reward, done = self.convert2tensor(batch_data)
         # compute the Q_policy(s, a)
         state_q_values = self.policy_net(state).gather(dim=1, index=action)
+
         # compute the TD target r + gamma * max_a' Q_target(s', a')
         if self.dqn_mode == "vanilla":  # update the policy network using vanilla DQN
             with torch.no_grad():
@@ -196,8 +215,7 @@ class DQNAgent(object):
         input_state = input_state.to(self.device).float()
         with torch.no_grad():
             q_values = self.policy_net(input_state)
-            # action = q_values.max(0)[1].item()
-            action = q_values.max(1)[1].item()
+            action = q_values.max(1)[1].item() if not self.use_true_state else q_values.max(0)[1].item()
         return action
 
     def train_one_batch(self, t, batch):
@@ -211,21 +229,38 @@ class DQNAgent(object):
             self.update_target_net()
 
     def convert2tensor(self, batch):
-        if len(batch._fields) == 5:
-            state = torch.cat(batch.state, dim=0).float().to(self.device)
-            action = torch.cat(batch.action, dim=0).long().to(self.device)
-            reward = torch.cat(batch.reward, dim=0).float().to(self.device)
-            next_state = torch.cat(batch.next_state, dim=0).float().to(self.device)
-            done = torch.cat(batch.done, dim=0).to(self.device)
-            return state, action, next_state, reward, done
-        elif len(batch._fields) == 6:
-            state = torch.cat(batch.state, dim=0).float().to(self.device)
-            action = torch.cat(batch.action, dim=0).long().to(self.device)
-            reward = torch.cat(batch.reward, dim=0).float().to(self.device)
-            next_state = torch.cat(batch.next_state, dim=0).float().to(self.device)
-            goal = torch.cat(batch.goal, dim=0).float().to(self.device)
-            done = torch.cat(batch.done, dim=0).to(self.device)
-            return state, action, next_state, reward, goal, done
+        if not self.use_true_state:
+            if len(batch._fields) == 5:
+                state = torch.cat(batch.state, dim=0).float().to(self.device)
+                action = torch.cat(batch.action, dim=0).long().to(self.device)
+                reward = torch.cat(batch.reward, dim=0).float().to(self.device)
+                next_state = torch.cat(batch.next_state, dim=0).float().to(self.device)
+                done = torch.cat(batch.done, dim=0).to(self.device)
+                return state, action, next_state, reward, done
+            elif len(batch._fields) == 6:
+                state = torch.cat(batch.state, dim=0).float().to(self.device)
+                action = torch.cat(batch.action, dim=0).long().to(self.device)
+                reward = torch.cat(batch.reward, dim=0).float().to(self.device)
+                next_state = torch.cat(batch.next_state, dim=0).float().to(self.device)
+                goal = torch.cat(batch.goal, dim=0).float().to(self.device)
+                done = torch.cat(batch.done, dim=0).to(self.device)
+                return state, action, next_state, reward, goal, done
+        else:
+            if len(batch._fields) == 5:
+                state = torch.stack(batch.state).float().to(self.device)
+                action = torch.stack(batch.action).long().view(-1, 1).to(self.device)
+                reward = torch.stack(batch.reward).float().view(-1, 1).to(self.device)
+                next_state = torch.stack(batch.next_state).float().to(self.device)
+                done = torch.stack(batch.done).view(-1, 1).to(self.device)
+                return state, action, next_state, reward, done
+            elif len(batch._fields) == 6:
+                state = torch.stack(batch.state).float().to(self.device)
+                action = torch.stack(batch.action).long().view(-1, 1).to(self.device)
+                reward = torch.stack(batch.reward).float().view(-1, 1).to(self.device)
+                next_state = torch.stack(batch.next_state).float().to(self.device)
+                goal = torch.stack(batch.goal).float().to(self.device)
+                done = torch.stack(batch.done).view(-1, 1).to(self.device)
+                return state, action, next_state, reward, goal, done
 
     @staticmethod
     def rolling_average(data, window_size):

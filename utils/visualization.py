@@ -22,25 +22,39 @@ def plot_line_chart(data, name, x_label, y_label, smooth_win_size, color, start,
 
 
 def success_rate():
-    maze_size = [5, 7, 9, 11]
+    maze_size = [5, 7, 9]
     for size in maze_size:
-        dist_data = np.load(f'../results/4-9/her_random_goal_conditioned_double_dqn_{size}x{size}_ep_100_dist_2_distance.npy')
-        len_data = np.load(f'../results/4-9/her_random_goal_conditioned_double_dqn_{size}x{size}_ep_100_dist_2_length.npy')
+        dist_data = np.load(f'../results/4-23/double_dqn_fix_start_goal_{size}x{size}_ep_100_small_obs_b64_distance.npy')
+        len_data = np.load(f'../results/4-23/double_dqn_fix_start_goal_{size}x{size}_ep_100_small_obs_b64_length.npy')
         success_count = 0
-        total_count = len_data.shape[0]
-        for i in range(total_count):
-            if dist_data[i] <= 35 and len_data[i] < 20:
+        total_count = dist_data.shape[0]
+        last_count = 0
+        count = 0
+        idx = 0
+        success_rate_list = []
+        while count < total_count:
+            if dist_data[count] <= 10 and len_data[count] < 100:
                 success_count += 1
-        print(f"Success rate of {size} = {success_count / total_count}")
+            if (count+1) % 100 == 0:
+                success_rate_list.append(success_count / (count - last_count))
+                success_count = 0
+                last_count = count
+                idx += 1
+            count += 1
+        plt.title(f"Navigation success rate of maze {size} x {size} every 100 epochs")
+        plt.plot(range(len(success_rate_list)), success_rate_list, 'b-', linewidth=2)
+        plt.xlabel("every 100 epochs ")
+        plt.ylabel("success rate (%)")
+        plt.show()
 
 
 if __name__ == '__main__':
-    root_dir = '../results/4-9/'
-    data_name = 'her_random_goal_conditioned_double_dqn_5x5_ep_100_dist_2_distance.npy'
+    root_dir = '../results/4-23/'
+    data_name = 'double_dqn_fix_start_goal_9x9_ep_100_small_obs_b64_return.npy'
     d = np.load(root_dir + data_name)
     start = 0
     end = d.shape[0]
     # plot_line_chart(d, f"Sub-goal {end}", "Episode", "Distance", 50, ['lightsalmon', '-r'], start, end)
 
-    # plot_line_chart(d, "HER Random Goal Double DQN in 5 x 5 Maze with HER", "Episode", "Distance", 100, ['lightsalmon', '-r'], start, end)
+    plot_line_chart(d, "Double DQN in 9 x 9 Maze with small obs and decal 0.1", "Episode", "Discounted Return", 100, ['lightgreen', '-g'], start, end)
     success_rate()

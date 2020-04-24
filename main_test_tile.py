@@ -53,6 +53,8 @@ def parse_input():
     parser.add_argument("--goal_dist", type=int, default=1, help="distance between start and goal")
     # set the decal frequency
     parser.add_argument("--decal_freq", type=float, default=0.1, help="wall decorator frequency")
+    # set the true state
+    parser.add_argument("--use_true_state", type=str, default="False", help="whether using true state")
     return parser.parse_args()
 
 
@@ -68,6 +70,8 @@ def strTobool(inputs):
     inputs.use_goal = True if inputs.use_goal == "True" else False
     # set params of observation
     inputs.use_small_obs = True if inputs.use_small_obs == "True" else False
+    # set params of true state
+    inputs.use_true_state = True if inputs.use_true_state == "True" else False
     return inputs
 
 
@@ -111,7 +115,12 @@ if __name__ == '__main__':
     assert set(maze_seed) <= set(DEFAULT_SEED), f"Input contains invalid maze seed. Expect a subset of {DEFAULT_SEED}, " \
                                                 f"but get {maze_seed}."
     # create the environment
-    my_lab = RandomMazeTileRaw(level_name, observation_list, configurations, reward_type="sparse-1", dist_epsilon=10)
+    my_lab = RandomMazeTileRaw(level_name,
+                               observation_list,
+                               configurations,
+                               use_true_state=inputs.use_true_state,
+                               reward_type="sparse-1",
+                               dist_epsilon=1e-3)
 
     """ Set up the agent """
     if inputs.agent == 'dqn':
@@ -122,7 +131,8 @@ if __name__ == '__main__':
                             gamma=0.99,
                             gradient_clip=inputs.dqn_gradient_clip,
                             device=inputs.device,
-                            use_small_obs=inputs.use_small_obs
+                            use_small_obs=inputs.use_small_obs,
+                            use_true_state=inputs.use_true_state
                             )
     elif inputs.agent == 'goal-dqn':
         my_agent = GoalDQNAgent(target_update_frequency=inputs.dqn_update_target_net,
@@ -164,7 +174,8 @@ if __name__ == '__main__':
         transition=transition,
         goal_dist=inputs.goal_dist,
         random_seed=inputs.rnd_seed,
-        decal_freq=inputs.decal_freq
+        decal_freq=inputs.decal_freq,
+        use_true_state=inputs.use_true_state
     )
     # run the experiments
     my_experiment.run_dqn()
