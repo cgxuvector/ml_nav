@@ -34,7 +34,7 @@ VALID_OBS = ['RGBD_INTERLEAVED',
 
 # Deepmind domain for random mazes with random start and goal positions
 class RandomMazeTileRaw(object):
-    def __init__(self, level, observations, configs, reward_type='sparse-0', dist_epsilon=35):
+    def __init__(self, level, observations, configs, use_true_state=False, reward_type='sparse-0', dist_epsilon=1e-3):
         """
         Create gym-like domain interface
         :param level: name of the level (currently we only support one name "nav_random_nav")
@@ -42,6 +42,8 @@ class RandomMazeTileRaw(object):
         :param configs: configuration of the lab [width, height, fps]
         """
         """ set up the 3D maze using default settings"""
+        # set the state type
+        self._use_state = use_true_state
         # set the level name
         self._level_name = level
         # set the level configuration
@@ -147,12 +149,13 @@ class RandomMazeTileRaw(object):
 
             """ send the parameters to lua """
             # send the maze configurations
-            self._lab.write_property("params.maze_configs.name", self.maze_name)
-            self._lab.write_property("params.maze_configs.size", str(self.maze_size[0]))
-            self._lab.write_property("params.maze_configs.seed", str(self.maze_seed))
-            self._lab.write_property("params.maze_configs.texture", self.maze_texture)
-            self._lab.write_property("params.maze_configs.decal_freq", str(self.maze_decal_freq))
-            self._lab.write_property("params.maze_configs.map_txt", self.maze_map_txt)
+            if not self._use_state:
+                self._lab.write_property("params.maze_configs.name", self.maze_name)
+                self._lab.write_property("params.maze_configs.size", str(self.maze_size[0]))
+                self._lab.write_property("params.maze_configs.seed", str(self.maze_seed))
+                self._lab.write_property("params.maze_configs.texture", self.maze_texture)
+                self._lab.write_property("params.maze_configs.decal_freq", str(self.maze_decal_freq))
+                self._lab.write_property("params.maze_configs.map_txt", self.maze_map_txt)
 
         """ Navigation configurations"""
         """
@@ -161,43 +164,46 @@ class RandomMazeTileRaw(object):
         # send initial position
         if configs['start_pos']:
             self.start_pos = configs['start_pos'] if configs['start_pos'] else self.start_pos
-            maze_init_pos = self.position_map2maze(self.start_pos, self.maze_size)
-            self._lab.write_property("params.start_pos.x", str(maze_init_pos[0]))
-            self._lab.write_property("params.start_pos.y", str(maze_init_pos[1]))
-            self._lab.write_property("params.start_pos.yaw", str(maze_init_pos[2]))
+            if not self._use_state:
+                maze_init_pos = self.position_map2maze(self.start_pos, self.maze_size)
+                self._lab.write_property("params.start_pos.x", str(maze_init_pos[0]))
+                self._lab.write_property("params.start_pos.y", str(maze_init_pos[1]))
+                self._lab.write_property("params.start_pos.yaw", str(maze_init_pos[2]))
         # send target position
         if configs['goal_pos']:
             self.goal_pos = configs['goal_pos'] if configs['goal_pos'] else self.goal_pos
-            maze_goal_pos = self.position_map2maze(self.goal_pos, self.maze_size)
-            # self._lab.write_property("params.goal_pos.x", str(maze_goal_pos[0]))
-            # self._lab.write_property("params.goal_pos.y", str(maze_goal_pos[1]))
-            # self._lab.write_property("params.goal_pos.yaw", str(maze_goal_pos[2]))
-            # send the view position
-            self._lab.write_property("params.view_pos.x", str(maze_goal_pos[0]))
-            self._lab.write_property("params.view_pos.y", str(maze_goal_pos[1]))
-            self._lab.write_property("params.view_pos.z", str(40))
-            self._lab.write_property("params.view_pos.yaw", str(maze_goal_pos[2]))
+            if not self._use_state:
+                maze_goal_pos = self.position_map2maze(self.goal_pos, self.maze_size)
+                # self._lab.write_property("params.goal_pos.x", str(maze_goal_pos[0]))
+                # self._lab.write_property("params.goal_pos.y", str(maze_goal_pos[1]))
+                # self._lab.write_property("params.goal_pos.yaw", str(maze_goal_pos[2]))
+                # send the view position
+                self._lab.write_property("params.view_pos.x", str(maze_goal_pos[0]))
+                self._lab.write_property("params.view_pos.y", str(maze_goal_pos[1]))
+                self._lab.write_property("params.view_pos.z", str(40))
+                self._lab.write_property("params.view_pos.yaw", str(maze_goal_pos[2]))
 
         """ update the environment """
-        if configs['update']:
-            self._lab.reset(episode=0)
-        else:
-            self._lab.reset()
+        if not self._use_state:
+            if configs['update']:
+                self._lab.reset(episode=0)
+            else:
+                self._lab.reset()
 
-        for i in range(10):
-            self._lab.step(ACTION_LIST[4], num_steps=4)
+            for i in range(10):
+                self._lab.step(ACTION_LIST[4], num_steps=4)
 
         """ initialize the 3D maze"""
         # initialize the current state
-        self._current_state = self._lab.observations()
+        self._current_state = self._lab.observations() if not self._use_state else self.start_pos
         # initialize the current position
         self.current_pos = self.start_pos
         # initialize the current observations
-        self._last_observation = self.get_random_observations(self.current_pos)
+        self._last_observation = self.get_random_observations(self.current_pos) if not self._use_state else self.current_pos
         # initialize the top down view
-        self._top_down_obs = self._current_state['RGB.LOOK_TOP_DOWN_VIEW']
+        self._top_down_obs = self._current_state['RGB.LOOK_TOP_DOWN_VIEW'] if not self._use_state else None
         # initialize the goal observations
-        self._goal_observation = self.get_random_observations(self.goal_pos)
+        self._goal_observation = self.get_random_observations(self.goal_pos) if not self._use_state else self.goal_pos
         # initialize the positions and orientations
         self._trans = self.position_map2maze(self.current_pos, self.maze_size)
         self._rots = None
@@ -227,15 +233,15 @@ class RandomMazeTileRaw(object):
             raise Exception(f"Invalid action name. Expected up, down, left, right, but get {action}.")
 
         """ check the terminal and return observations"""
-        if self._lab.is_running():  # If the maze is still running
+        if self._lab.is_running() or self._use_state:  # If the maze is still running
             # get the next state
-            self._current_state = self._lab.observations()
+            self._current_state = self._lab.observations() if not self._use_state else self.current_pos
             # get the next observations
-            self._last_observation = self.get_random_observations(self.current_pos)
+            self._last_observation = self.get_random_observations(self.current_pos) if not self._use_state else self._current_state
             # get the next top down observations
-            self._top_down_obs = self._current_state['RGB.LOOK_TOP_DOWN_VIEW']
+            self._top_down_obs = self._current_state['RGB.LOOK_TOP_DOWN_VIEW'] if not self._use_state else None
             # get the next position
-            pos_x, pos_y, pos_z = self.position_map2maze(self.current_pos, self.maze_size)
+            pos_x, pos_y, pos_z = self.position_map2maze(self.current_pos, self.maze_size) if not self._use_state else self.current_pos
             # get the next orientations
             pos_pitch, pos_yaw, pos_roll = 0, 0, 0
             # check if the agent reaches the goal given the current position and orientation
@@ -287,7 +293,7 @@ class RandomMazeTileRaw(object):
         :return: List of egocentric observations at position (x, y)
         """
         # convert to maze positions
-        pos = self.position_map2maze(pos, self.maze_size)
+        pos = self.position_map2maze(pos, self.maze_size) if not self._use_state else pos
         # store observations
         ego_observations = []
         # re-arrange the observations of the agent
@@ -305,7 +311,7 @@ class RandomMazeTileRaw(object):
 
     def reach_goal(self, current_pos):
         # compute the distance and angle error
-        goal_pos = self.position_map2maze(self.goal_pos, self.maze_size)
+        goal_pos = self.position_map2maze(self.goal_pos, self.maze_size) if not self._use_state else self.goal_pos
         dist = self.compute_distance(current_pos, goal_pos)
         if dist < self.dist_epsilon:
             return 1, dist

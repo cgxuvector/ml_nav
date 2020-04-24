@@ -46,7 +46,8 @@ class Experiment(object):
                  use_goal=False,
                  goal_dist=1,
                  future_k=4,
-                 decal_freq=0.1):
+                 decal_freq=0.1,
+                 use_true_state=False):
         # randomness
         self.random_seed = random_seed
         # environment
@@ -102,6 +103,9 @@ class Experiment(object):
         self.goal_orientation_space = np.linspace(0, 315, num=8).tolist()
         # future strategy
         self.her_future_k = future_k
+
+        # use true state
+        self.use_true_state = use_true_state
 
     def run_dqn(self):
         """
@@ -166,6 +170,133 @@ class Experiment(object):
             else:
                 state = next_state
                 rewards.append(reward)
+                episode_t += 1
+
+            # train the agent
+            if t > self.start_train_step:
+                sampled_batch = self.replay_buffer.sample(self.batch_size)
+                self.agent.train_one_batch(t, sampled_batch)
+
+        # save the model and the statics
+        model_save_path = os.path.join(self.save_dir, self.model_name) + ".pt"
+        distance_save_path = os.path.join(self.save_dir, self.model_name + "_distance.npy")
+        returns_save_path = os.path.join(self.save_dir, self.model_name + "_return.npy")
+        lengths_save_path = os.path.join(self.save_dir, self.model_name + "_length.npy")
+        torch.save(self.agent.policy_net.state_dict(), model_save_path)
+        np.save(distance_save_path, self.distance)
+        np.save(returns_save_path, self.returns)
+        np.save(lengths_save_path, self.lengths)
+
+    def random_goal_conditioned_her_run(self):
+        """
+               Run experiments using goal-conditioned DQN with the nearby goals using HER
+               :return: None
+
+               Question: how to set the exploration?
+        """
+        # set randomness
+        random.seed(self.random_seed)  # once set, it has global effect
+
+        # select a maze
+        size = np.random.choice(self.maze_size_list)
+        seed = np.random.choice(self.maze_seed_list)
+
+        # select a map
+        env_map = mapper.RoughMap(size, seed, 3)
+
+        # randomly select the init and goal positions
+        init_pos, goal_pos = env_map.sample_global_start_goal_pos(False, False, self.goal_dist)
+        env_map.update_mapper(init_pos, goal_pos)
+
+        # reset the environment
+        state, goal = self.init_map2d_and_maze3d()
+
+        # running statistics
+        episode_t = 0
+        train_episode_count = self.train_episode_num
+        states_buffer = [state]
+        actions_buffer = []
+        rewards_buffer = []
+        dones_buffer = []
+        trans_buffer = []
+
+        # start training
+        pbar = tqdm.trange(self.max_time_steps)
+        for t in pbar:
+            # compute the epsilon
+            eps = self.schedule.get_value(t)
+            # obtain an action from epsilon greedy
+            if np.random.sample() < eps:
+                action = np.random.choice(range(4), 1).item()
+            else:
+                action = self.agent.get_action(self.toTensor(state)) if not self.use_goal else \
+                         self.agent.get_action(self.toTensor(state), self.toTensor(goal))
+
+            # step in the environment
+            next_state, reward, done, dist, trans, _, _ = self.env.step(action)
+
+            """ update the on-policy buffers """
+            states_buffer.append(next_state)
+            actions_buffer.append(action)
+            rewards_buffer.append(reward)
+            dones_buffer.append(done)
+            trans_buffer.append(trans)
+
+            """ add the transition into the replay buffer """
+            # store the replay buffer and convert the data to tensor
+            if self.use_relay_buffer:
+                trans = self.toTransition(state, action, next_state, reward, goal, done)
+                self.replay_buffer.add(trans)
+
+            """ check the terminal """
+            if done or (episode_t == self.max_steps_per_episode):
+                # compute the return
+                G = 0
+                for r in reversed(rewards_buffer):
+                    G = r + self.gamma * G
+
+                # store the return, episode length, and final distance
+                self.returns.append(G)
+                self.lengths.append(episode_t)
+                self.distance.append(dist)
+                # compute the episode number
+                episode_idx = len(self.returns)
+
+                # print the information
+                pbar.set_description(
+                    f'Episode: {episode_idx} | Steps: {episode_t} | Return: {G:2f} | Dist: {dist:.2f} | '
+                    f'Init: {self.env.start_pos} | Goal: {self.env.goal_pos} | '
+                    f'Eps: {eps:.3f} | Buffer: {len(self.replay_buffer)}'
+                )
+
+                """ check if using the HER strategy """
+                if not self.use_relay_buffer:
+                    self.hindsight_experience_replay(states_buffer,
+                                                     actions_buffer,
+                                                     rewards_buffer,
+                                                     trans_buffer,
+                                                     goal,
+                                                     dones_buffer)
+
+                # reset the environments
+                episode_t = 0  # reset the time step counter
+                rewards_buffer = []  # reset the rewards
+                states_buffer = []  # reset the states buffer
+                actions_buffer = []  # reset the actions buffer
+                trans_buffer = []  # reset the transition buffer
+                dones_buffer = []  # reset the dones buffer
+
+                # for fixed start and goal positions, train it for #(train_episode_num) episodes
+                if train_episode_count > 1:
+                    train_episode_count -= 1
+                else:
+                    state, goal = self.update_map2d_and_maze3d(set_new_maze=not self.fix_maze)
+                    # reset the training episodes
+                    train_episode_count = self.train_episode_num
+                # init the buffers
+                states_buffer.append(state)
+            else:
+                state = next_state
                 episode_t += 1
 
             # train the agent
@@ -263,8 +394,7 @@ class Experiment(object):
                                    goal=self.toTensor(goal),
                                    done=torch.tensor(done, dtype=torch.int8).view(-1, 1))
 
-    @staticmethod
-    def toTensor(obs_list):
+    def toTensor(self, obs_list):
         """
         Function is used to convert the data type. In the current settings, the state obtained from the environment is a
         list of 8 RGB observations (numpy arrays). This function will change the list into a tensor with size
@@ -272,7 +402,10 @@ class Experiment(object):
         :param obs_list: List of the 8 observations
         :return: state tensor
         """
-        state_obs = torch.tensor(np.array(obs_list).transpose(0, 3, 1, 2), dtype=torch.uint8)
+        if not self.use_true_state:
+            state_obs = torch.tensor(np.array(obs_list).transpose(0, 3, 1, 2), dtype=torch.uint8)
+        else:
+            state_obs = torch.tensor(np.array(obs_list), dtype=torch.float32)
         return state_obs
 
     def init_map2d_and_maze3d(self):
@@ -324,10 +457,8 @@ class Experiment(object):
             # initialize the update flag
             maze_configs["update"] = True  # update flag
         else:
-            init_pos, goal_pos = self.env_map.sample_global_start_goal_pos(self.fix_start, self.fix_goal, dist=1000)
+            init_pos, goal_pos = self.env_map.sample_global_start_goal_pos(self.fix_start, self.fix_goal, self.goal_dist)
             self.env_map.update_mapper(init_pos, goal_pos)
-            # print(init_pos, goal_pos)
-            # print(self.env_map.map_act)
             maze_configs['start_pos'] = init_pos + [0]
             maze_configs['goal_pos'] = goal_pos + [0]
             maze_configs['maze_valid_pos'] = self.env_map.valid_pos
