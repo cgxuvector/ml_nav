@@ -22,10 +22,10 @@ def plot_line_chart(data, name, x_label, y_label, smooth_win_size, color, start,
 
 
 def success_rate():
-    maze_size = [5, 7, 9]
+    maze_size = [13]
     for size in maze_size:
-        dist_data = np.load(f'../results/4-23/double_dqn_fix_start_goal_{size}x{size}_ep_100_small_obs_b64_distance.npy')
-        len_data = np.load(f'../results/4-23/double_dqn_fix_start_goal_{size}x{size}_ep_100_small_obs_b64_length.npy')
+        dist_data = np.load(f'../results/4-23/double_dqn_{size}x{size}_ep_600_b64_m80000_distance.npy')
+        len_data = np.load(f'../results/4-23/double_dqn_{size}x{size}_ep_600_b64_m80000_length.npy')
         success_count = 0
         total_count = dist_data.shape[0]
         last_count = 0
@@ -33,7 +33,7 @@ def success_rate():
         idx = 0
         success_rate_list = []
         while count < total_count:
-            if dist_data[count] <= 10 and len_data[count] < 100:
+            if dist_data[count] <= 10 and len_data[count] < 200:
                 success_count += 1
             if (count+1) % 100 == 0:
                 success_rate_list.append(success_count / (count - last_count))
@@ -50,11 +50,11 @@ def success_rate():
 
 if __name__ == '__main__':
     root_dir = '../results/4-23/'
-    data_name = 'double_dqn_fix_start_goal_9x9_ep_100_small_obs_b64_return.npy'
+    data_name = 'double_dqn_13x13_ep_600_b64_m50000_return.npy'
     d = np.load(root_dir + data_name)
     start = 0
     end = d.shape[0]
     # plot_line_chart(d, f"Sub-goal {end}", "Episode", "Distance", 50, ['lightsalmon', '-r'], start, end)
 
-    plot_line_chart(d, "Double DQN in 9 x 9 Maze with small obs and decal 0.1", "Episode", "Discounted Return", 100, ['lightgreen', '-g'], start, end)
+    plot_line_chart(d, "Double DQN in 13 x 13 Maze with true state", "Episode", "Discounted Return", 100, ['lightgreen', '-g'], start, end)
     success_rate()
