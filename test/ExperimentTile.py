@@ -107,6 +107,49 @@ class Experiment(object):
         # use true state
         self.use_true_state = use_true_state
 
+    # run statistics of the domain
+    def run_statistic(self):
+        """
+                Function is used to run the training of the agent
+                """
+        # set the random seed
+        random.seed(self.random_seed)
+
+        # set the training statistics
+        rewards = []  # list of rewards for one episode
+        episode_t = 0  # time step for one episode
+
+        # initial reset
+        state, goal = self.init_map2d_and_maze3d()
+        episode_count = 0
+        success_count = 0
+        for i in range(10):
+            # start the training
+            pbar = tqdm.trange(self.max_time_steps)
+            for t in pbar:
+                # randomly sample an action
+                action = np.random.choice(range(4), 1).item()
+
+                # step in the environment
+                next_state, reward, done, dist, trans, _, _ = self.env.step(action)
+
+                # check terminal
+                if done or (episode_t == self.max_steps_per_episode):
+                    episode_count += 1
+                    if done:
+                        success_count += 1
+                    # reset the environments
+                    rewards = []
+                    episode_t = 0
+                    state, goal = self.update_map2d_and_maze3d(set_new_maze=not self.fix_maze)
+                else:
+                    state = next_state
+                    rewards.append(reward)
+                    episode_t += 1
+        print("Total number of episodes = {}".format(episode_count))
+        print("Success number of episodes = {}".format(success_count))
+        print("Success rate of navigation using random policy = {}".format(success_count / episode_count))
+
     def run_dqn(self):
         """
         Function is used to run the training of the agent
