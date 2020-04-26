@@ -222,7 +222,17 @@ class Experiment(object):
                 sampled_batch = self.replay_buffer.sample(self.batch_size)
                 self.agent.train_one_batch(t, sampled_batch)
 
-        # save the model and the statics
+            # save the model and the statics
+            if eps - 0.5 < 0.02:
+                model_save_path = os.path.join(self.save_dir, self.model_name) + "_middle.pt"
+                distance_save_path = os.path.join(self.save_dir, self.model_name + "_middle_distance.npy")
+                returns_save_path = os.path.join(self.save_dir, self.model_name + "_middle_return.npy")
+                lengths_save_path = os.path.join(self.save_dir, self.model_name + "_middle_length.npy")
+                torch.save(self.agent.policy_net.state_dict(), model_save_path)
+                np.save(distance_save_path, self.distance)
+                np.save(returns_save_path, self.returns)
+                np.save(lengths_save_path, self.lengths)
+
         model_save_path = os.path.join(self.save_dir, self.model_name) + ".pt"
         distance_save_path = os.path.join(self.save_dir, self.model_name + "_distance.npy")
         returns_save_path = os.path.join(self.save_dir, self.model_name + "_return.npy")
