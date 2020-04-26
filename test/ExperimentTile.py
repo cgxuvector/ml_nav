@@ -230,6 +230,94 @@ class Experiment(object):
         np.save(returns_save_path, self.returns)
         np.save(lengths_save_path, self.lengths)
 
+    def run_dqn_heuristic(self):
+        """
+        Function is used to run the training of the agent
+        """
+        # set the random seed
+        random.seed(self.random_seed)
+
+        # set the training statistics
+        episode_t = 0  # time step for one episode
+        # buffer list
+        states = []
+        actions = []
+        rewards = []
+        next_states = []
+        dones = []
+
+        # initial reset
+        state, goal = self.init_map2d_and_maze3d()
+
+        # start the training
+        pbar = tqdm.trange(self.max_time_steps)
+        for t in pbar:
+            # compute the epsilon
+            eps = self.schedule.get_value(t)
+            # obtain an action from epsilon greedy
+            if np.random.sample() < eps:
+                action = np.random.choice(range(4), 1).item()
+            else:
+                action = self.agent.get_action(self.toTensor(state)) if not self.use_goal else \
+                         self.agent.get_action(self.toTensor(state), self.toTensor(goal))
+
+            # step in the environment
+            next_state, reward, done, dist, trans, _, _ = self.env.step(action)
+
+            # add the online buffers
+            states.append(state)
+            actions.append(action)
+            rewards.append(reward)
+            next_states.append(next_state)
+            dones.append(done)
+
+            # check terminal
+            if done or (episode_t == self.max_steps_per_episode):
+                # construct the experience replay buffer using heuristic experience replay
+                self.heuristic_experience_replay(states, actions, rewards, next_states, dones, goal, eps)
+
+                # compute the discounted return for each time step
+                G = 0
+                for r in reversed(rewards):
+                    G = r + self.gamma * G
+
+                # store the return, episode length, and final distance for current episode
+                self.returns.append(G)
+                self.lengths.append(episode_t)
+                self.distance.append(dist)
+                # compute the episode number
+                episode_idx = len(self.returns)
+
+                pbar.set_description(
+                    f'Episode: {episode_idx} | Steps: {episode_t} | Return: {G:2f} | Dist: {dist:.2f} | '
+                    f'Init: {self.env.start_pos} | Goal: {self.env.goal_pos} | '
+                    f'Eps: {eps:.3f} | Buffer: {len(self.replay_buffer)}'
+                )
+
+                # reset the environments
+                rewards = []
+                episode_t = 0
+                state, goal = self.update_map2d_and_maze3d(set_new_maze=not self.fix_maze)
+            else:
+                state = next_state
+                rewards.append(reward)
+                episode_t += 1
+
+            # train the agent
+            if t > self.start_train_step and len(self.replay_buffer) > 0:
+                sampled_batch = self.replay_buffer.sample(self.batch_size)
+                self.agent.train_one_batch(t, sampled_batch)
+        #
+        # # save the model and the statics
+        # model_save_path = os.path.join(self.save_dir, self.model_name) + ".pt"
+        # distance_save_path = os.path.join(self.save_dir, self.model_name + "_distance.npy")
+        # returns_save_path = os.path.join(self.save_dir, self.model_name + "_return.npy")
+        # lengths_save_path = os.path.join(self.save_dir, self.model_name + "_length.npy")
+        # torch.save(self.agent.policy_net.state_dict(), model_save_path)
+        # np.save(distance_save_path, self.distance)
+        # np.save(returns_save_path, self.returns)
+        # np.save(lengths_save_path, self.lengths)
+
     def random_goal_conditioned_her_run(self):
         """
                Run experiments using goal-conditioned DQN with the nearby goals using HER
@@ -511,4 +599,24 @@ class Experiment(object):
         state_obs, goal_obs, _, _ = self.env.reset(maze_configs)
         # return states and goals
         return state_obs, goal_obs
+
+    def heuristic_experience_replay(self, states, actions, rewards, next_states, dones, goal, eps):
+        # heuristic experience replay
+        if np.random.sample() < 1:
+            if dones[-1]:
+                for s, a, r, next_s, d in zip(states, actions, rewards, next_states, dones):
+                    # store the replay buffer and convert the data to tensor
+                    if self.use_relay_buffer:
+                        # construct the transition
+                        trans = self.toTransition(s, a, next_s, r, goal, d)
+                        # add the transition into the buffer
+                        self.replay_buffer.add(trans)
+        else:
+            for s, a, r, next_s, d in zip(states, actions, rewards, next_states, dones):
+                # store the replay buffer and convert the data to tensor
+                if self.use_relay_buffer:
+                    # construct the transition
+                    trans = self.toTransition(s, a, next_s, r, goal, d)
+                    # add the transition into the buffer
+                    self.replay_buffer.add(trans)
 

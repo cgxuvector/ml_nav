@@ -178,7 +178,8 @@ if __name__ == '__main__':
         use_true_state=inputs.use_true_state
     )
     # run the experiments
-    my_experiment.run_dqn()
+    # my_experiment.run_dqn()
     # my_experiment.run_statistic()
+    my_experiment.run_dqn_heuristic()
 
 
