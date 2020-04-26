@@ -299,6 +299,10 @@ class Experiment(object):
                 # reset the environments
                 rewards = []
                 episode_t = 0
+                states = []
+                actions = []
+                next_states = []
+                dones = []
                 state, goal = self.update_map2d_and_maze3d(set_new_maze=not self.fix_maze)
             else:
                 state = next_state
