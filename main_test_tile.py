@@ -179,6 +179,7 @@ if __name__ == '__main__':
     )
     # run the experiments
     # my_experiment.run_dqn()
-    my_experiment.run_statistic()
+    # my_experiment.run_statistic()
+    my_experiment.run_dqn_heuristic()
 
 
