@@ -76,8 +76,8 @@ class Experiment(object):
             self.replay_buffer = memory.ReplayMemory(buffer_size, transition)
             self.TRANSITION = transition
         self.batch_size = batch_size
-        self.use_relay_buffer = use_replay
-        self.use_her = use_her
+        self.use_replay_buffer = use_replay
+        self.use_her = not self.use_replay_buffer
         # rl related configuration
         self.gamma = gamma
         self.schedule = ml_schedule.LinearSchedule(eps_start, eps_end, max_time_steps)
@@ -182,7 +182,7 @@ class Experiment(object):
             next_state, reward, done, dist, trans, _, _ = self.env.step(action)
 
             # store the replay buffer and convert the data to tensor
-            if self.use_relay_buffer:
+            if self.use_replay_buffer:
                 # construct the transition
                 trans = self.toTransition(state, action, next_state, reward, goal, done)
                 # add the transition into the buffer
@@ -231,7 +231,7 @@ class Experiment(object):
         np.save(returns_save_path, self.returns)
         np.save(lengths_save_path, self.lengths)
 
-    def run_dqn_her(self):
+    def goal_run_dqn_her(self):
         """
         Function is used to run training of the DQN agent using HER
         Single goal setting
@@ -275,9 +275,9 @@ class Experiment(object):
 
             """ add the transition into the replay buffer """
             # store the replay buffer and convert the data to tensor
-            if self.use_relay_buffer:
-                trans = self.toTransition(state, action, next_state, reward, goal, done)
-                self.replay_buffer.add(trans)
+            if self.use_replay_buffer:
+                step_trans = self.toTransition(state, action, next_state, reward, goal, done)
+                self.replay_buffer.add(step_trans)
 
             """ check the terminal """
             if done or (episode_t == self.max_steps_per_episode):
@@ -327,16 +327,16 @@ class Experiment(object):
             if t > self.start_train_step:
                 sampled_batch = self.replay_buffer.sample(self.batch_size)
                 self.agent.train_one_batch(t, sampled_batch)
-
-        # save the model and the statics
-        model_save_path = os.path.join(self.save_dir, self.model_name) + ".pt"
-        distance_save_path = os.path.join(self.save_dir, self.model_name + "_distance.npy")
-        returns_save_path = os.path.join(self.save_dir, self.model_name + "_return.npy")
-        lengths_save_path = os.path.join(self.save_dir, self.model_name + "_length.npy")
-        torch.save(self.agent.policy_net.state_dict(), model_save_path)
-        np.save(distance_save_path, self.distance)
-        np.save(returns_save_path, self.returns)
-        np.save(lengths_save_path, self.lengths)
+        #
+        # # save the model and the statics
+        # model_save_path = os.path.join(self.save_dir, self.model_name) + ".pt"
+        # distance_save_path = os.path.join(self.save_dir, self.model_name + "_distance.npy")
+        # returns_save_path = os.path.join(self.save_dir, self.model_name + "_return.npy")
+        # lengths_save_path = os.path.join(self.save_dir, self.model_name + "_length.npy")
+        # torch.save(self.agent.policy_net.state_dict(), model_save_path)
+        # np.save(distance_save_path, self.distance)
+        # np.save(returns_save_path, self.returns)
+        # np.save(lengths_save_path, self.lengths)
 
     def random_goal_conditioned_her_run(self):
         """
@@ -395,7 +395,7 @@ class Experiment(object):
 
             """ add the transition into the replay buffer """
             # store the replay buffer and convert the data to tensor
-            if self.use_relay_buffer:
+            if self.use_replay_buffer:
                 trans = self.toTransition(state, action, next_state, reward, goal, done)
                 self.replay_buffer.add(trans)
 
@@ -421,7 +421,7 @@ class Experiment(object):
                 )
 
                 """ check if using the HER strategy """
-                if not self.use_relay_buffer:
+                if not self.use_replay_buffer:
                     self.hindsight_experience_replay(states_buffer,
                                                      actions_buffer,
                                                      rewards_buffer,
@@ -610,7 +610,7 @@ class Experiment(object):
             # initialize the update flag
             maze_configs["update"] = True  # update flag
         else:
-            init_pos, goal_pos = self.env_map.sample_global_start_goal_pos(self.fix_start, self.fix_goal, self.goal_dist)
+            init_pos, goal_pos = self.env_map.sample_global_start_goal_pos(self.fix_start, self.fix_goal, 100)
             self.env_map.update_mapper(init_pos, goal_pos)
             maze_configs['start_pos'] = init_pos + [0]
             maze_configs['goal_pos'] = goal_pos + [0]
