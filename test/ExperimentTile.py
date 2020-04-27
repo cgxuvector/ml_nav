@@ -221,7 +221,7 @@ class Experiment(object):
                 self.agent.train_one_batch(t, sampled_batch)
 
             # save the model and the statics
-            if eps - 0.5 < 0.02:
+            if t == self.max_time_steps / 2:
                 model_save_path = os.path.join(self.save_dir, self.model_name) + "_middle.pt"
                 distance_save_path = os.path.join(self.save_dir, self.model_name + "_middle_distance.npy")
                 returns_save_path = os.path.join(self.save_dir, self.model_name + "_middle_return.npy")
