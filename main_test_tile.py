@@ -40,6 +40,7 @@ def parse_input():
     parser.add_argument("--memory_size", type=int, default=20000, help="Memory size or replay buffer size")
     parser.add_argument("--batch_size", type=int, default=64, help="Size of the mini-batch")
     parser.add_argument("--use_memory", type=str, default="True", help="If true, use the memory")
+    parser.add_argument("--use_her", type=str, default="False", help="If true, use the Hindsight Experience Replay")
     # set RL params
     parser.add_argument("--gamma", type=float, default=0.995, help="Gamma")
     # set the saving params
@@ -72,6 +73,8 @@ def strTobool(inputs):
     inputs.use_small_obs = True if inputs.use_small_obs == "True" else False
     # set params of true state
     inputs.use_true_state = True if inputs.use_true_state == "True" else False
+    # set params of HER
+    inputs.use_her = True if inputs.use_her == "True" else False
     return inputs
 
 
@@ -175,10 +178,12 @@ if __name__ == '__main__':
         goal_dist=inputs.goal_dist,
         random_seed=inputs.rnd_seed,
         decal_freq=inputs.decal_freq,
-        use_true_state=inputs.use_true_state
+        use_true_state=inputs.use_true_state,
+        use_her=inputs.use_her
     )
     # run the experiments
-    my_experiment.run_dqn()
+    # my_experiment.run_dqn()
+    my_experiment.run_dqn_her()
     # my_experiment.run_statistic()
     # my_experiment.run_dqn_heuristic()
 

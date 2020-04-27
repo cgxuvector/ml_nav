@@ -47,7 +47,8 @@ class Experiment(object):
                  goal_dist=1,
                  future_k=4,
                  decal_freq=0.1,
-                 use_true_state=False):
+                 use_true_state=False,
+                 use_her=False):
         # randomness
         self.random_seed = random_seed
         # environment
@@ -76,6 +77,7 @@ class Experiment(object):
             self.TRANSITION = transition
         self.batch_size = batch_size
         self.use_relay_buffer = use_replay
+        self.use_her = use_her
         # rl related configuration
         self.gamma = gamma
         self.schedule = ml_schedule.LinearSchedule(eps_start, eps_end, max_time_steps)
@@ -179,8 +181,6 @@ class Experiment(object):
             # step in the environment
             next_state, reward, done, dist, trans, _, _ = self.env.step(action)
 
-            # print(f"State = {state}, action={ACTION_LIST[action]}, next state = {next_state}, dist = {dist}, done={done}")
-
             # store the replay buffer and convert the data to tensor
             if self.use_relay_buffer:
                 # construct the transition
@@ -222,17 +222,6 @@ class Experiment(object):
                 sampled_batch = self.replay_buffer.sample(self.batch_size)
                 self.agent.train_one_batch(t, sampled_batch)
 
-            # save the model and the statics
-            if eps - 0.5 < 0.02:
-                model_save_path = os.path.join(self.save_dir, self.model_name) + "_middle.pt"
-                distance_save_path = os.path.join(self.save_dir, self.model_name + "_middle_distance.npy")
-                returns_save_path = os.path.join(self.save_dir, self.model_name + "_middle_return.npy")
-                lengths_save_path = os.path.join(self.save_dir, self.model_name + "_middle_length.npy")
-                torch.save(self.agent.policy_net.state_dict(), model_save_path)
-                np.save(distance_save_path, self.distance)
-                np.save(returns_save_path, self.returns)
-                np.save(lengths_save_path, self.lengths)
-
         model_save_path = os.path.join(self.save_dir, self.model_name) + ".pt"
         distance_save_path = os.path.join(self.save_dir, self.model_name + "_distance.npy")
         returns_save_path = os.path.join(self.save_dir, self.model_name + "_return.npy")
@@ -242,97 +231,112 @@ class Experiment(object):
         np.save(returns_save_path, self.returns)
         np.save(lengths_save_path, self.lengths)
 
-    def run_dqn_heuristic(self):
+    def run_dqn_her(self):
         """
-        Function is used to run the training of the agent
+        Function is used to run training of the DQN agent using HER
+        Single goal setting
         """
-        # set the random seed
-        random.seed(self.random_seed)
+        # set randomness
+        random.seed(self.random_seed)  # once set, it has global effect
 
-        # set the training statistics
-        episode_t = 0  # time step for one episode
-        # buffer list
-        states = []
-        actions = []
-        rewards = []
-        next_states = []
-        dones = []
+        # running statistics
+        episode_t = 0
+        states_buffer = []
+        actions_buffer = []
+        rewards_buffer = []
+        trans_buffer = []
+        dones_buffer = []
 
-        # initial reset
+        # reset the environment
         state, goal = self.init_map2d_and_maze3d()
+        states_buffer.append(state)
 
-        # start the training
+        # start training
         pbar = tqdm.trange(self.max_time_steps)
         for t in pbar:
             # compute the epsilon
             eps = self.schedule.get_value(t)
             # obtain an action from epsilon greedy
-            if np.random.sample() < eps:
+            if random.uniform(0, 1) < eps:
                 action = np.random.choice(range(4), 1).item()
             else:
                 action = self.agent.get_action(self.toTensor(state)) if not self.use_goal else \
-                         self.agent.get_action(self.toTensor(state), self.toTensor(goal))
+                    self.agent.get_action(self.toTensor(state), self.toTensor(goal))
 
             # step in the environment
             next_state, reward, done, dist, trans, _, _ = self.env.step(action)
 
-            # add the online buffers
-            states.append(state)
-            actions.append(action)
-            rewards.append(reward)
-            next_states.append(next_state)
-            dones.append(done)
+            """ update the on-policy buffers """
+            states_buffer.append(next_state)
+            actions_buffer.append(action)
+            rewards_buffer.append(reward)
+            trans_buffer.append(trans)
+            dones_buffer.append(done)
 
-            # check terminal
+            """ add the transition into the replay buffer """
+            # store the replay buffer and convert the data to tensor
+            if self.use_relay_buffer:
+                trans = self.toTransition(state, action, next_state, reward, goal, done)
+                self.replay_buffer.add(trans)
+
+            """ check the terminal """
             if done or (episode_t == self.max_steps_per_episode):
-                # construct the experience replay buffer using heuristic experience replay
-                self.heuristic_experience_replay(states, actions, rewards, next_states, dones, goal, eps)
-
-                # compute the discounted return for each time step
+                # compute the return
                 G = 0
-                for r in reversed(rewards):
+                for r in reversed(rewards_buffer):
                     G = r + self.gamma * G
 
-                # store the return, episode length, and final distance for current episode
+                # store the return, episode length, and final distance
                 self.returns.append(G)
                 self.lengths.append(episode_t)
                 self.distance.append(dist)
                 # compute the episode number
                 episode_idx = len(self.returns)
 
+                # print the information
                 pbar.set_description(
                     f'Episode: {episode_idx} | Steps: {episode_t} | Return: {G:2f} | Dist: {dist:.2f} | '
                     f'Init: {self.env.start_pos} | Goal: {self.env.goal_pos} | '
                     f'Eps: {eps:.3f} | Buffer: {len(self.replay_buffer)}'
                 )
 
-                # reset the environments
-                rewards = []
-                episode_t = 0
-                states = []
-                actions = []
-                next_states = []
-                dones = []
-                state, goal = self.update_map2d_and_maze3d(set_new_maze=not self.fix_maze)
+                """ check if using the HER strategy """
+                if self.use_her:
+                    self.hindsight_experience_replay(states_buffer,
+                                                     actions_buffer,
+                                                     rewards_buffer,
+                                                     trans_buffer,
+                                                     goal,
+                                                     dones_buffer)
+
+                episode_t = 0  # reset the time step counter
+                states_buffer = []  # reset the states buffer
+                actions_buffer = []  # reset the actions buffer
+                rewards_buffer = []  # reset the rewards
+                trans_buffer = []  # reset the next state buffer
+                dones_buffer = []  # reset the dones buffer
+
+                # reset the environment
+                state, goal = self.update_map2d_and_maze3d(set_new_maze= not self.fix_maze)
+                states_buffer.append(state)
             else:
                 state = next_state
-                rewards.append(reward)
                 episode_t += 1
 
             # train the agent
-            if t > self.start_train_step and len(self.replay_buffer) > 0:
+            if t > self.start_train_step:
                 sampled_batch = self.replay_buffer.sample(self.batch_size)
                 self.agent.train_one_batch(t, sampled_batch)
-        #
-        # # save the model and the statics
-        # model_save_path = os.path.join(self.save_dir, self.model_name) + ".pt"
-        # distance_save_path = os.path.join(self.save_dir, self.model_name + "_distance.npy")
-        # returns_save_path = os.path.join(self.save_dir, self.model_name + "_return.npy")
-        # lengths_save_path = os.path.join(self.save_dir, self.model_name + "_length.npy")
-        # torch.save(self.agent.policy_net.state_dict(), model_save_path)
-        # np.save(distance_save_path, self.distance)
-        # np.save(returns_save_path, self.returns)
-        # np.save(lengths_save_path, self.lengths)
+
+        # save the model and the statics
+        model_save_path = os.path.join(self.save_dir, self.model_name) + ".pt"
+        distance_save_path = os.path.join(self.save_dir, self.model_name + "_distance.npy")
+        returns_save_path = os.path.join(self.save_dir, self.model_name + "_return.npy")
+        lengths_save_path = os.path.join(self.save_dir, self.model_name + "_length.npy")
+        torch.save(self.agent.policy_net.state_dict(), model_save_path)
+        np.save(distance_save_path, self.distance)
+        np.save(returns_save_path, self.returns)
+        np.save(lengths_save_path, self.lengths)
 
     def random_goal_conditioned_her_run(self):
         """
@@ -499,17 +503,19 @@ class Experiment(object):
             state = states[t]  # s_t
             action = actions[t]  # a_t
             reward = rewards[t]  # r_t
-            next_state = states[t+1]  # s_t+1
+            next_state = states[t + 1]  # s_t+1
             next_state_pos = trans[t]  # position of the current next state
             done = dones[t]  # done_t
             transition = self.toTransition(state, action, next_state, reward, goal, done)  # add the current transition
             self.replay_buffer.add(transition)
             # Hindsight Experience Replay
-            future_indices = list(range(t, len(states)-1))
+            future_indices = list(range(t+1, len(states)))
             sampled_goals = random.sample(future_indices, self.her_future_k) if len(future_indices) >= self.her_future_k else future_indices
             for idx in sampled_goals:
+                # relabel the new goal
                 new_goal = states[idx]
-                new_goal_pos = trans[idx]
+                # obtain the new goal position
+                new_goal_pos = trans[idx - 1]
                 distance = self.env.compute_distance(next_state_pos, new_goal_pos)
                 new_reward = self.env.compute_reward(distance)
                 new_done = 0 if new_reward == -1 else 1
@@ -615,24 +621,3 @@ class Experiment(object):
         state_obs, goal_obs, _, _ = self.env.reset(maze_configs)
         # return states and goals
         return state_obs, goal_obs
-
-    def heuristic_experience_replay(self, states, actions, rewards, next_states, dones, goal, eps):
-        # heuristic experience replay
-        if np.random.sample() < 1:
-            if dones[-1]:
-                for s, a, r, next_s, d in zip(states, actions, rewards, next_states, dones):
-                    # store the replay buffer and convert the data to tensor
-                    if self.use_relay_buffer:
-                        # construct the transition
-                        trans = self.toTransition(s, a, next_s, r, goal, d)
-                        # add the transition into the buffer
-                        self.replay_buffer.add(trans)
-        else:
-            for s, a, r, next_s, d in zip(states, actions, rewards, next_states, dones):
-                # store the replay buffer and convert the data to tensor
-                if self.use_relay_buffer:
-                    # construct the transition
-                    trans = self.toTransition(s, a, next_s, r, goal, d)
-                    # add the transition into the buffer
-                    self.replay_buffer.add(trans)
-
