@@ -145,7 +145,8 @@ if __name__ == '__main__':
                                 gamma=0.99,
                                 gradient_clip=inputs.dqn_gradient_clip,
                                 device=inputs.device,
-                                use_small_obs=inputs.use_small_obs
+                                use_small_obs=inputs.use_small_obs,
+                                use_true_state=inputs.use_true_state
                             )
     else:
         raise Exception(f"{inputs.agent} is not defined. Please try the valid agent (random, dqn, actor-critic)")
@@ -183,7 +184,7 @@ if __name__ == '__main__':
     )
     # run the experiments
     # my_experiment.run_dqn()
-    my_experiment.run_dqn_her()
+    my_experiment.goal_run_dqn_her()
     # my_experiment.run_statistic()
     # my_experiment.run_dqn_heuristic()
 
