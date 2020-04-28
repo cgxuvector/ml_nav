@@ -214,7 +214,8 @@ class Experiment(object):
                 # evaluate the current policy
                 if episode_idx % 100 == 0:
                     # evaluate the current policy by interaction
-                    self.policy_evaluate()
+                    with torch.no_grad():
+                        self.policy_evaluate()
                     # save the model
                     model_save_path = os.path.join(self.save_dir, self.model_name) + f"_{episode_idx}.pt"
                     torch.save(self.agent.policy_net.state_dict(), model_save_path)
@@ -330,12 +331,13 @@ class Experiment(object):
                 dones_buffer = []  # reset the dones buffer
 
                 if episode_idx % 100 == 0:
-                    self.policy_evaluate()
+                    with torch.no_grad():
+                        self.policy_evaluate()
                     model_save_path = os.path.join(self.save_dir, self.model_name) + f"_{episode_idx}.pt"
                     torch.save(self.agent.policy_net.state_dict(), model_save_path)
 
                 # reset the environment
-                state, goal = self.update_map2d_and_maze3d(set_new_maze= not self.fix_maze)
+                state, goal = self.update_map2d_and_maze3d(set_new_maze=not self.fix_maze)
                 states_buffer.append(state)
             else:
                 state = next_state
@@ -626,8 +628,7 @@ class Experiment(object):
             maze_configs["maze_map_txt"] = "".join(self.env_map.map2d_txt)  # string type map
             maze_configs["maze_valid_pos"] = self.env_map.valid_pos  # list of valid positions
             # initialize the maze start and goal positions
-            # maze_configs["start_pos"] = self.env_map.init_pos + [0]  # start position on the txt map [rows, cols, orientation]
-            maze_configs["start_pos"] = [1, 1] + [0]  # start position on the txt map [rows, cols, orientation]
+            maze_configs["start_pos"] = self.env_map.init_pos + [0]  # start position on the txt map [rows, cols, orientation]
             maze_configs["goal_pos"] = self.env_map.goal_pos + [0]  # goal position on the txt map [rows, cols, orientation]
             # initialize the update flag
             maze_configs["update"] = True  # update flag
@@ -652,7 +653,7 @@ class Experiment(object):
         for i in range(self.max_steps_per_episode):
             # get one action
             action = self.agent.get_action(self.toTensor(state)) if not self.use_goal else \
-                self.agent.get_action(self.toTensor(state), self.toTensor(goal))
+                    self.agent.get_action(self.toTensor(state), self.toTensor(goal))
 
             # step in the environment
             next_state, reward, done, dist, trans, _, _ = self.env.step(action)
