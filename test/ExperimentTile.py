@@ -213,8 +213,9 @@ class Experiment(object):
                 if episode_idx % 100 == 0:
                     # evaluate the current policy by interaction
                     self.policy_evaluate()
-                    # save the results
-                    self.save_results(episode_idx)
+                    # save the model
+                    model_save_path = os.path.join(self.save_dir, self.model_name) + f"_{episode_idx}.pt"
+                    torch.save(self.agent.policy_net.state_dict(), model_save_path)
 
                 # reset the environments
                 rewards = []
@@ -230,8 +231,16 @@ class Experiment(object):
                 sampled_batch = self.replay_buffer.sample(self.batch_size)
                 self.agent.train_one_batch(t, sampled_batch)
 
-        # save the final results
-        self.save_results(len(self.returns))
+        model_save_path = os.path.join(self.save_dir, self.model_name) + f"_{len(self.returns)}.pt"
+        distance_save_path = os.path.join(self.save_dir, self.model_name + "_distance.npy")
+        returns_save_path = os.path.join(self.save_dir, self.model_name + "_return.npy")
+        policy_returns_save_path = os.path.join(self.save_dir, self.model_name + "_policy_return.npy")
+        lengths_save_path = os.path.join(self.save_dir, self.model_name + "_length.npy")
+        torch.save(self.agent.policy_net.state_dict(), model_save_path)
+        np.save(distance_save_path, self.distance)
+        np.save(returns_save_path, self.returns)
+        np.save(lengths_save_path, self.lengths)
+        np.save(policy_returns_save_path, self.policy_returns)
 
     def goal_run_dqn_her(self):
         """
@@ -320,7 +329,8 @@ class Experiment(object):
 
                 if episode_idx % 100 == 0:
                     self.policy_evaluate()
-                    self.save_results(episode_idx)
+                    model_save_path = os.path.join(self.save_dir, self.model_name) + f"_{episode_idx}.pt"
+                    torch.save(self.agent.policy_net.state_dict(), model_save_path)
 
                 # reset the environment
                 state, goal = self.update_map2d_and_maze3d(set_new_maze= not self.fix_maze)
@@ -335,7 +345,16 @@ class Experiment(object):
                 self.agent.train_one_batch(t, sampled_batch)
 
         # save the final results
-        self.save_results(len(self.returns))
+        model_save_path = os.path.join(self.save_dir, self.model_name) + f"_{len(self.returns)}.pt"
+        distance_save_path = os.path.join(self.save_dir, self.model_name + "_distance.npy")
+        returns_save_path = os.path.join(self.save_dir, self.model_name + "_return.npy")
+        policy_returns_save_path = os.path.join(self.save_dir, self.model_name + "_policy_return.npy")
+        lengths_save_path = os.path.join(self.save_dir, self.model_name + "_length.npy")
+        torch.save(self.agent.policy_net.state_dict(), model_save_path)
+        np.save(distance_save_path, self.distance)
+        np.save(returns_save_path, self.returns)
+        np.save(lengths_save_path, self.lengths)
+        np.save(policy_returns_save_path, self.policy_returns)
 
     def random_goal_conditioned_her_run(self):
         """
@@ -650,16 +669,3 @@ class Experiment(object):
 
         # store the current policy return
         self.policy_returns.append(G)
-
-    # save results and model
-    def save_results(self, ep):
-        model_save_path = os.path.join(self.save_dir, self.model_name) + f"_{ep}.pt"
-        distance_save_path = os.path.join(self.save_dir, self.model_name + f"_{ep}_distance.npy")
-        returns_save_path = os.path.join(self.save_dir, self.model_name + f"_{ep}_return.npy")
-        policy_returns_save_path = os.path.join(self.save_dir, self.model_name + f"_{ep}_policy_return.npy")
-        lengths_save_path = os.path.join(self.save_dir, self.model_name + f"_{ep}_length.npy")
-        torch.save(self.agent.policy_net.state_dict(), model_save_path)
-        np.save(distance_save_path, self.distance)
-        np.save(returns_save_path, self.returns)
-        np.save(lengths_save_path, self.lengths)
-        np.save(policy_returns_save_path, self.policy_returns)
