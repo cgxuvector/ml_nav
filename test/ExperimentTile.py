@@ -213,12 +213,11 @@ class Experiment(object):
 
                 # evaluate the current policy
                 if episode_idx % 100 == 0:
-                    # evaluate the current policy by interaction
-                    with torch.no_grad():
-                        self.policy_evaluate()
+                    # evaluate the current policy by interaction 
+                    self.policy_evaluate()
                     # save the model
-                    model_save_path = os.path.join(self.save_dir, self.model_name) + f"_{episode_idx}.pt"
-                    torch.save(self.agent.policy_net.state_dict(), model_save_path)
+                    #model_save_path = os.path.join(self.save_dir, self.model_name) + f"_{episode_idx}.pt"
+                    #torch.save(self.agent.policy_net.state_dict(), model_save_path)
 
                 # reset the environments
                 rewards = []
@@ -651,8 +650,9 @@ class Experiment(object):
         rewards = []
         for i in range(self.max_steps_per_episode):
             # get one action
-            action = self.agent.get_action(self.toTensor(state)) if not self.use_goal else \
-                    self.agent.get_action(self.toTensor(state), self.toTensor(goal))
+            with torch.no_grad():
+                action = self.agent.get_action(self.toTensor(state)) if not self.use_goal else \
+                        self.agent.get_action(self.toTensor(state), self.toTensor(goal))
 
             # step in the environment
             next_state, reward, done, dist, trans, _, _ = self.env.step(action)
