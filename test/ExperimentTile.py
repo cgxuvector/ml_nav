@@ -589,7 +589,6 @@ class Experiment(object):
         self.maze_seed = random.sample(self.maze_seed_list, 1)[0]
         # initialize the map 2D
         self.env_map = mapper.RoughMap(self.maze_size, self.maze_seed, 3)
-        self.env_map.update_mapper([1, 1], [3, 3])
         # initialize the maze 3D
         maze_configs = defaultdict(lambda: None)
         maze_configs["maze_name"] = f"maze_{self.maze_size}x{self.maze_size}"  # string type name
