@@ -214,10 +214,11 @@ class Experiment(object):
                 # evaluate the current policy
                 if episode_idx % 100 == 0:
                     # evaluate the current policy by interaction 
-                    self.policy_evaluate()
-                    # save the model
-                    model_save_path = os.path.join(self.save_dir, self.model_name) + f"_{episode_idx}.pt"
-                    torch.save(self.agent.policy_net.state_dict(), model_save_path)
+                    with torch.no_grad():
+                        self.policy_evaluate()
+                        # save the model
+                        model_save_path = os.path.join(self.save_dir, self.model_name) + f"_{episode_idx}.pt"
+                        torch.save(self.agent.policy_net.state_dict(), model_save_path)
 
                 # reset the environments
                 rewards = []
@@ -329,10 +330,11 @@ class Experiment(object):
                 trans_buffer = []  # reset the next state buffer
                 dones_buffer = []  # reset the dones buffer
 
-                if episode_idx % 100 == 0: 
-                    self.policy_evaluate()
-                    model_save_path = os.path.join(self.save_dir, self.model_name) + f"_{episode_idx}.pt"
-                    torch.save(self.agent.policy_net.state_dict(), model_save_path)
+                if episode_idx % 100 == 0:
+                    with torch.no_grad():
+                        self.policy_evaluate()
+                        model_save_path = os.path.join(self.save_dir, self.model_name) + f"_{episode_idx}.pt"
+                        torch.save(self.agent.policy_net.state_dict(), model_save_path)
 
                 # reset the environment
                 state, goal = self.update_map2d_and_maze3d(set_new_maze=not self.fix_maze)
@@ -649,8 +651,7 @@ class Experiment(object):
         rewards = []
         for i in range(self.max_steps_per_episode):
             # get one action
-            with torch.no_grad():
-                action = self.agent.get_action(self.toTensor(state)) if not self.use_goal else \
+            action = self.agent.get_action(self.toTensor(state)) if not self.use_goal else \
                         self.agent.get_action(self.toTensor(state), self.toTensor(goal))
 
             # step in the environment
