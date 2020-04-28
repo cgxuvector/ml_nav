@@ -183,8 +183,8 @@ if __name__ == '__main__':
         use_her=inputs.use_her
     )
     # run the experiments
-    # my_experiment.run_dqn()
-    my_experiment.goal_run_dqn_her()
+    my_experiment.run_dqn()
+    # my_experiment.goal_run_dqn_her()
     # my_experiment.run_statistic()
     # my_experiment.run_dqn_heuristic()
 
