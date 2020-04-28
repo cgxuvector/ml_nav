@@ -216,8 +216,8 @@ class Experiment(object):
                     # evaluate the current policy by interaction 
                     self.policy_evaluate()
                     # save the model
-                    #model_save_path = os.path.join(self.save_dir, self.model_name) + f"_{episode_idx}.pt"
-                    #torch.save(self.agent.policy_net.state_dict(), model_save_path)
+                    model_save_path = os.path.join(self.save_dir, self.model_name) + f"_{episode_idx}.pt"
+                    torch.save(self.agent.policy_net.state_dict(), model_save_path)
 
                 # reset the environments
                 rewards = []
@@ -329,9 +329,8 @@ class Experiment(object):
                 trans_buffer = []  # reset the next state buffer
                 dones_buffer = []  # reset the dones buffer
 
-                if episode_idx % 100 == 0:
-                    with torch.no_grad():
-                        self.policy_evaluate()
+                if episode_idx % 100 == 0: 
+                    self.policy_evaluate()
                     model_save_path = os.path.join(self.save_dir, self.model_name) + f"_{episode_idx}.pt"
                     torch.save(self.agent.policy_net.state_dict(), model_save_path)
 
