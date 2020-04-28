@@ -85,6 +85,7 @@ class Experiment(object):
         self.distance = []
         self.returns = []
         self.lengths = []
+        self.policy_returns = []
         # saving settings
         self.model_name = model_name
         self.save_dir = save_dir
@@ -210,6 +211,13 @@ class Experiment(object):
                     f'Eps: {eps:.3f} | Buffer: {len(self.replay_buffer)}'
                 )
 
+                # evaluate the current policy
+                if episode_idx % 100 == 0:
+                    # evaluate the current policy by interaction
+                    self.policy_evaluate()
+                    # save the results
+                    self.save_results(episode_idx)
+
                 # reset the environments
                 rewards = []
                 episode_t = 0
@@ -224,14 +232,8 @@ class Experiment(object):
                 sampled_batch = self.replay_buffer.sample(self.batch_size)
                 self.agent.train_one_batch(t, sampled_batch)
 
-        model_save_path = os.path.join(self.save_dir, self.model_name) + ".pt"
-        distance_save_path = os.path.join(self.save_dir, self.model_name + "_distance.npy")
-        returns_save_path = os.path.join(self.save_dir, self.model_name + "_return.npy")
-        lengths_save_path = os.path.join(self.save_dir, self.model_name + "_length.npy")
-        torch.save(self.agent.policy_net.state_dict(), model_save_path)
-        np.save(distance_save_path, self.distance)
-        np.save(returns_save_path, self.returns)
-        np.save(lengths_save_path, self.lengths)
+        # save the final results
+        self.save_results(len(self.returns))
 
     def goal_run_dqn_her(self):
         """
@@ -318,6 +320,10 @@ class Experiment(object):
                 trans_buffer = []  # reset the next state buffer
                 dones_buffer = []  # reset the dones buffer
 
+                if episode_idx % 100 == 0:
+                    self.policy_evaluate()
+                    self.save_results(episode_idx)
+
                 # reset the environment
                 state, goal = self.update_map2d_and_maze3d(set_new_maze= not self.fix_maze)
                 states_buffer.append(state)
@@ -329,16 +335,9 @@ class Experiment(object):
             if t > self.start_train_step:
                 sampled_batch = self.replay_buffer.sample(self.batch_size)
                 self.agent.train_one_batch(t, sampled_batch)
-        #
-        # # save the model and the statics
-        # model_save_path = os.path.join(self.save_dir, self.model_name) + ".pt"
-        # distance_save_path = os.path.join(self.save_dir, self.model_name + "_distance.npy")
-        # returns_save_path = os.path.join(self.save_dir, self.model_name + "_return.npy")
-        # lengths_save_path = os.path.join(self.save_dir, self.model_name + "_length.npy")
-        # torch.save(self.agent.policy_net.state_dict(), model_save_path)
-        # np.save(distance_save_path, self.distance)
-        # np.save(returns_save_path, self.returns)
-        # np.save(lengths_save_path, self.lengths)
+
+        # save the final results
+        self.save_results(len(self.returns))
 
     def random_goal_conditioned_her_run(self):
         """
@@ -569,6 +568,7 @@ class Experiment(object):
         self.maze_seed = random.sample(self.maze_seed_list, 1)[0]
         # initialize the map 2D
         self.env_map = mapper.RoughMap(self.maze_size, self.maze_seed, 3)
+        self.env_map.update_mapper([1, 1], [3, 3])
         # initialize the maze 3D
         maze_configs = defaultdict(lambda: None)
         maze_configs["maze_name"] = f"maze_{self.maze_size}x{self.maze_size}"  # string type name
@@ -607,7 +607,8 @@ class Experiment(object):
             maze_configs["maze_map_txt"] = "".join(self.env_map.map2d_txt)  # string type map
             maze_configs["maze_valid_pos"] = self.env_map.valid_pos  # list of valid positions
             # initialize the maze start and goal positions
-            maze_configs["start_pos"] = self.env_map.init_pos + [0]  # start position on the txt map [rows, cols, orientation]
+            # maze_configs["start_pos"] = self.env_map.init_pos + [0]  # start position on the txt map [rows, cols, orientation]
+            maze_configs["start_pos"] = [1, 1] + [0]  # start position on the txt map [rows, cols, orientation]
             maze_configs["goal_pos"] = self.env_map.goal_pos + [0]  # goal position on the txt map [rows, cols, orientation]
             # initialize the update flag
             maze_configs["update"] = True  # update flag
@@ -623,3 +624,44 @@ class Experiment(object):
         state_obs, goal_obs, _, _ = self.env.reset(maze_configs)
         # return states and goals
         return state_obs, goal_obs
+
+    # evaluate the policy during training
+    def policy_evaluate(self):
+        # reset the environment
+        state, goal = self.update_map2d_and_maze3d(set_new_maze=not self.fix_maze)
+        rewards = []
+        for i in range(self.max_steps_per_episode):
+            # get one action
+            action = self.agent.get_action(self.toTensor(state)) if not self.use_goal else \
+                self.agent.get_action(self.toTensor(state), self.toTensor(goal))
+
+            # step in the environment
+            next_state, reward, done, dist, trans, _, _ = self.env.step(action)
+
+            # check terminal
+            if done:
+                break
+            else:
+                state = next_state
+                rewards.append(reward)
+
+        # compute the discounted return for each time step
+        G = 0
+        for r in reversed(rewards):
+            G = r + self.gamma * G
+
+        # store the current policy return
+        self.policy_returns.append(G)
+
+    # save results and model
+    def save_results(self, ep):
+        model_save_path = os.path.join(self.save_dir, self.model_name) + f"_{ep}.pt"
+        distance_save_path = os.path.join(self.save_dir, self.model_name + f"_{ep}_distance.npy")
+        returns_save_path = os.path.join(self.save_dir, self.model_name + f"_{ep}_return.npy")
+        policy_returns_save_path = os.path.join(self.save_dir, self.model_name + f"_{ep}_policy_return.npy")
+        lengths_save_path = os.path.join(self.save_dir, self.model_name + f"_{ep}_length.npy")
+        torch.save(self.agent.policy_net.state_dict(), model_save_path)
+        np.save(distance_save_path, self.distance)
+        np.save(returns_save_path, self.returns)
+        np.save(lengths_save_path, self.lengths)
+        np.save(policy_returns_save_path, self.policy_returns)
