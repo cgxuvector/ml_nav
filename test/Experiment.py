@@ -38,7 +38,7 @@ class Experiment(object):
                  random_seed=1234,
                  use_replay=False,
                  sampled_goal=10,
-                 eps_start=0.2,
+                 eps_start=1.0,
                  eps_end=0.01,
                  device="cpu",
                  use_goal=False,
