@@ -180,7 +180,6 @@ def run_experiment(inputs):
         use_goal=inputs.use_goal,
         transition=transition,
         goal_dist=inputs.goal_dist,
-        random_seed=inputs.random_seed,
         decal_freq=inputs.decal_freq,
         use_true_state=inputs.use_true_state,
         use_her=inputs.use_her,
