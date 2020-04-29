@@ -304,5 +304,5 @@ class Experiment(object):
             G = r + self.gamma * G
 
         # store the current policy return
-        # print("evaluate = ",G, actions)
+        print("evaluate = ",G, actions)
         self.policy_returns.append(G)
