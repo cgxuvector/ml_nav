@@ -49,12 +49,20 @@ def success_rate():
 
 
 if __name__ == '__main__':
-    root_dir = '../results/4-27/'
-    data_name = 'double_dqn_11x11_ep_1000_b64_1_return.npy'
+    # root_dir = '../results/4-27/'
+    # data_name = 'double_dqn_11x11_ep_1000_b64_1_return.npy'
+    root_dir = '../results/4-28/'
+    data_name = 'test_return.npy'
+    policy_name = 'test_policy_return.npy'
     d = np.load(root_dir + data_name)
+    pd = np.load(root_dir + policy_name)
     start = 0
     end = d.shape[0]
     # plot_line_chart(d, f"Sub-goal {end}", "Episode", "Distance", 50, ['lightsalmon', '-r'], start, end)
 
     plot_line_chart(d, "Double DQN in 11 x 11 Maze with true state : maze 15", "Episode", "Discounted Return", 100, ['lightgreen', '-g'], start, end)
+
+
+    plt.plot(range(pd.shape[0]), pd)
+    plt.show()
     success_rate()

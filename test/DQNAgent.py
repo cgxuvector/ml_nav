@@ -118,7 +118,7 @@ class DQNAgent(object):
                  learning_rate=1e-3,
                  dqn_mode="vanilla",
                  gamma=1.0,
-                 gradient_clip=True,
+                 gradient_clip=False,
                  device="cpu",
                  use_small_obs=False,
                  use_true_state=False
@@ -148,7 +148,7 @@ class DQNAgent(object):
         """ Training configurations """
         self.gamma = gamma
         self.tau = soft_target_update_tau  # parameters for soft target update
-        self.soft_update = True if soft_target_update_tau else False  # flag for soft update
+        self.soft_update = False
         self.freq_update_target = target_update_frequency
         self.freq_update_policy = policy_update_frequency
         self.optimizer = torch.optim.Adam(self.policy_net.parameters(),
@@ -163,11 +163,11 @@ class DQNAgent(object):
     # update the target network
     def update_target_net(self):
         # hard update
-        if not self.soft_update:
-            self.target_net.load_state_dict(self.policy_net.state_dict())
-        else:  # soft update
-            for param, target_param in zip(self.policy_net.parameters(), self.target_net.parameters()):
-                target_param.data.copy_((1-self.tau) * param.data + self.tau * target_param.data)
+        # if not self.soft_update:
+        self.target_net.load_state_dict(self.policy_net.state_dict())
+        # else:  # soft update
+        #     for param, target_param in zip(self.policy_net.parameters(), self.target_net.parameters()):
+        #         target_param.data.copy_((1-self.tau) * param.data + self.tau * target_param.data)
 
     # update the policy network
     def update_policy_net(self, batch_data):

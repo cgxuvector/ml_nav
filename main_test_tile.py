@@ -1,9 +1,13 @@
 from test.ExperimentTile import Experiment
-from test.DQNAgent import DQNAgent
+# from test.DQNAgent import DQNAgent
 from test.GoalDQNAgent import GoalDQNAgent
+from test.DoubleDQNAgent import DQNAgent
 from envs.LabEnvV2 import RandomMazeTileRaw
 import argparse
+import torch
 from collections import namedtuple
+import random
+import numpy as np
 import IPython.terminal.debugger as Debug
 
 
@@ -30,9 +34,9 @@ def parse_input():
     parser.add_argument("--device", type=str, default="cpu", help="Device to use")
     parser.add_argument("--lr", type=float, default=1e-3, help="Learning rate")
     parser.add_argument("--start_train_steps", type=int, default=1000, help="Start training time step")
-    parser.add_argument("--total_time_steps", type=int, default=1000000, help="Total time steps")
-    parser.add_argument("--episode_time_steps", type=int, default=2000, help="Time steps per episode")
-    parser.add_argument("--dqn_update_target_net", type=int, default=10, help="Frequency of updating the target")
+    parser.add_argument("--total_time_steps", type=int, default=50000, help="Total time steps")
+    parser.add_argument("--episode_time_steps", type=int, default=100, help="Time steps per episode")
+    parser.add_argument("--dqn_update_target_net", type=int, default=1000, help="Frequency of updating the target")
     parser.add_argument("--dqn_update_policy_net", type=int, default=4, help="Frequency of updating the policy")
     parser.add_argument("--soft_target_update_tau", type=float, default=0.05, help="Soft update factor")
     parser.add_argument("--dqn_gradient_clip", type=str, default="False", help="If true, clip the gradient")
@@ -83,6 +87,12 @@ if __name__ == '__main__':
     inputs = parse_input()
     inputs = strTobool(inputs)
 
+    """ set the seed """
+    # set the random seed
+    random.seed(inputs.rnd_seed)
+    np.random.seed(inputs.rnd_seed)
+    torch.manual_seed(inputs.rnd_seed)
+
     """ Set up the Deepmind environment"""
     # set level name
     level_name = 'nav_random_maze'
@@ -127,15 +137,13 @@ if __name__ == '__main__':
 
     """ Set up the agent """
     if inputs.agent == 'dqn':
-        my_agent = DQNAgent(target_update_frequency=inputs.dqn_update_target_net,
+        my_agent = DQNAgent(dqn_mode=inputs.dqn_mode,
+                            target_update_frequency=inputs.dqn_update_target_net,
                             policy_update_frequency=inputs.dqn_update_policy_net,
-                            soft_target_update_tau=inputs.soft_target_update_tau,
-                            dqn_mode=inputs.dqn_mode,
-                            gamma=0.99,
-                            gradient_clip=inputs.dqn_gradient_clip,
+                            use_gradient_clip=True,
+                            use_target_soft_update=False,
+                            gamma=0.995,
                             device=inputs.device,
-                            use_small_obs=inputs.use_small_obs,
-                            use_true_state=inputs.use_true_state
                             )
     elif inputs.agent == 'goal-dqn':
         my_agent = GoalDQNAgent(target_update_frequency=inputs.dqn_update_target_net,
