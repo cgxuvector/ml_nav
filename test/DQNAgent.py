@@ -183,10 +183,10 @@ class DQNAgent(object):
 
     # select an action based on the policy network
     def get_action(self, input_state, eps):
-        if random.uniform(0, 1) < eps:  # with probability epsilon, the agent selects a random action
+        if random.uniform(0, 1) < 0:  # with probability epsilon, the agent selects a random action
             action = random.sample(range(4), 1)[0]
         else:  # with probability 1 - epsilon, the agent selects a greedy action
-            input_state = torch.tensor(input_state).float().to(self.device)
+            input_state = self.toTensor(input_state)
             with torch.no_grad():
                 q_values = self.policy_net(input_state).view(1, -1)
                 action = q_values.max(dim=1)[1].item()
@@ -282,6 +282,13 @@ class DQNAgent(object):
                 goal = torch.stack(batch.goal).float().to(self.device)
                 done = torch.stack(batch.done).long().view(-1, 1).to(self.device)
                 return state, action, next_state, reward, goal, done
+
+    def toTensor(self, state):
+        if not self.use_true_state:
+            state_obs = torch.tensor(np.array(state).transpose(0, 3, 1, 2), dtype=torch.float32, device=self.device)
+        else:
+            state_obs = torch.tensor(np.array(state), dtype=torch.float32)
+        return state_obs
 
     # auxiliary function
     @staticmethod
