@@ -15,40 +15,40 @@ ACTION_LIST = ['up', 'down', 'left', 'right']
 class Experiment(object):
     def __init__(self,
                  env,
+                 agent,
                  maze_list,
                  seed_list,
-                 agent,
-                 max_time_steps,
+                 decal_freq=0.1,
                  fix_maze=True,
                  fix_start=True,
                  fix_goal=True,
+                 use_goal=False,
+                 sampled_goal=10,
                  train_episode_num=10,
+                 start_train_step=1000,
+                 max_time_steps=50000,
                  episode_time_steps=2000,
-                 start_train_step=10,
+                 use_true_state=False,
+                 use_replay=False,
+                 use_her=False,
                  buffer_size=None,
                  transition=DEFAULT_TRANSITION,
                  learning_rate=1e-3,
                  batch_size=64,
                  gamma=0.99,
-                 save_dir=None,
-                 model_name=None,
-                 random_seed=1234,
-                 use_replay=False,
-                 sampled_goal=10,
                  eps_start=1,
                  eps_end=0.1,
-                 device="cpu",
-                 use_goal=False,
                  goal_dist=1,
                  future_k=4,
-                 decal_freq=0.1,
-                 use_true_state=False,
-                 use_her=False):
-        # randomness
-        self.random_seed = random_seed
+                 save_dir=None,
+                 model_name=None,
+                 device="cpu"
+                 ):
         # environment
         self.env = env
         self.env_map = None
+        self.maze_size = None
+        self.maze_seed = None
         self.maze_size_list = maze_list
         self.maze_seed_list = seed_list
         self.fix_maze = fix_maze
@@ -56,11 +56,15 @@ class Experiment(object):
         self.fix_goal = fix_goal
         self.theme_list = ['MISHMASH']
         self.decal_list = [decal_freq]
-        self.maze_size = None
-        self.maze_seed = None
         # agent
         self.agent = agent
         # training configurations
+        self.use_goal = use_goal
+        self.use_true_state = use_true_state
+        self.last_goal = None
+        self.goal_dist = goal_dist
+        self.sampled_goal = sampled_goal
+        self.train_episode_num = train_episode_num
         self.max_time_steps = max_time_steps
         self.max_steps_per_episode = episode_time_steps
         self.start_train_step = start_train_step
@@ -84,67 +88,11 @@ class Experiment(object):
         # saving settings
         self.model_name = model_name
         self.save_dir = save_dir
-        # random setting
-        self.seed_rnd = random_seed
-        self.sampled_goal = sampled_goal
-        self.train_episode_num = train_episode_num
-        # goal conditioned flag
-        self.use_goal = use_goal
-        # last goal
-        self.last_goal = None
-        # sample goal distance
-        self.goal_dist = goal_dist
         # orientation space
         self.init_orientation_space = np.linspace(0, 360, num=37).tolist()
         self.goal_orientation_space = np.linspace(0, 315, num=8).tolist()
         # future strategy
         self.her_future_k = future_k
-
-        # use true state
-        self.use_true_state = use_true_state
-
-    # # run statistics of the domain
-    # def run_statistic(self):
-    #     """
-    #             Function is used to run the training of the agent
-    #             """
-    #     # set the random seed
-    #     random.seed(self.random_seed)
-    #
-    #     # set the training statistics
-    #     rewards = []  # list of rewards for one episode
-    #     episode_t = 0  # time step for one episode
-    #
-    #     # initial reset
-    #     state, goal = self.init_map2d_and_maze3d()
-    #     episode_count = 0
-    #     success_count = 0
-    #     for i in range(10):
-    #         # start the training
-    #         pbar = tqdm.trange(self.max_time_steps)
-    #         for t in pbar:
-    #             # randomly sample an action
-    #             action = np.random.choice(range(4), 1).item()
-    #
-    #             # step in the environment
-    #             next_state, reward, done, dist, trans, _, _ = self.env.step(action)
-    #
-    #             # check terminal
-    #             if done or (episode_t == self.max_steps_per_episode):
-    #                 episode_count += 1
-    #                 if done:
-    #                     success_count += 1
-    #                 # reset the environments
-    #                 rewards = []
-    #                 episode_t = 0
-    #                 state, goal = self.update_map2d_and_maze3d(set_new_maze=not self.fix_maze)
-    #             else:
-    #                 state = next_state
-    #                 rewards.append(reward)
-    #                 episode_t += 1
-    #     print("Total number of episodes = {}".format(episode_count))
-    #     print("Success number of episodes = {}".format(success_count))
-    #     print("Success rate of navigation using random policy = {}".format(success_count / episode_count))
 
     def run_dqn(self):
         """
