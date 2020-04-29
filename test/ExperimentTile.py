@@ -170,7 +170,7 @@ class Experiment(object):
 
             # get action
             action = self.agent.get_action(state, eps)
-
+            
             # step in the environment
             next_state, reward, done, dist, trans, _, _ = self.env.step(action)
 
@@ -660,5 +660,5 @@ class Experiment(object):
             G = r + self.gamma * G
 
         # store the current policy return
-        print("evaluate = ",G, actions)
+        #print("evaluate = ",G, actions)
         self.policy_returns.append(G)
