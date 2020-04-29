@@ -116,7 +116,7 @@ class Experiment(object):
 
             # step in the environment
             next_state, reward, done, dist, trans, _, _ = self.env.step(action)
-
+            
             # store the replay buffer and convert the data to tensor
             if self.use_replay_buffer:
                 # construct the transition
@@ -145,10 +145,10 @@ class Experiment(object):
                 )
 
                 # evaluate the current policy
-                if (episode_idx - 1) % 100 == 0:
+                #if (episode_idx - 1) % 100 == 0:
                     # evaluate the current policy by interaction
-                    with torch.no_grad():
-                        self.policy_evaluate()
+                #    with torch.no_grad():
+                #        self.policy_evaluate()
                         # save the model
                         # model_save_path = os.path.join(self.save_dir, self.model_name) + f"_{episode_idx}.pt"
                         # torch.save(self.agent.policy_net.state_dict(), model_save_path)
