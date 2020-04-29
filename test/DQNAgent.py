@@ -2,6 +2,7 @@ import torch
 from torch import nn
 import random
 import numpy as np
+import time
 import IPython.terminal.debugger as Debug
 
 
@@ -183,7 +184,7 @@ class DQNAgent(object):
 
     # select an action based on the policy network
     def get_action(self, input_state, eps):
-        if random.uniform(0, 1) < 0:  # with probability epsilon, the agent selects a random action
+        if random.uniform(0, 1) < eps:  # with probability epsilon, the agent selects a random action
             action = random.sample(range(4), 1)[0]
         else:  # with probability 1 - epsilon, the agent selects a greedy action
             input_state = self.toTensor(input_state)
@@ -242,8 +243,9 @@ class DQNAgent(object):
     def train_one_batch(self, t, batch):
         # update the policy network
         if not np.mod(t + 1, self.freq_update_policy):
+            start = time.time()
             self.update_policy_net(batch)
-
+            print("Policy update time = ", time.time() - start)
         # update the target network
         if np.mod(t + 1, self.freq_update_target):
             self.update_target_net()
