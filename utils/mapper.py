@@ -439,11 +439,11 @@ class RoughMap(object):
         # update the action
         self.map_act, self.ego_act = self.path2egoaction(self.path)
 
-#
+
 # for i in range(20):
 #     map = RoughMap(11, i, 3)
 #     plt.title(f"Maze {i}")
-#     plt.imshow(map.map2d_bw)
+#     plt.imshow(map.map2d_path)
 #     plt.show()
 
 

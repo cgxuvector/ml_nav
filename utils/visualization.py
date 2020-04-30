@@ -16,16 +16,18 @@ def plot_line_chart(data, name, x_label, y_label, smooth_win_size, color, start,
     plt.title(name)
     plt.xlabel(x_label, fontsize=10)
     plt.ylabel(y_label, fontsize=10)
-    plt.plot(x[start:end+1], data[start:end+1], color[0], linewidth=4)
-    plt.plot(x[start:end+1], data_smooth[start:end+1], color[1], linewidth=4)
+    plt.plot(x[start:end+1], data[start:end+1], color[0], linewidth=2)
+    plt.plot(x[start:end+1], data_smooth[start:end+1], color[1], linewidth=2)
     plt.show()
 
 
 def success_rate():
-    maze_size = [11]
+    maze_size = [13]
     for size in maze_size:
-        dist_data = np.load(f'../results/4-27/double_dqn_{size}x{size}_ep_1000_b64_14_distance.npy')
-        len_data = np.load(f'../results/4-27/double_dqn_{size}x{size}_ep_1000_b64_14_length.npy')
+        # dist_data = np.load(f'../results/4-27/double_dqn_{size}x{size}_ep_1000_b64_14_distance.npy')
+        # len_data = np.load(f'../results/4-27/double_dqn_{size}x{size}_ep_1000_b64_14_length.npy')
+        dist_data = np.load(f'../results/4-30/ddqn_{size}x{size}_true_state_distance.npy')
+        len_data = np.load(f'../results/4-30/ddqn_{size}x{size}_true_state_length.npy')
         success_count = 0
         total_count = dist_data.shape[0]
         last_count = 0
@@ -33,7 +35,7 @@ def success_rate():
         idx = 0
         success_rate_list = []
         while count < total_count:
-            if dist_data[count] <= 10 and len_data[count] < 100:
+            if dist_data[count] <= 10 and len_data[count] < 22:
                 success_count += 1
             if (count+1) % 100 == 0:
                 success_rate_list.append(success_count / (count - last_count))
@@ -51,18 +53,18 @@ def success_rate():
 if __name__ == '__main__':
     # root_dir = '../results/4-27/'
     # data_name = 'double_dqn_11x11_ep_1000_b64_1_return.npy'
-    root_dir = '../results/4-28/'
-    data_name = 'test_return.npy'
-    policy_name = 'test_policy_return.npy'
+    root_dir = '../results/4-30/'
+    data_name = 'ddqn_13x13_true_state_return.npy'
+    policy_name = 'ddqn_13x13_true_state_policy_return.npy'
     d = np.load(root_dir + data_name)
     pd = np.load(root_dir + policy_name)
     start = 0
     end = d.shape[0]
-    # plot_line_chart(d, f"Sub-goal {end}", "Episode", "Distance", 50, ['lightsalmon', '-r'], start, end)
 
-    plot_line_chart(d, "Double DQN in 11 x 11 Maze with true state : maze 15", "Episode", "Discounted Return", 100, ['lightgreen', '-g'], start, end)
-
-
-    plt.plot(range(pd.shape[0]), pd)
-    plt.show()
+    plot_line_chart(d, "double DQN in 13 x 13 maze with true state", "Episode", "Discounted Return", 100, ['lightgreen', '-g'], start, end)
     success_rate()
+    plt.title('Evaluate the learned policy every 100 episodes')
+    plt.xlabel('every 100 episode')
+    plt.ylabel('return')
+    plt.plot(range(pd.shape[0]), pd, 'r-', linewidth=2)
+    plt.show()
