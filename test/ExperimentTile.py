@@ -6,7 +6,7 @@ from utils import memory
 from utils import ml_schedule
 import torch
 import random
-import time
+import matplotlib.pyplot as plt
 import IPython.terminal.debugger as Debug
 DEFAULT_TRANSITION = namedtuple("transition", ["state", "action", "next_state", "reward", "goal", "done"])
 ACTION_LIST = ['up', 'down', 'left', 'right']
@@ -105,7 +105,7 @@ class Experiment(object):
         # initial reset
         state, goal = self.init_map2d_and_maze3d()
 
-        self.env.show_panorama_view(obs_type='agent')
+        # self.env.show_panorama_view(None, obs_type='agent')
 
         # start the training
         pbar = tqdm.trange(self.max_time_steps)
@@ -117,23 +117,20 @@ class Experiment(object):
             action = self.agent.get_action(state, eps)
 
             # step in the environment
-            start = time.time()
             next_state, reward, done, dist, trans, _, _ = self.env.step(action)
-            print("Step time = ", time.time() - start)
-
-            self.env.show_panorama_view(t)
+            print(ACTION_LIST[action])
+            # self.env.show_panorama_view(t, 'agent')
 
             # store the replay buffer and convert the data to tensor
-            start = time.time()
             if self.use_replay_buffer:
                 # construct the transition
                 trans = self.toTransition(state, action, next_state, reward, goal, done)
                 # add the transition into the buffer
                 self.replay_buffer.add(trans)
-            print("Buffer time = ", time.time() - start)
 
             # check terminal
             if done or (episode_t == self.max_steps_per_episode):
+                print("RESET MAZE")
                 # compute the discounted return for each time step
                 G = 0
                 for r in reversed(rewards):
