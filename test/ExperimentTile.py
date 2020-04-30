@@ -6,7 +6,8 @@ from utils import memory
 from utils import ml_schedule
 import torch
 import random
-import matplotlib.pyplot as plt
+import time
+import os
 import IPython.terminal.debugger as Debug
 DEFAULT_TRANSITION = namedtuple("transition", ["state", "action", "next_state", "reward", "goal", "done"])
 ACTION_LIST = ['up', 'down', 'left', 'right']
@@ -37,7 +38,7 @@ class Experiment(object):
                  batch_size=64,
                  gamma=0.99,
                  eps_start=1,
-                 eps_end=0.1,
+                 eps_end=0.01,
                  goal_dist=1,
                  future_k=4,
                  save_dir=None,
@@ -79,7 +80,7 @@ class Experiment(object):
         self.use_her = use_her
         # rl related configuration
         self.gamma = gamma
-        self.schedule = ml_schedule.LinearSchedule(eps_start, eps_end, max_time_steps/3)
+        self.schedule = ml_schedule.LinearSchedule(eps_start, eps_end, max_time_steps/2)
         # results statistics
         self.distance = []
         self.returns = []
@@ -105,8 +106,6 @@ class Experiment(object):
         # initial reset
         state, goal = self.init_map2d_and_maze3d()
 
-        # self.env.show_panorama_view(None, obs_type='agent')
-
         # start the training
         pbar = tqdm.trange(self.max_time_steps)
         for t in pbar:
@@ -118,8 +117,6 @@ class Experiment(object):
 
             # step in the environment
             next_state, reward, done, dist, trans, _, _ = self.env.step(action)
-            print(ACTION_LIST[action])
-            # self.env.show_panorama_view(t, 'agent')
 
             # store the replay buffer and convert the data to tensor
             if self.use_replay_buffer:
@@ -130,7 +127,6 @@ class Experiment(object):
 
             # check terminal
             if done or (episode_t == self.max_steps_per_episode):
-                print("RESET MAZE")
                 # compute the discounted return for each time step
                 G = 0
                 for r in reversed(rewards):
@@ -150,8 +146,8 @@ class Experiment(object):
                 )
 
                 # # evaluate the current policy
-                # if (episode_idx - 1) % 100 == 0:
-                #     # evaluate the current policy by interaction
+                #if (episode_idx - 1) % 10 == 0:
+                     # evaluate the current policy by interaction
                 #     with torch.no_grad():
                 #         self.policy_evaluate()
                         # save the model
@@ -171,17 +167,17 @@ class Experiment(object):
             if t > self.start_train_step:
                 sampled_batch = self.replay_buffer.sample(self.batch_size)
                 self.agent.train_one_batch(t, sampled_batch)
-        #
-        # model_save_path = os.path.join(self.save_dir, self.model_name) + f"_{len(self.returns)}.pt"
-        # distance_save_path = os.path.join(self.save_dir, self.model_name + "_distance.npy")
-        # returns_save_path = os.path.join(self.save_dir, self.model_name + "_return.npy")
-        # policy_returns_save_path = os.path.join(self.save_dir, self.model_name + "_policy_return.npy")
-        # lengths_save_path = os.path.join(self.save_dir, self.model_name + "_length.npy")
-        # torch.save(self.agent.policy_net.state_dict(), model_save_path)
-        # np.save(distance_save_path, self.distance)
-        # np.save(returns_save_path, self.returns)
-        # np.save(lengths_save_path, self.lengths)
-        # np.save(policy_returns_save_path, self.policy_returns)
+
+        model_save_path = os.path.join(self.save_dir, self.model_name) + f"_{len(self.returns)}.pt"
+        distance_save_path = os.path.join(self.save_dir, self.model_name + "_distance.npy")
+        returns_save_path = os.path.join(self.save_dir, self.model_name + "_return.npy")
+        policy_returns_save_path = os.path.join(self.save_dir, self.model_name + "_policy_return.npy")
+        lengths_save_path = os.path.join(self.save_dir, self.model_name + "_length.npy")
+        torch.save(self.agent.policy_net.state_dict(), model_save_path)
+        np.save(distance_save_path, self.distance)
+        np.save(returns_save_path, self.returns)
+        np.save(lengths_save_path, self.lengths)
+        np.save(policy_returns_save_path, self.policy_returns)
 
     def toTransition(self, state, action, next_state, reward, goal, done):
         """
@@ -309,5 +305,5 @@ class Experiment(object):
             G = r + self.gamma * G
 
         # store the current policy return
-        # print("evaluate = ",G, actions)
+        print("Return = {} and {}".format(G, actions[0:30]))
         self.policy_returns.append(G)

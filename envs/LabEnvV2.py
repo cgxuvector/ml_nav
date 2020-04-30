@@ -214,7 +214,7 @@ class RandomMazeTileRaw(object):
 
     # step function
     def step(self, act):
-        """ step #(num_steps) in Deepmind Lab"""
+        """ step #(num_steps) in Deepmind Lab """
         action = ACTION_LIST_TILE[act]
         # compute the next position
         if action == 'up':

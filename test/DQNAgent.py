@@ -208,7 +208,6 @@ class DQNAgent(object):
         state, action, next_state, reward, done = self.convert2tensor(batch_data)
         # compute the Q_policy(s, a)
         sa_values = self.policy_net(state).gather(dim=1, index=action)
-        Debug.set_trace()
         # compute the TD target r + gamma * max_a' Q_target(s', a')
         if self.dqn_mode == "vanilla":  # update the policy network using vanilla DQN
             # compute the : max_a' Q_target(s', a')
@@ -244,8 +243,9 @@ class DQNAgent(object):
     def train_one_batch(self, t, batch):
         # update the policy network
         if not np.mod(t + 1, self.freq_update_policy):
+       #     start = time.time()
             self.update_policy_net(batch)
-
+        #    print("Policy update time = ", time.time() - start)
         # update the target network
         if np.mod(t + 1, self.freq_update_target):
             self.update_target_net()
@@ -289,7 +289,7 @@ class DQNAgent(object):
         if not self.use_true_state:
             state_obs = torch.tensor(np.array(state).transpose(0, 3, 1, 2), dtype=torch.float32, device=self.device)
         else:
-            state_obs = torch.tensor(np.array(state), dtype=torch.float32)
+            state_obs = torch.tensor(np.array(state), dtype=torch.float32, device=self.device)
         return state_obs
 
     # auxiliary function
