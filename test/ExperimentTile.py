@@ -146,10 +146,10 @@ class Experiment(object):
                 )
 
                 # # evaluate the current policy
-                #if (episode_idx - 1) % 10 == 0:
-                     # evaluate the current policy by interaction
-                #     with torch.no_grad():
-                #         self.policy_evaluate()
+                if (episode_idx - 1) % 10 == 0:
+                    # evaluate the current policy by interaction
+                    with torch.no_grad():
+                        self.policy_evaluate()
                         # save the model
                         # model_save_path = os.path.join(self.save_dir, self.model_name) + f"_{episode_idx}.pt"
                         # torch.save(self.agent.policy_net.state_dict(), model_save_path)
@@ -178,6 +178,90 @@ class Experiment(object):
         np.save(returns_save_path, self.returns)
         np.save(lengths_save_path, self.lengths)
         np.save(policy_returns_save_path, self.policy_returns)
+
+    def run_goal_dqn(self):
+        """
+        Function is used to run the training of the agent
+        """
+        # set the training statistics
+        rewards = []  # list of rewards for one episode
+        episode_t = 0  # time step for one episode
+
+        # initial reset
+        state, goal = self.init_map2d_and_maze3d()
+
+        # start the training
+        pbar = tqdm.trange(self.max_time_steps)
+        for t in pbar:
+            # compute the epsilon
+            eps = self.schedule.get_value(t)
+
+            # get action
+            action = self.agent.get_action(state, goal, eps)
+
+            # step in the environment
+            next_state, reward, done, dist, trans, _, _ = self.env.step(action)
+
+            # store the replay buffer and convert the data to tensor
+            if self.use_replay_buffer:
+                # construct the transition
+                trans = self.toTransition(state, action, next_state, reward, goal, done)
+                # add the transition into the buffer
+                self.replay_buffer.add(trans)
+
+            # check terminal
+            if done or (episode_t == self.max_steps_per_episode):
+                # compute the discounted return for each time step
+                G = 0
+                for r in reversed(rewards):
+                    G = r + self.gamma * G
+
+                # store the return, episode length, and final distance for current episode
+                self.returns.append(G)
+                self.lengths.append(episode_t)
+                self.distance.append(dist)
+                # compute the episode number
+                episode_idx = len(self.returns)
+
+                pbar.set_description(
+                    f'Episode: {episode_idx} | Steps: {episode_t} | Return: {G:2f} | Dist: {dist:.2f} | '
+                    f'Init: {self.env.start_pos} | Goal: {self.env.goal_pos} | '
+                    f'Eps: {eps:.3f} | Buffer: {len(self.replay_buffer)}'
+                )
+
+                # evaluate the current policy
+                if (episode_idx - 1) % 10 == 0:
+                    # evaluate the current policy by interaction
+                    with torch.no_grad():
+                        self.policy_evaluate()
+                # save the model
+                # model_save_path = os.path.join(self.save_dir, self.model_name) + f"_{episode_idx}.pt"
+                # torch.save(self.agent.policy_net.state_dict(), model_save_path)
+
+                # reset the environments
+                rewards = []
+                episode_t = 0
+                state, goal = self.update_map2d_and_maze3d(set_new_maze=not self.fix_maze)
+            else:
+                state = next_state
+                rewards.append(reward)
+                episode_t += 1
+
+            # train the agent
+            if t > self.start_train_step:
+                sampled_batch = self.replay_buffer.sample(self.batch_size)
+                self.agent.train_one_batch(t, sampled_batch)
+
+        # model_save_path = os.path.join(self.save_dir, self.model_name) + f"_{len(self.returns)}.pt"
+        # distance_save_path = os.path.join(self.save_dir, self.model_name + "_distance.npy")
+        # returns_save_path = os.path.join(self.save_dir, self.model_name + "_return.npy")
+        # policy_returns_save_path = os.path.join(self.save_dir, self.model_name + "_policy_return.npy")
+        # lengths_save_path = os.path.join(self.save_dir, self.model_name + "_length.npy")
+        # torch.save(self.agent.policy_net.state_dict(), model_save_path)
+        # np.save(distance_save_path, self.distance)
+        # np.save(returns_save_path, self.returns)
+        # np.save(lengths_save_path, self.lengths)
+        # np.save(policy_returns_save_path, self.policy_returns)
 
     def toTransition(self, state, action, next_state, reward, goal, done):
         """
@@ -287,7 +371,7 @@ class Experiment(object):
         actions = []
         for i in range(self.max_steps_per_episode):
             # get one action
-            action = self.agent.get_action(state, 0)
+            action = self.agent.get_action(state, goal, 0)
             actions.append(ACTION_LIST[action])
             # step in the environment
             next_state, reward, done, dist, trans, _, _ = self.env.step(action)

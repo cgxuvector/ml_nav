@@ -1,7 +1,24 @@
 import torch
 from torch import nn
 import numpy as np
+import random
 import IPython.terminal.debugger as Debug
+
+
+# customized weight initialization
+def customized_weights_init(m):
+    # compute the gain
+    gain = nn.init.calculate_gain('relu')
+    # init the convolutional layer
+    if isinstance(m, nn.Conv2d):
+        # init the params using uniform
+        nn.init.xavier_uniform_(m.weight, gain=gain)
+        nn.init.constant_(m.bias, 0)
+    # init the linear layer
+    if isinstance(m, nn.Linear):
+        # init the params using uniform
+        nn.init.xavier_uniform_(m.weight, gain=gain)
+        nn.init.constant_(m.bias, 0)
 
 
 class GoalDeepQNet(nn.Module):
@@ -117,18 +134,21 @@ class GoalDeepQNet(nn.Module):
         return x
 
 
+testModel = GoalDeepQNet()
+
+
 class GoalDQNAgent(object):
     def __init__(self,
-                 target_update_frequency,
-                 policy_update_frequency,
-                 soft_target_update_tau=0.01,
-                 learning_rate=1e-3,
                  dqn_mode="vanilla",
-                 gamma=1.0,
-                 gradient_clip=True,
-                 device="cpu",
+                 target_update_frequency=2000,
+                 policy_update_frequency=4,
                  use_small_obs=False,
-                 use_true_state=False
+                 use_true_state=False,
+                 use_target_soft_update=False,
+                 use_gradient_clip=False,
+                 gamma=0.99,
+                 learning_rate=1e-3,
+                 device="cpu"
                  ):
         """
         Init the DQN agent
@@ -142,31 +162,45 @@ class GoalDQNAgent(object):
         :param device: device to use
         """
         self.device = torch.device(device)
-        self.use_true_state = use_true_state
         """ DQN configurations"""
         # create the policy network and target network
         self.policy_net = GoalDeepQNet(use_small_obs, use_true_state)
         self.target_net = GoalDeepQNet(use_small_obs, use_true_state)
+        # init the weights of policy network and target network
+        self.policy_net.apply(customized_weights_init)
         self.target_net.load_state_dict(self.policy_net.state_dict())
+        # move the networks to device
         self.policy_net = self.policy_net.to(device)
         self.target_net = self.target_net.to(device)
         # DQN mode: vanilla or double
         self.dqn_mode = dqn_mode
         """ Training configurations """
         self.gamma = gamma
-        self.tau = soft_target_update_tau  # parameters for soft target update
-        self.soft_update = True if soft_target_update_tau else False  # flag for soft update
-        self.soft_update = False
+        self.tau = 0.05  # parameters for soft target update
+        self.use_true_state = use_true_state
+        self.soft_update = use_target_soft_update
+        self.clip_gradient = use_gradient_clip
         self.freq_update_target = target_update_frequency
         self.freq_update_policy = policy_update_frequency
         self.optimizer = torch.optim.Adam(self.policy_net.parameters(),
                                           lr=learning_rate,
                                           weight_decay=5e-4)
         self.criterion = torch.nn.MSELoss()
-        self.clip_gradient = gradient_clip
         """ Saving and plotting configurations"""
         self.returns = []
         self.lengths = []
+
+    # select an action based on the policy network
+    def get_action(self, input_state, goal, eps):
+        if random.uniform(0, 1) < eps:  # with probability epsilon, the agent selects a random action
+            action = random.sample(range(4), 1)[0]
+        else:  # with probability 1 - epsilon, the agent selects the greedy action
+            input_state = self.toTensor(input_state)
+            goal = self.toTensor(goal)
+            with torch.no_grad():
+                goal_q_values = self.policy_net(input_state, goal).view(1, -1)
+                action = goal_q_values.max(dim=1)[1].item()
+        return action
 
     # update the target network
     def update_target_net(self):
@@ -182,32 +216,29 @@ class GoalDQNAgent(object):
         # convert the batch from numpy to tensor
         state, action, next_state, reward, goal, done = self.convert2tensor(batch_data)
         # compute the Q_policy(s, a)
-        state_goal_q_values = self.policy_net(state, goal).gather(dim=1, index=action)
+        sa_goal_values = self.policy_net(state, goal).gather(dim=1, index=action)
         # compute the TD target r + gamma * max_a' Q_target(s', a')
         if self.dqn_mode == "vanilla":  # update the policy network using vanilla DQN
-            with torch.no_grad():
-                # compute the : max_a' Q_target(s', a')
-                max_next_state_goal_q_values = self.target_net(next_state, goal).max(1)[0].view(-1, 1)
-                # if s' is terminal, then change Q(s', a') = 0
-                terminal_mask = (torch.ones(done.size(), device=self.device) - done)
-                max_next_state_goal_q_values = max_next_state_goal_q_values * terminal_mask
-                # compute the r + gamma * max_a' Q_target(s', a')
-                td_target = (reward + self.gamma * max_next_state_goal_q_values)
+            # compute the : max_a' Q_target(s', a')
+            max_next_sa_goal_values = self.target_net(next_state, goal).max(1)[0].view(-1, 1).detach()
+            # if s' is terminal, then change Q(s', a') = 0
+            terminal_mask = (torch.ones(done.size(), device=self.device) - done)
+            max_next_sa_goal_values = max_next_sa_goal_values * terminal_mask
+            # compute the r + gamma * max_a' Q_target(s', a')
+            td_target = reward + self.gamma * max_next_sa_goal_values
         else:  # update the policy network using double DQN
-            with torch.no_grad():
-                # select the maximal actions using greedy policy network: argmax_a Q_policy(S_t+1)
-                estimate_next_state_goal_q_values = self.policy_net(next_state, goal)
-                next_action_data = estimate_next_state_goal_q_values.max(1)[1].view(-1, 1)
-                # compute the Q_target(s', argmax_a)
-                next_state_goal_q_values = self.target_net(next_state, goal).gather(dim=1, index=next_action_data)
-                # convert the value of the terminal states to be zero
-                terminal_mask = (torch.ones(done.size(), device=self.device) - done)
-                max_next_state_goal_q_values = next_state_goal_q_values * terminal_mask
-                # compute the TD target
-                td_target = reward + self.gamma * max_next_state_goal_q_values
+            # select the maximal actions using greedy policy network: argmax_a Q_policy(S_t+1)
+            estimated_next_goal_action = self.policy_net(next_state, goal).max(dim=1)[1].view(-1, 1).detach()
+            # compute the Q_target(s', argmax_a)
+            next_sa_goal_values = self.target_net(next_state, goal).gather(dim=1, index=estimated_next_goal_action).view(-1, 1)
+            # convert the value of the terminal states to be zero
+            terminal_mask = (torch.ones(done.size(), device=self.device) - done)
+            max_next_state_goal_q_values = next_sa_goal_values * terminal_mask
+            # compute the TD target
+            td_target = reward + self.gamma * max_next_state_goal_q_values
 
         # compute the loss using MSE error: TD error
-        loss = self.criterion(state_goal_q_values, td_target)
+        loss = self.criterion(sa_goal_values, td_target)
         # back propagation
         self.optimizer.zero_grad()
         loss.backward()
@@ -217,17 +248,6 @@ class GoalDQNAgent(object):
                 params.grad.data.clamp(-1, 1)
         self.optimizer.step()
 
-    # select an action based on the policy network
-    def get_action(self, input_state, goal):
-        input_state = input_state.float()
-        goal = goal.float()
-        input_state = input_state.to(self.device)
-        goal = goal.to(self.device)
-        with torch.no_grad():
-            goal_q_values = self.policy_net(input_state, goal)
-            action = goal_q_values.max(1)[1].item()
-        return action
-
     def train_one_batch(self, t, batch):
         # update the policy network
         if not np.mod(t + 1, self.freq_update_policy):
@@ -235,7 +255,7 @@ class GoalDQNAgent(object):
             self.update_policy_net(batch)
 
         # update the target network
-        if np.mod(t, self.freq_update_target):
+        if np.mod(t + 1, self.freq_update_target):
             self.update_target_net()
 
     def convert2tensor(self, batch):
@@ -271,6 +291,13 @@ class GoalDQNAgent(object):
                 goal = torch.stack(batch.goal).float().to(self.device)
                 done = torch.stack(batch.done).view(-1, 1).to(self.device)
                 return state, action, next_state, reward, goal, done
+
+    def toTensor(self, state):
+        if not self.use_true_state:
+            state_obs = torch.tensor(np.array(state).transpose(0, 3, 1, 2), dtype=torch.float32, device=self.device)
+        else:
+            state_obs = torch.tensor(np.array(state), dtype=torch.float32, device=self.device)
+        return state_obs
 
     @staticmethod
     def rolling_average(data, window_size):

@@ -135,15 +135,15 @@ def make_agent(inputs):
                          device=inputs.device,
                          )
     elif inputs.agent == 'goal-dqn':
-        agent = GoalDQNAgent(target_update_frequency=inputs.dqn_update_target_freq,
+        agent = GoalDQNAgent(dqn_mode=inputs.dqn_mode,
+                             target_update_frequency=inputs.dqn_update_target_freq,
                              policy_update_frequency=inputs.dqn_update_policy_freq,
-                             soft_target_update_tau=inputs.soft_target_update,
-                             dqn_mode=inputs.dqn_mode,
-                             gamma=0.99,
-                             gradient_clip=inputs.dqn_gradient_clip,
-                             device=inputs.device,
                              use_small_obs=inputs.use_small_obs,
-                             use_true_state=inputs.use_true_state
+                             use_true_state=inputs.use_true_state,
+                             use_target_soft_update=inputs.soft_target_update,
+                             use_gradient_clip=inputs.dqn_gradient_clip,
+                             gamma=inputs.gamma,
+                             device=inputs.device,
                              )
     else:
         raise Exception(f"{inputs.agent} is not defined. Please try the valid agent (random, dqn, actor-critic)")
@@ -188,7 +188,10 @@ def run_experiment(inputs):
         save_dir=inputs.save_dir,
     )
     # run the experiments
-    my_experiment.run_dqn()
+    if inputs.use_goal:
+        my_experiment.run_goal_dqn()
+    else:
+        my_experiment.run_dqn()
 
 
 if __name__ == '__main__':

@@ -137,7 +137,7 @@ class DQNAgent(object):
                  use_true_state=False,
                  use_target_soft_update=False,
                  use_gradient_clip=False,
-                 gamma=0.995,
+                 gamma=0.99,
                  learning_rate=1e-3,
                  device="cpu"
                  ):
@@ -243,9 +243,8 @@ class DQNAgent(object):
     def train_one_batch(self, t, batch):
         # update the policy network
         if not np.mod(t + 1, self.freq_update_policy):
-       #     start = time.time()
             self.update_policy_net(batch)
-        #    print("Policy update time = ", time.time() - start)
+
         # update the target network
         if np.mod(t + 1, self.freq_update_target):
             self.update_target_net()
