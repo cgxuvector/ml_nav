@@ -50,7 +50,7 @@ def parse_input():
     parser.add_argument("--use_memory", type=str, default="True", help="If true, use the memory")
     parser.add_argument("--use_her", type=str, default="False", help="If true, use the Hindsight Experience Replay")
     # set RL params
-    parser.add_argument("--gamma", type=float, default=0.995, help="Gamma")
+    parser.add_argument("--gamma", type=float, default=0.99, help="Gamma")
     # set the saving params
     parser.add_argument("--model_idx", type=str, default=None, help="model index")
     parser.add_argument("--save_dir", type=str, default=None, help="saving folder")
