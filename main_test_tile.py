@@ -29,10 +29,11 @@ def parse_input():
     parser.add_argument("--use_true_state", type=str, default="True", help="Using true state flag")
     parser.add_argument("--use_small_obs", type=str, default='False', help="Using small observations flag")
     parser.add_argument("--use_goal", type=str, default="False", help="Using goal conditioned flag")
-    parser.add_argument("--goal_dist", type=int, default=1, help="Set distance between start and goal")
+    parser.add_argument("--goal_dist", type=int, default=100, help="Set distance between start and goal")
     # set the running mode
     parser.add_argument("--random_seed", type=int, default=1234, help="Random seed")
     # set the training mode
+    parser.add_argument("--train_local_policy", type=str, default="False", help="Whether train a local policy.")
     parser.add_argument("--device", type=str, default="cpu", help="Device to use")
     parser.add_argument("--lr", type=float, default=1e-3, help="Learning rate")
     parser.add_argument("--start_train_steps", type=int, default=1000, help="Start training time step")
@@ -68,6 +69,7 @@ def strTobool(inputs):
     inputs.use_true_state = True if inputs.use_true_state == "True" else False
     inputs.use_goal = True if inputs.use_goal == "True" else False
     # set params of training
+    inputs.train_local_policy = True if inputs.train_local_policy == "True" else False
     inputs.use_memory = True if inputs.use_memory == "True" else False
     inputs.soft_target_update = True if inputs.soft_target_update == 'True' else False
     inputs.dqn_gradient_clip = True if inputs.dqn_gradient_clip == 'True' else False
@@ -189,7 +191,10 @@ def run_experiment(inputs):
     )
     # run the experiments
     if inputs.use_goal:
-        my_experiment.run_goal_dqn()
+        if not inputs.train_local_policy:
+            my_experiment.run_goal_dqn()
+        else:
+            my_experiment.run_random_local_goal_dqn()
     else:
         my_experiment.run_dqn()
 

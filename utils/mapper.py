@@ -440,10 +440,13 @@ class RoughMap(object):
         self.map_act, self.ego_act = self.path2egoaction(self.path)
 
 
-# for i in range(20):
-#     map = RoughMap(11, i, 3)
-#     plt.title(f"Maze {i}")
-#     plt.imshow(map.map2d_path)
+# env_map = RoughMap(7, 0, 3)
+# print(env_map.init_pos, env_map.goal_pos)
+# for i in range(10):
+#     plt.imshow(env_map.map2d_bw)
 #     plt.show()
+#     state, goal = env_map.sample_global_start_goal_pos(False, False, 3)
+#     env_map.update_mapper(state, goal)
+
 
 
