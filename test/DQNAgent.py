@@ -221,7 +221,7 @@ class DQNAgent(object):
             # select the maximal actions using greedy policy network: argmax_a Q_policy(S_t+1)
             estimated_next_action = self.policy_net(next_state).max(dim=1)[1].view(-1, 1).detach()
             # compute the Q_target(s', argmax_a)
-            next_sa_values = self.target_net(next_state).gather(dim=1, index=estimated_next_action).view(-1, 1)
+            next_sa_values = self.target_net(next_state).gather(dim=1, index=estimated_next_action).detach().view(-1, 1)
             # convert the value of the terminal states to be zero
             terminal_mask = (torch.ones(done.size(), device=self.device) - done)
             max_next_state_q_values = next_sa_values * terminal_mask

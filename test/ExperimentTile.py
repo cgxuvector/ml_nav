@@ -478,7 +478,10 @@ class Experiment(object):
         actions = []
         for i in range(self.max_steps_per_episode):
             # get one action
-            action = self.agent.get_action(state, goal, 0)
+            if self.use_goal:
+                action = self.agent.get_action(state, goal, 0)
+            else:
+                action = self.agent.get_action(state, 0)
             actions.append(ACTION_LIST[action])
             # step in the environment
             next_state, reward, done, dist, trans, _, _ = self.env.step(action)

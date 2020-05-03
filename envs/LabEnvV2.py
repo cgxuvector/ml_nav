@@ -341,8 +341,57 @@ class RandomMazeTileRaw(object):
             observations = self._last_observation
         else:
             observations = self._goal_observation
+
         # init or update data
         if time_step is None:
+            self.fig, self.arrays = plt.subplots(3, 3)
+            self.arrays[0, 1].set_title("Front view")
+            self.arrays[0, 1].axis("off")
+            self.img_artists.append(self.arrays[0, 1].imshow(observations[0]))
+            self.arrays[0, 0].set_title("Front-left view")
+            self.arrays[0, 0].axis("off")
+            self.img_artists.append(self.arrays[0, 0].imshow(observations[1]))
+            self.arrays[1, 0].set_title("Left view")
+            self.arrays[1, 0].axis("off")
+            self.img_artists.append(self.arrays[1, 0].imshow(observations[2]))
+            self.arrays[1, 1].set_title("Top-down view")
+            self.arrays[1, 1].axis("off")
+            self.img_artists.append(self.arrays[1, 1].imshow(ndimage.rotate(self._top_down_obs, -90)))
+            self.arrays[2, 0].set_title("Back-left view")
+            self.arrays[2, 0].axis("off")
+            self.img_artists.append(self.arrays[2, 0].imshow(observations[3]))
+            self.arrays[2, 1].set_title("Back view")
+            self.arrays[2, 1].axis("off")
+            self.img_artists.append(self.arrays[2, 1].imshow(observations[4]))
+            self.arrays[2, 2].set_title("Back-right view")
+            self.arrays[2, 2].axis("off")
+            self.img_artists.append(self.arrays[2, 2].imshow(observations[5]))
+            self.arrays[1, 2].set_title("Right view")
+            self.arrays[1, 2].axis("off")
+            self.img_artists.append(self.arrays[1, 2].imshow(observations[6]))
+            self.arrays[0, 2].set_title("Front-right view")
+            self.arrays[0, 2].axis("off")
+            self.img_artists.append(self.arrays[0, 2].imshow(observations[7]))
+        else:
+            self.img_artists[0].set_data(observations[0])
+            self.img_artists[1].set_data(observations[1])
+            self.img_artists[2].set_data(observations[2])
+            self.img_artists[3].set_data(ndimage.rotate(self._top_down_obs, -90))
+            self.img_artists[4].set_data(observations[3])
+            self.img_artists[5].set_data(observations[4])
+            self.img_artists[6].set_data(observations[5])
+            self.img_artists[7].set_data(observations[6])
+            self.img_artists[8].set_data(observations[7])
+        self.fig.canvas.draw()
+        plt.pause(0.0001)
+        return self.fig
+
+        # show the panoramic view
+
+    def show_panorama_view_test(self, flag, state):
+        observations = state
+        # init or update data
+        if flag is None:
             self.fig, self.arrays = plt.subplots(3, 3)
             self.arrays[0, 1].set_title("Front view")
             self.arrays[0, 1].axis("off")
