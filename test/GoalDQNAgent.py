@@ -230,7 +230,7 @@ class GoalDQNAgent(object):
             # select the maximal actions using greedy policy network: argmax_a Q_policy(S_t+1)
             estimated_next_goal_action = self.policy_net(next_state, goal).max(dim=1)[1].view(-1, 1).detach()
             # compute the Q_target(s', argmax_a)
-            next_sa_goal_values = self.target_net(next_state, goal).gather(dim=1, index=estimated_next_goal_action).view(-1, 1)
+            next_sa_goal_values = self.target_net(next_state, goal).gather(dim=1, index=estimated_next_goal_action).detach().view(-1, 1)
             # convert the value of the terminal states to be zero
             terminal_mask = (torch.ones(done.size(), device=self.device) - done)
             max_next_state_goal_q_values = next_sa_goal_values * terminal_mask
@@ -255,7 +255,7 @@ class GoalDQNAgent(object):
             self.update_policy_net(batch)
 
         # update the target network
-        if np.mod(t + 1, self.freq_update_target):
+        if not np.mod(t + 1, self.freq_update_target):
             self.update_target_net()
 
     def convert2tensor(self, batch):
