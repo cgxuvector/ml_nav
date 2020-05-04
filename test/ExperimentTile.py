@@ -30,6 +30,7 @@ class Experiment(object):
                  use_goal=False,
                  goal_dist=np.inf,
                  use_true_state=False,  # state configurations
+                 train_local_policy=False,
                  train_episode_num=10,  # training configurations
                  start_train_step=1000,
                  max_time_steps=50000,
@@ -68,6 +69,7 @@ class Experiment(object):
         self.use_goal = use_goal
         self.goal_dist = goal_dist
         # training configurations
+        self.train_local_policy = train_local_policy
         self.train_episode_num = train_episode_num
         self.start_train_step = start_train_step
         self.max_time_steps = max_time_steps
@@ -367,31 +369,6 @@ class Experiment(object):
             state_obs = torch.tensor(np.array(obs_list), dtype=torch.float32)
         return state_obs
 
-    # def init_map2d_and_maze3d(self):
-    #     # randomly select a maze
-    #     self.maze_size = random.sample(self.maze_size_list, 1)[0]
-    #     self.maze_seed = random.sample(self.maze_seed_list, 1)[0]
-    #     # initialize the map 2D
-    #     self.env_map = mapper.RoughMap(self.maze_size, self.maze_seed, 3)
-    #     # initialize the maze 3D
-    #     maze_configs = defaultdict(lambda: None)
-    #     maze_configs["maze_name"] = f"maze_{self.maze_size}x{self.maze_size}"  # string type name
-    #     maze_configs["maze_size"] = [self.maze_size, self.maze_size]  # [int, int] list
-    #     maze_configs["maze_seed"] = '1234'  # string type number
-    #     maze_configs["maze_texture"] = random.sample(self.theme_list, 1)[0]  # string type name in theme_list
-    #     maze_configs["maze_decal_freq"] = random.sample(self.decal_list, 1)[0]  # float number in decal_list
-    #     maze_configs["maze_map_txt"] = "".join(self.env_map.map2d_txt)  # string type map
-    #     maze_configs["maze_valid_pos"] = self.env_map.valid_pos  # list of valid positions
-    #     # initialize the maze start and goal positions
-    #     maze_configs["start_pos"] = self.env_map.init_pos + [0]  # start position on the txt map [rows, cols, orientation]
-    #     maze_configs["goal_pos"] = self.env_map.goal_pos + [0]  # goal position on the txt map [rows, cols, orientation]
-    #     # initialize the update flag
-    #     maze_configs["update"] = True  # update flag
-    #     # obtain the state and goal observation
-    #     state_obs, goal_obs, _, _ = self.env.reset(maze_configs)
-    #     # return states and goals
-    #     return state_obs, goal_obs
-
     def update_map2d_and_maze3d(self, set_new_maze=False):
         """
         Function is used to update the 2D map and the 3D maze.
@@ -419,7 +396,11 @@ class Experiment(object):
             # initialize the update flag
             maze_configs["update"] = True  # update flag
         else:
-            init_pos, goal_pos = self.env_map.sample_global_start_goal_pos_new(self.fix_start, self.fix_goal, self.goal_dist)
+            if not self.train_local_policy:
+                init_pos, goal_pos = self.env_map.sample_global_start_goal_pos(self.fix_start, self.fix_goal)
+            else:
+                init_pos, goal_pos = self.env_map.sample_random_start_goal_pos(self.fix_start, self.fix_goal,
+                                                                               self.goal_dist)
             # self.env_map.update_mapper(init_pos, goal_pos)
             maze_configs['start_pos'] = init_pos + [0]
             maze_configs['goal_pos'] = goal_pos + [0]
@@ -466,7 +447,7 @@ class Experiment(object):
             G = r + self.gamma * G
 
         # store the current policy return
-        # print("Return = {} and {}".format(G, actions[0:30]))
+        print("Return = {} and {}".format(G, actions[0:30]))
         self.policy_returns.append(G)
 
     # save the results

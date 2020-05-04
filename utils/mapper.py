@@ -349,12 +349,11 @@ class RoughMap(object):
         return pos_params
 
     # sample the init and goal positions from the valid positions
-    def sample_global_start_goal_pos(self, fix_init, fix_goal, dist):
+    def sample_global_start_goal_pos(self, fix_init, fix_goal):
         """
-        Function is used to sample the init and goal positions from the valid positions.
+        Function is used to sample a global pair of init and goal positions from the valid positions.
         :param fix_init: If it is True, the init position is fixed.
         :param fix_goal: If it is True, the goal position is fixed.
-        :param dist: range to sample the next step
         :return: new sampled init and goal positions.
         """
         # obtain valid positions
@@ -367,19 +366,13 @@ class RoughMap(object):
         goal_positions = list(self.valid_pos)
         goal_positions.remove(tmp_init_pos)
         tmp_goal_pos = self.goal_pos if fix_goal else random.sample(goal_positions, 1)[0]
-        # plan a new path
-        pos_path = searchAlg.A_star(self.map2d_grid, tmp_init_pos, tmp_goal_pos)
-        # sample the init and goal along the trajectory
-        valid_pos = [pos.tolist() for pos in pos_path]
-        init_pos = valid_pos[0]
-        goal_pos = valid_pos[-1] if len(valid_pos) <= dist else valid_pos[dist]
         # update the mapper
-        self.update_mapper(init_pos, goal_pos)
-        return init_pos, goal_pos
+        self.update_mapper(tmp_init_pos, tmp_goal_pos)
+        return tmp_init_pos, tmp_goal_pos
 
-    def sample_global_start_goal_pos_new(self, fix_init, fix_goal, dist):
+    def sample_random_start_goal_pos(self, fix_init, fix_goal, dist):
         """
-        Function is used to sample the init and goal positions from the valid positions.
+        Function is used to sample a random pair init and goal positions from the valid positions.
         :param fix_init: If it is True, the init position is fixed.
         :param fix_goal: If it is True, the goal position is fixed.
         :param dist: range to sample the next step

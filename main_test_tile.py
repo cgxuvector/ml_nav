@@ -177,6 +177,7 @@ def run_experiment(inputs):
         use_goal=inputs.use_goal,
         goal_dist=inputs.goal_dist,
         use_true_state=inputs.use_true_state,
+        train_local_policy=inputs.train_local_policy,
         train_episode_num=inputs.train_episode_num,
         start_train_step=inputs.start_train_step,
         max_time_steps=inputs.total_time_steps,
