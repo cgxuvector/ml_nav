@@ -124,10 +124,6 @@ class Experiment(object):
             # step in the environment
             next_state, reward, done, dist, trans, _, _ = self.env.step(action)
 
-            # increase the step statistics
-            rewards.append(reward)
-            episode_t += 1
-
             # store the replay buffer and convert the data to tensor
             if self.use_replay_buffer:
                 # construct the transition
@@ -167,6 +163,8 @@ class Experiment(object):
                 state, goal = self.update_map2d_and_maze3d(set_new_maze=not self.fix_maze)
             else:
                 state = next_state
+                rewards.append(reward)
+                episode_t += 1
 
             # start training the agent
             if t > self.start_train_step:
@@ -199,10 +197,6 @@ class Experiment(object):
             # step in the environment
             next_state, reward, done, dist, trans, _, _ = self.env.step(action)
 
-            # increase the statistics
-            rewards.append(reward)
-            episode_t += 1
-
             # store the replay buffer and convert the data to tensor
             if self.use_replay_buffer:
                 # construct the transition
@@ -231,7 +225,7 @@ class Experiment(object):
                 )
 
                 # evaluate the current policy
-                if (episode_idx - 1) % 10 == 0:
+                if (episode_idx - 1) % self.eval_policy_freq == 0:
                     # evaluate the current policy by interaction
                     self.policy_evaluate()
 
@@ -241,6 +235,8 @@ class Experiment(object):
                 state, goal = self.update_map2d_and_maze3d(set_new_maze=not self.fix_maze)
             else:
                 state = next_state
+                rewards.append(reward)
+                episode_t += 1
 
             # start training the agent
             if t > self.start_train_step:
@@ -273,9 +269,6 @@ class Experiment(object):
 
             # step in the environment
             next_state, reward, done, dist, trans, _, _ = self.env.step(action)
-
-            # increase the statistics
-            rewards.append(reward)
             episode_t += 1
 
             # store the replay buffer and convert the data to tensor
@@ -306,9 +299,9 @@ class Experiment(object):
                 )
 
                 # evaluate the current policy
-                if (episode_idx - 1) % 10 == 0:
+                #if (episode_idx - 1) % self.eval_policy_freq == 0:
                     # evaluate the current policy by interaction
-                    self.policy_evaluate()
+                #    self.policy_evaluate()
 
                 # reset the environments
                 rewards = []
@@ -328,6 +321,7 @@ class Experiment(object):
                     train_episode_num = self.train_episode_num
             else:
                 state = next_state
+                rewards.append(reward)
 
             # train the agent
             if t > self.start_train_step:
