@@ -4,10 +4,6 @@ from pathlib import Path
 import random
 from utils import searchAlg
 import IPython.terminal.debugger as Debug
-"""
-    1. Using a topological graph to store the positions (currently, it is stored as a list)
-    2. Fix the bug in rescaling.
-"""
 
 
 # define a class for the rough map
@@ -23,16 +19,15 @@ class RoughMap(object):
                 - East: the far right hand side
                 - West: the fat left hand side.
     """
-
     # init function
     def __init__(self, m_size, m_seed, loc_map_size=3, use_apple_reward=False):
         """
-        Function is used to initialize the current maps
+        Function is used to initialize the current map.
         :param m_size: size of the maze
-        :param m_seed: size of the random seed
+        :param m_seed: seed of the maze
         :param loc_map_size: size of the local map
         """
-        # flag of using intrinsic reward
+        # flag of using intrinsic apple reward
         self.use_apple_reward = use_apple_reward
 
         # map parameters
@@ -408,7 +403,7 @@ class RoughMap(object):
             tmp_goal_pos = self.goal_pos if fix_goal else random.sample(goal_positions, 1)[0]
             # plan a new path
             pos_path = searchAlg.A_star(self.map2d_grid, tmp_init_pos, tmp_goal_pos)
-        print(tmp_init_pos, tmp_goal_pos, dist+1, len(pos_path), pos_path)
+        # print(tmp_init_pos, tmp_goal_pos, dist+1, len(pos_path), pos_path)
         # sample the init and goal along the trajectory
         valid_path_pos = [pos.tolist() for pos in pos_path]
         init_pos = valid_path_pos[0]
@@ -433,6 +428,9 @@ class RoughMap(object):
         self.map_act, self.ego_act = self.path2egoaction(self.path)
 
 
+# """
+#     Testing code
+# """
 # env_map = RoughMap(11, 0, 3)
 # print("Default start and goal pos = ", env_map.init_pos, env_map.goal_pos)
 # print("--------- Start sampling goals ---------")

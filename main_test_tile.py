@@ -36,11 +36,12 @@ def parse_input():
     parser.add_argument("--train_local_policy", type=str, default="False", help="Whether train a local policy.")
     parser.add_argument("--device", type=str, default="cpu", help="Device to use")
     parser.add_argument("--lr", type=float, default=1e-3, help="Learning rate")
-    parser.add_argument("--start_train_steps", type=int, default=1000, help="Start training time step")
+    parser.add_argument("--start_train_step", type=int, default=1000, help="Start training time step")
     parser.add_argument("--sampled_goal_num", type=int, default=5, help="Number of sampled start and goal positions.")
     parser.add_argument("--train_episode_num", type=int, default=10, help="Number of training epochs for each sample.")
     parser.add_argument("--total_time_steps", type=int, default=50000, help="Total time steps")
     parser.add_argument("--episode_time_steps", type=int, default=100, help="Time steps per episode")
+    parser.add_argument("--eval_policy_freq", type=int, default=10, help="Evaluate the current learned policy frequency")
     parser.add_argument("--dqn_update_target_freq", type=int, default=1000, help="Frequency of updating the target")
     parser.add_argument("--dqn_update_policy_freq", type=int, default=4, help="Frequency of updating the policy")
     parser.add_argument("--soft_target_update", type=str, default="False", help="Soft update flag")
@@ -50,6 +51,7 @@ def parse_input():
     parser.add_argument("--batch_size", type=int, default=64, help="Size of the mini-batch")
     parser.add_argument("--use_memory", type=str, default="True", help="If true, use the memory")
     parser.add_argument("--use_her", type=str, default="False", help="If true, use the Hindsight Experience Replay")
+    parser.add_argument("--future_k", type=int, default=4, help="Number of sampling future states")
     # set RL params
     parser.add_argument("--gamma", type=float, default=0.99, help="Gamma")
     # set the saving params
@@ -168,34 +170,37 @@ def run_experiment(inputs):
         agent=my_agent,
         maze_list=size,
         seed_list=seed,
+        decal_freq=inputs.decal_freq,
         fix_maze=inputs.fix_maze,
         fix_start=inputs.fix_start,
         fix_goal=inputs.fix_goal,
-        sampled_goal=inputs.sampled_goal_num,
+        use_goal=inputs.use_goal,
+        goal_dist=inputs.goal_dist,
+        use_true_state=inputs.use_true_state,
         train_episode_num=inputs.train_episode_num,
-        batch_size=inputs.batch_size,
-        buffer_size=inputs.memory_size,
-        use_replay=inputs.use_memory,
-        start_train_step=inputs.start_train_steps,
+        start_train_step=inputs.start_train_step,
         max_time_steps=inputs.total_time_steps,
         episode_time_steps=inputs.episode_time_steps,
-        use_goal=inputs.use_goal,
-        transition=transition,
-        goal_dist=inputs.goal_dist,
-        decal_freq=inputs.decal_freq,
-        use_true_state=inputs.use_true_state,
+        eval_policy_freq=inputs.eval_policy_freq,
+        use_replay=inputs.use_memory,
         use_her=inputs.use_her,
+        future_k=inputs.future_k,
+        buffer_size=inputs.memory_size,
+        transition=transition,
+        batch_size=inputs.batch_size,
         gamma=inputs.gamma,
-        model_name=inputs.model_idx,
         save_dir=inputs.save_dir,
+        model_name=inputs.model_idx
     )
     # run the experiments
     if inputs.use_goal:
+        # train a global goal-conditioned policy
         if not inputs.train_local_policy:
             my_experiment.run_goal_dqn()
-        else:
+        else:  # train a local goal-conditioned policy
             my_experiment.run_random_local_goal_dqn()
     else:
+        # train a vanilla policy
         my_experiment.run_dqn()
 
 
