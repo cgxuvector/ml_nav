@@ -1,3 +1,10 @@
+"""
+    Goal-conditioned double DQN agent implementation notes:
+        - The estimation of the terminal state from the policy network should be mask 0.
+        - For double DQN, we have to detach both the target network and the policy network.
+        - For hard update target network, we have to update it every fix number of steps. (defaul 2000)
+        - For soft update target network, we have to update it every step.
+"""
 import torch
 from torch import nn
 import numpy as np

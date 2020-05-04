@@ -7,8 +7,6 @@ from utils import ml_schedule
 import torch
 import random
 import os
-import time
-import matplotlib.pyplot as plt
 import IPython.terminal.debugger as Debug
 
 
@@ -299,9 +297,9 @@ class Experiment(object):
                 )
 
                 # evaluate the current policy
-                #if (episode_idx - 1) % self.eval_policy_freq == 0:
+                if (episode_idx - 1) % self.eval_policy_freq == 0:
                     # evaluate the current policy by interaction
-                #    self.policy_evaluate()
+                    self.policy_evaluate()
 
                 # reset the environments
                 rewards = []

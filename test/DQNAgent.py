@@ -1,8 +1,14 @@
+"""
+    Double DQN agent implementation notes:
+        - The estimation of the terminal state from the policy network should be mask 0.
+        - For double DQN, we have to detach both the target network and the policy network.
+        - For hard update target network, we have to update it every fix number of steps. (defaul 2000)
+        - For soft update target network, we have to update it every step.
+"""
 import torch
 from torch import nn
 import random
 import numpy as np
-import time
 import IPython.terminal.debugger as Debug
 
 
@@ -223,7 +229,7 @@ class DQNAgent(object):
             # compute the Q_target(s', argmax_a)
             next_sa_values = self.target_net(next_state).gather(dim=1, index=estimated_next_action).detach().view(-1, 1)
             # convert the value of the terminal states to be zero
-            
+
             terminal_mask = (torch.ones(done.size(), device=self.device) - done)
             max_next_state_q_values = next_sa_values * terminal_mask
             # compute the TD target

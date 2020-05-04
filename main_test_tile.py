@@ -31,7 +31,8 @@ def parse_input():
     parser.add_argument("--use_goal", type=str, default="False", help="Using goal conditioned flag")
     parser.add_argument("--goal_dist", type=int, default=100, help="Set distance between start and goal")
     # set the running mode
-    parser.add_argument("--random_seed", type=int, default=1234, help="Random seed")
+    parser.add_argument("--run_num", type=int, default=1, help="Number of run for each experiment.")
+    parser.add_argument("--random_seed", type=int, default=0, help="Random seed")
     # set the training mode
     parser.add_argument("--train_local_policy", type=str, default="False", help="Whether train a local policy.")
     parser.add_argument("--device", type=str, default="cpu", help="Device to use")
@@ -210,12 +211,22 @@ if __name__ == '__main__':
     user_inputs = parse_input()
     user_inputs = strTobool(user_inputs)
 
-    # set the random seed
-    random.seed(user_inputs.random_seed)
-    np.random.seed(user_inputs.random_seed)
-    torch.manual_seed(user_inputs.random_seed)
+    # user input model index
+    input_model_idx = user_inputs.model_idx
 
-    # run the experiment
-    run_experiment(user_inputs)
+    # run the experiment for fix number of times
+    for r in range(user_inputs.run_num):
+        # set different random seed
+        user_inputs.random_seed = r
+
+        # set the random seed
+        random.seed(user_inputs.random_seed)
+        np.random.seed(user_inputs.random_seed)
+        torch.manual_seed(user_inputs.random_seed)
+
+        # run the experiment
+        print(f"Run the {r + 1} experiment with random seed = {user_inputs.random_seed}")
+        user_inputs.model_idx = input_model_idx + f'_seed_{r}'
+        run_experiment(user_inputs)
 
 
