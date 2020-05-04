@@ -246,7 +246,7 @@ class DQNAgent(object):
             self.update_policy_net(batch)
 
         # update the target network
-        if np.mod(t + 1, self.freq_update_target):
+        if not np.mod(t + 1, self.freq_update_target):
             self.update_target_net()
 
     # convert data type into tensor
