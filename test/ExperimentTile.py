@@ -174,7 +174,7 @@ class Experiment(object):
                 self.agent.train_one_batch(t, sampled_batch)
 
         # save the results
-        # self.save_results()
+        self.save_results()
 
     def run_goal_dqn(self):
         """
@@ -248,7 +248,7 @@ class Experiment(object):
                 self.agent.train_one_batch(t, sampled_batch)
 
         # save the results
-        # self.save_results()
+        self.save_results()
 
     def run_random_local_goal_dqn(self):
         """
@@ -335,7 +335,7 @@ class Experiment(object):
                 self.agent.train_one_batch(t, sampled_batch)
 
         # save results
-        # self.save_results()
+        self.save_results()
 
     def toTransition(self, state, action, next_state, reward, goal, done):
         """
