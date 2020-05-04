@@ -170,10 +170,10 @@ class VisualPolicy(object):
 
 if __name__ == '__main__':
     # load the agent
-    my_agent = DQNAgent(0, 0, use_true_state=True, use_small_obs=True).policy_net
-    my_agent.load_state_dict(torch.load("./results/5-1/ddqn_13x13_true_state_double_527.pt", map_location=torch.device('cpu')))
+    my_agent = DQNAgent(0, 0, use_true_state=False, use_small_obs=True).policy_net
+    my_agent.load_state_dict(torch.load("./results/5-1/ddqn_13x13_obs_decal_1_m20000_double_13828.pt", map_location=torch.device('cpu')))
     my_agent.eval()
 
     # run the agent
     myVis = VisualPolicy(my_agent, 13, True, True)
-    myVis.run_true_state()
+    myVis.run_true_obs()

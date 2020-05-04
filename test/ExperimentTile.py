@@ -81,6 +81,8 @@ class Experiment(object):
         self.use_her = use_her
         # rl related configuration
         self.gamma = gamma
+        self.EPS_START = eps_start
+        self.EPS_END = eps_end
         self.schedule = ml_schedule.LinearSchedule(eps_start, eps_end, max_time_steps/2)
         # results statistics
         self.distance = []
@@ -281,9 +283,10 @@ class Experiment(object):
 
         # start the training
         pbar = tqdm.trange(self.max_time_steps)
+        self.schedule = ml_schedule.LinearSchedule(self.EPS_START, self.EPS_END, self.train_episode_num)
         for t in pbar:
             # compute the epsilon
-            eps = self.schedule.get_value(t)
+            eps = self.schedule.get_value(train_episode_num)
 
             # get action
             action = self.agent.get_action(state, goal, eps)
@@ -346,6 +349,7 @@ class Experiment(object):
                     maze_configs['maze_valid_pos'] = self.env_map.valid_pos
                     maze_configs['update'] = False
                     train_episode_num = self.train_episode_num
+                    self.schedule = ml_schedule.LinearSchedule(self.EPS_START, self.EPS_END, self.train_episode_num)
 
                 # obtain the state and goal observation
                 state_obs, goal_obs, _, _ = self.env.reset(maze_configs)
@@ -359,16 +363,16 @@ class Experiment(object):
                 sampled_batch = self.replay_buffer.sample(self.batch_size)
                 self.agent.train_one_batch(t, sampled_batch)
 
-        model_save_path = os.path.join(self.save_dir, self.model_name) + f"_{len(self.returns)}.pt"
-        distance_save_path = os.path.join(self.save_dir, self.model_name + "_distance.npy")
-        returns_save_path = os.path.join(self.save_dir, self.model_name + "_return.npy")
-        policy_returns_save_path = os.path.join(self.save_dir, self.model_name + "_policy_return.npy")
-        lengths_save_path = os.path.join(self.save_dir, self.model_name + "_length.npy")
-        torch.save(self.agent.policy_net.state_dict(), model_save_path)
-        np.save(distance_save_path, self.distance)
-        np.save(returns_save_path, self.returns)
-        np.save(lengths_save_path, self.lengths)
-        np.save(policy_returns_save_path, self.policy_returns)
+        # model_save_path = os.path.join(self.save_dir, self.model_name) + f"_{len(self.returns)}.pt"
+        # distance_save_path = os.path.join(self.save_dir, self.model_name + "_distance.npy")
+        # returns_save_path = os.path.join(self.save_dir, self.model_name + "_return.npy")
+        # policy_returns_save_path = os.path.join(self.save_dir, self.model_name + "_policy_return.npy")
+        # lengths_save_path = os.path.join(self.save_dir, self.model_name + "_length.npy")
+        # torch.save(self.agent.policy_net.state_dict(), model_save_path)
+        # np.save(distance_save_path, self.distance)
+        # np.save(returns_save_path, self.returns)
+        # np.save(lengths_save_path, self.lengths)
+        # np.save(policy_returns_save_path, self.policy_returns)
 
     def toTransition(self, state, action, next_state, reward, goal, done):
         """

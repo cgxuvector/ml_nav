@@ -98,14 +98,12 @@ def plot_compare(data_true_state, data_obs_decal_1, name, x_label, y_label, smoo
 
 if __name__ == '__main__':
     root_dir = '../results/5-1/'
-    # data_name = 'ddqn_5x5_obs_decal_1_double_return.npy'
-    # # policy_name = 'ddqn_5x5_true_state_double_policy_return.npy'
+    # data_name = 'goal_ddqn_5x5_true_state_dist_2_return.npy'
+    # # # policy_name = 'ddqn_5x5_true_state_double_policy_return.npy'
     # d = np.load(root_dir + data_name)
-    # # pd = np.load(root_dir + policy_name)
-    # start = 0
-    # end = d.shape[0]
-
-    # plot_line_chart(d, "double DQN in 5 x 5 maze with observation decal = 1.0", "Episode", "Discounted Return", 100, ['lightgreen', '-g'], start, end)
+    # # # pd = np.load(root_dir + policy_name)
+    #
+    # plot_line_chart(d, "double DQN in 5 x 5 maze with observation decal = 1.0", "Episode", "Discounted Return", 100, ['lightgreen', '-g'])
     # # success_rate()
     # plt.title('Evaluate the learned policy every 100 episodes')
     # plt.xlabel('every 100 episode')
@@ -114,7 +112,7 @@ if __name__ == '__main__':
     # plt.show()
 
     size = 13
-    data_true_state = np.load(root_dir + f'ddqn_{size}x{size}_true_state_double_return.npy')
-    data_obs_1 = np.load(root_dir + f'ddqn_{size}x{size}_obs_decal_1_double_return.npy')
+    data_true_state = np.load(root_dir + f'ddqn_{size}x{size}_true_state_double_long_return.npy')
+    data_obs_1 = np.load(root_dir + f'ddqn_{size}x{size}_obs_decal_1_m20000_double_return.npy')
     # data_obs_10 = np.load(root_dir + f'ddqn_{size}x{size}_obs_decal_10_double_return.npy')
     plot_compare(data_true_state, data_obs_1, f'Learning curve of maze {size}x{size}', 'Episode', 'Discounted Return', 100, ['lightgreen', 'g', 'lightsalmon', 'red', 'lightblue', 'blue'])
