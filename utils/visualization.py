@@ -96,14 +96,86 @@ def plot_compare(data_true_state, data_obs_decal_1, name, x_label, y_label, smoo
     plot_line_chart(data_obs_decal_1, name + ': panorama obs', x_label, y_label, smooth_win_size, ['lightsalmon', 'red'])
 
 
+def load_run_data(dir, size, use_random=False, use_goal=False, use_obs=False):
+    data_load_list = []
+    max_len = 0
+    for r in range(run_num):
+        if not use_goal:
+            file_name = f'ddqn_{size}x{size}_true_state_double_seed_{r}_return.npy'
+        else:
+            if use_random:
+                file_name = f'random_goal_ddqn_{size}x{size}_true_state_double_seed_{r}_return.npy'
+            else:
+                file_name = f'goal_ddqn_{size}x{size}_true_state_double_seed_{r}_return.npy'
+        print(file_name)
+        data = np.load(dir + file_name)
+        data_load_list.append(data)
+        if data.shape[0] > max_len:
+            max_len = data.shape[0]
+    return data_load_list, max_len
+
+
+def compute_mean_and_std_error(data, max_len, num):
+    combined_data_list = []
+    # scan each episode
+    for i in range(max_len):
+        elem_list = []
+        # scan each run
+        for j in range(run_num):
+            if i < data[j].shape[0]:
+                elem_list.append(data[j][i])
+        combined_data_list.append(np.array(elem_list))
+
+    mean_val = [np.mean(elem) for elem in combined_data_list]
+    std_err_val = [np.std(elem) / len(elem) for elem in combined_data_list]
+    return mean_val, std_err_val
+
+
+def plot_mean_std_error(name, x_label, y_label, m_list, std_list, w_size):
+    # rolling average
+    mean_val = rolling_average(np.array(m_list), w_size)
+    std_val = rolling_average(np.array(std_list), win_size)
+
+    # set the settings
+    t = range(len(m_list))
+    mu = mean_val
+    sigma_err = std_val
+
+    # plot the learning curve
+    fig, ax = plt.subplots(1)
+    ax.set_title(name)
+    ax.set_ylim(mu.min(), 0)
+    ax.plot(t, mu, lw=1, label='mean', color='red')
+    ax.fill_between(t, mu + sigma_err, mu - sigma_err, lw=2, facecolor='red', alpha=0.5)
+    # ax.legend(loc='lower right')
+    ax.set_xlabel(x_label)
+    ax.set_ylabel(y_label)
+    ax.grid()
+    plt.show()
+
+
 if __name__ == '__main__':
-    root_dir = '../results/5-3/'
-    data_name = 'test_goal_return.npy'
-    # # # policy_name = 'ddqn_5x5_true_state_double_policy_return.npy'
-    d = np.load(root_dir + data_name)
-    # # # pd = np.load(root_dir + policy_name)
-    #
-    plot_line_chart(d, "goal conditioned 5x5", "Episode", "Discounted Return", 100, ['lightgreen', '-g'])
+    # experiment settings
+    root_dir = '../results/5-4/'
+    maze_size = 5
+    run_num = 5
+    win_size = 100
+    # load data
+    data_list, max_ep_len = load_run_data(root_dir, maze_size, True, True, True)
+    # compute the mean and std error
+    mean_list, std_err_list = compute_mean_and_std_error(data_list, max_ep_len, run_num)
+    # plot the results
+    plot_mean_std_error(f'Double DQN with True State in maze {maze_size}x{maze_size}',
+                        'Episode', r'Discounted return $S_{init}$',
+                        mean_list, std_err_list, win_size)
+
+
+    # data_name = 'test_goal_return.npy'
+    # # # # policy_name = 'ddqn_5x5_true_state_double_policy_return.npy'
+    # d = np.load(root_dir + data_name)
+    # # # # pd = np.load(root_dir + policy_name)
+    # #
+    # plot_line_chart(d, "goal conditioned 5x5", "Episode", "Discounted Return", 100, ['lightgreen', '-g'])
     # # success_rate()
     # plt.title('Evaluate the learned policy every 100 episodes')
     # plt.xlabel('every 100 episode')
