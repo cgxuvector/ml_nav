@@ -96,26 +96,44 @@ def plot_compare(data_true_state, data_obs_decal_1, name, x_label, y_label, smoo
     plot_line_chart(data_obs_decal_1, name + ': panorama obs', x_label, y_label, smooth_win_size, ['lightsalmon', 'red'])
 
 
-def load_run_data(dir, size, use_random=False, use_goal=False, use_obs=False):
+def load_data_from_runs(data_dir, size, use_random=False, use_goal=False, use_obs=False):
+    # list to store all the data
     data_load_list = []
+    # maximal data length
     max_len = 0
+    # load the data for all the runs
     for r in range(run_num):
+        # get the name
         if not use_goal:
-            file_name = f'ddqn_{size}x{size}_true_state_double_seed_{r}_return.npy'
+            if not use_obs:
+                file_name = f'ddqn_{size}x{size}_true_state_double_seed_{r}_return.npy'
+            else:
+                file_name = f'ddqn_{size}x{size}_panorama_obs_double_seed_{r}_return.npy'
         else:
             if use_random:
-                file_name = f'random_goal_ddqn_{size}x{size}_true_state_double_seed_{r}_return.npy'
+                if not use_obs:
+                    file_name = f'random_goal_ddqn_{size}x{size}_true_state_double_seed_{r}_return.npy'
+                else:
+                    file_name = f'random_goal_ddqn_{size}x{size}_obs_double_seed_{r}_return.npy'
             else:
-                file_name = f'goal_ddqn_{size}x{size}_true_state_double_seed_{r}_return.npy'
+                if not use_obs:
+                    file_name = f'goal_ddqn_{size}x{size}_true_state_double_seed_{r}_return.npy'
+                else:
+                    file_name = f'goal_ddqn_{size}x{size}_panorama_obs_double_seed_{r}_return.npy'
         print(file_name)
-        data = np.load(dir + file_name)
+        # load the data
+        data = np.load(data_dir + file_name)
+        # save the data
         data_load_list.append(data)
+        # update the maximal length
         if data.shape[0] > max_len:
             max_len = data.shape[0]
     return data_load_list, max_len
 
 
-def compute_mean_and_std_error(data, max_len, num):
+# compute the mean and standard error of the returns af all the runs
+def compute_mean_and_std_error(data, max_len):
+    # combine the list of return in to a combined list
     combined_data_list = []
     # scan each episode
     for i in range(max_len):
@@ -125,14 +143,17 @@ def compute_mean_and_std_error(data, max_len, num):
             if i < data[j].shape[0]:
                 elem_list.append(data[j][i])
         combined_data_list.append(np.array(elem_list))
-
+    # compute the mean
     mean_val = [np.mean(elem) for elem in combined_data_list]
+    # compute the standard error of each element
     std_err_val = [np.std(elem) / len(elem) for elem in combined_data_list]
     return mean_val, std_err_val
 
 
-def plot_mean_std_error(name, x_label, y_label, m_list, std_list, w_size):
+# plot the results
+def plot_mean_std_error(name, x_label, y_label, m_list, std_list, opt_list, w_size):
     # rolling average
+    optimal_val = np.array(opt_list)
     mean_val = rolling_average(np.array(m_list), w_size)
     std_val = rolling_average(np.array(std_list), win_size)
 
@@ -141,42 +162,105 @@ def plot_mean_std_error(name, x_label, y_label, m_list, std_list, w_size):
     mu = mean_val
     sigma_err = std_val
 
-    # plot the learning curve
+    # plot the learning curves
     fig, ax = plt.subplots(1)
     ax.set_title(name)
     ax.set_ylim(mu.min(), 0)
-    ax.plot(t, mu, lw=1, label='mean', color='red')
-    ax.fill_between(t, mu + sigma_err, mu - sigma_err, lw=2, facecolor='red', alpha=0.5)
-    # ax.legend(loc='lower right')
+    ax.plot(t, optimal_val, label='oracle', color='black', ls='--')
+    ax.plot(t, mu, lw=1, label='mean', color='green')
+    ax.fill_between(t, mu + sigma_err, mu - sigma_err, lw=2, facecolor='green', alpha=0.5)
+    ax.legend(loc='lower right')
     ax.set_xlabel(x_label)
     ax.set_ylabel(y_label)
     ax.grid()
     plt.show()
 
 
+# compare true state and observation
+def plot_compared_mean_std_error(name, x_label, y_label,
+                                 m_1_list, std_1_list, opt_list,
+                                 m_2_list, std_2_list,
+                                 w_size):
+    # rolling average
+    optimal_val = np.array(opt_list)
+    mean_1_val = rolling_average(np.array(m_1_list), w_size)
+    mean_2_val = rolling_average(np.array(m_2_list), win_size)
+    std_1_val = rolling_average(np.array(std_1_list), win_size)
+    std_2_val = rolling_average(np.array(std_2_list), win_size)
+
+    # set the settings
+    t1 = range(len(m_1_list))
+    t2 = range(len(m_2_list))
+    mu1 = mean_1_val
+    mu2 = mean_2_val
+    sigma1_err = std_1_val
+    sigma2_err = std_2_val
+
+    # plot the learning curves
+    fig, ax = plt.subplots(1)
+    ax.set_title(name)
+    ax.set_ylim(min(mu1.min(), mu2.min()), 0)
+    ax.plot(range(len(optimal_list)), optimal_val, label='oracle', color='black', ls='--')
+    ax.plot(t1, mu1, lw=1, label='True state', color='red')
+    ax.fill_between(t1, mu1 + sigma1_err, mu1 - sigma1_err, lw=2, facecolor='red', alpha=0.5)
+    ax.plot(t2, mu2, lw=1, label='Panorama obs', color='green')
+    ax.fill_between(t2, mu2 + sigma2_err, mu2 - sigma2_err, lw=2, facecolor='green', alpha=0.5)
+    ax.legend(loc='lower right')
+    ax.set_xlabel(x_label)
+    ax.set_ylabel(y_label)
+    ax.grid()
+    plt.show()
+
+
+# compute the oracle return (optimal value)
+def compute_oracle(size, local_policy=False):
+    if not local_policy:
+        optimal_step = (size - 2) * 2 - 2
+    else:
+        optimal_step = 2
+    gamma = 0.99
+    rewards = [-1] * (optimal_step - 1)
+    G = 0
+    for r in reversed(rewards):
+        G = r + gamma * G
+    return G
+
+
 if __name__ == '__main__':
     # experiment settings
     root_dir = '../results/5-4/'
-    maze_size = 5
-    run_num = 5
+    maze_size = 11
+    plot_name = f'Random Goal-conditioned Double DQN with Panorama obs in maze {maze_size}x{maze_size}'
+    # optimal value
+    oracle_val = compute_oracle(maze_size, local_policy=True)
+    run_num = 1
     win_size = 100
     # load data
-    data_list, max_ep_len = load_run_data(root_dir, maze_size, True, True, True)
+    data_1_list, max_ep_1_len = load_data_from_runs(root_dir, maze_size, use_random=True, use_goal=True, use_obs=False)
+    data_2_list, max_ep_2_len = load_data_from_runs(root_dir, maze_size, use_random=True, use_goal=True, use_obs=True)
     # compute the mean and std error
-    mean_list, std_err_list = compute_mean_and_std_error(data_list, max_ep_len, run_num)
+    mean_1_list, std_err_1_list = compute_mean_and_std_error(data_1_list, max_ep_1_len)
+    mean_2_list, std_err_2_list = compute_mean_and_std_error(data_2_list, max_ep_2_len)
     # plot the results
-    plot_mean_std_error(f'Double DQN with True State in maze {maze_size}x{maze_size}',
+    # optimal_list = [oracle_val] * max(max_ep_1_len, max_ep_2_len)
+    optimal_list = [oracle_val] * max_ep_2_len
+    # plot_compared_mean_std_error(plot_name,
+    #                              'Episode', r'Discounted return $S_{init}$',
+    #                              mean_1_list, std_err_1_list, optimal_list,
+    #                              mean_2_list, std_err_2_list,
+    #                              win_size)
+    plot_mean_std_error(plot_name,
                         'Episode', r'Discounted return $S_{init}$',
-                        mean_list, std_err_list, win_size)
-
+                        mean_2_list, std_err_2_list, optimal_list,
+                        win_size)
 
     # data_name = 'test_goal_return.npy'
-    # # # # policy_name = 'ddqn_5x5_true_state_double_policy_return.npy'
+    # policy_name = 'ddqn_5x5_true_state_double_policy_return.npy'
     # d = np.load(root_dir + data_name)
-    # # # # pd = np.load(root_dir + policy_name)
-    # #
+    # pd = np.load(root_dir + policy_name)
+
     # plot_line_chart(d, "goal conditioned 5x5", "Episode", "Discounted Return", 100, ['lightgreen', '-g'])
-    # # success_rate()
+    # success_rate()
     # plt.title('Evaluate the learned policy every 100 episodes')
     # plt.xlabel('every 100 episode')
     # plt.ylabel('return')
@@ -186,5 +270,5 @@ if __name__ == '__main__':
     # size = 13
     # data_true_state = np.load(root_dir + f'ddqn_{size}x{size}_true_state_double_long_return.npy')
     # data_obs_1 = np.load(root_dir + f'ddqn_{size}x{size}_obs_decal_1_m20000_double_return.npy')
-    # # data_obs_10 = np.load(root_dir + f'ddqn_{size}x{size}_obs_decal_10_double_return.npy')
+    # data_obs_10 = np.load(root_dir + f'ddqn_{size}x{size}_obs_decal_10_double_return.npy')
     # plot_compare(data_true_state, data_obs_1, f'Learning curve of maze {size}x{size}', 'Episode', 'Discounted Return', 100, ['lightgreen', 'g', 'lightsalmon', 'red', 'lightblue', 'blue'])
