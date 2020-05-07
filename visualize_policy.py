@@ -6,6 +6,7 @@ from __future__ import print_function
 
 import torch
 import random
+import matplotlib.pyplot as plt
 from test.DQNAgent import DQNAgent
 from test.GoalDQNAgent import GoalDQNAgent
 from utils import mapper
@@ -73,6 +74,13 @@ class VisualPolicy(object):
         for r in reversed(rewards):
             G = r + self.gamma * G
         print("Discounted return of the init state = {}".format(G))
+
+        # plot the navigation results
+        for idx, s in enumerate(states):
+            if 0 < idx < len(states) - 1:
+                self.env_map.map2d_bw[s[0], s[1]] = 0.5
+        plt.imshow(self.env_map.map2d_bw)
+        plt.show()
 
     def run_random_start_goal_pos(self):
         # init the environment
@@ -180,40 +188,40 @@ if __name__ == '__main__':
                                dist_epsilon=1e-3)
 
     # set parameters
-    maze_size = 5
+    maze_size = 11
     use_obs = False
-    use_goal = True
+    use_goal = False
     goal_dist = 100
     seed = 0
 
     # load the agent
     if not use_obs:
         if not use_goal:
-            my_agent = DQNAgent(use_true_state=True, use_small_obs=True).policy_net
-            my_agent.load_state_dict(
+            my_agent = DQNAgent(use_true_state=True, use_small_obs=True)
+            my_agent.policy_net.load_state_dict(
                 torch.load(f"./results/5-4/ddqn_{maze_size}x{maze_size}_true_state_double_seed_{seed}.pt",
                            map_location=torch.device('cpu'))
             )
         else:
-            my_agent = GoalDQNAgent(use_true_state=True, use_small_obs=True).policy_net
-            my_agent.load_state_dict(
+            my_agent = GoalDQNAgent(use_true_state=True, use_small_obs=True)
+            my_agent.policy_net.load_state_dict(
                 torch.load(f"./results/5-4/random_goal_ddqn_{maze_size}x{maze_size}_true_state_double_seed_{seed}.pt",
                            map_location=torch.device('cpu'))
             )
     else:
         if not use_goal:
-            my_agent = DQNAgent(use_true_state=False, use_small_obs=True).policy_net
-            my_agent.load_state_dict(
+            my_agent = DQNAgent(use_true_state=False, use_small_obs=True)
+            my_agent.policy_net.load_state_dict(
                 torch.load(f"./results/5-4/ddqn_{maze_size}x{maze_size}_obs_double_seed_{seed}.pt",
                            map_location=torch.device('cpu'))
             )
         else:
-            my_agent = GoalDQNAgent(use_true_state=False, use_small_obs=True).policy_net
-            my_agent.load_state_dict(
+            my_agent = GoalDQNAgent(use_true_state=False, use_small_obs=True)
+            my_agent.policy_net.load_state_dict(
                 torch.load(f"./results/5-4/random_goal_ddqn_{maze_size}x{maze_size}_obs_double_seed_{seed}.pt",
                            map_location=torch.device('cpu'))
             )
-    my_agent.eval()
+    my_agent.policy_net.eval()
 
     # run the agent
     myVis = VisualPolicy(env=my_lab,
