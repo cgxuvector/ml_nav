@@ -6,12 +6,12 @@ from __future__ import print_function
 
 import torch
 import random
-import matplotlib.pyplot as plt
 from test.DQNAgent import DQNAgent
 from test.GoalDQNAgent import GoalDQNAgent
 from utils import mapper
 from collections import defaultdict
 from envs.LabEnvV2 import RandomMazeTileRaw
+import matplotlib.pyplot as plt
 import IPython.terminal.debugger as Debug
 
 ACTION_LIST = ['up', 'down', 'left', 'right']
@@ -41,7 +41,7 @@ class VisualPolicy(object):
         state, goal = self.update_map2d_and_maze3d(set_new_maze=True)
 
         # episodes
-        episode_num = 100
+        episode_num = 10
         states = [state]
         rewards = []
         actions = []
@@ -61,7 +61,7 @@ class VisualPolicy(object):
             rewards.append(reward)
 
             # print the steps
-            print(f"Current state = {state}, Action = {ACTION_LIST[action]}, Next state = {next_state}")
+            print(f"Current state = {trans}, Action = {ACTION_LIST[action]}, Next state = {trans}")
 
             # check terminal
             if done:
@@ -74,54 +74,88 @@ class VisualPolicy(object):
         for r in reversed(rewards):
             G = r + self.gamma * G
         print("Discounted return of the init state = {}".format(G))
-
-        # plot the navigation results
-        for idx, s in enumerate(states):
-            if 0 < idx < len(states) - 1:
-                self.env_map.map2d_bw[s[0], s[1]] = 0.5
-        plt.imshow(self.env_map.map2d_bw)
-        plt.show()
 
     def run_random_start_goal_pos(self):
         # init the environment
-        self.fix_start = True
-        self.fix_goal = True
-        state, goal = self.update_map2d_and_maze3d(set_new_maze=True)
+        self.update_map2d_and_maze3d(set_new_maze=True)
+
+        # testing running number
+        run_num = 1000
+        # success counter
+        success_count = 0
+        # start testing
+        for r in range(run_num):
+            # sample a random start and goal position
+            self.fix_start = False
+            self.fix_goal = False
+            state, goal = self.update_map2d_and_maze3d(set_new_maze=False)
+            print("Run idx = {}, Init = {}, Goal = {}".format(r, state, goal))
+            # set the maximal steps
+            episode_num = 2
+            for t in range(episode_num):
+                # get one action
+                if self.use_goal:
+                    action = self.agent.get_action(state, goal, 0)
+                else:
+                    action = self.agent.get_action(state, 0)
+
+                # step in the environment
+                next_state, reward, done, dist, trans, _, _ = my_lab.step(action)
+
+                # print the steps
+                print(f"Current state = {state}, Action = {ACTION_LIST[action]}, Next state = {next_state}")
+
+                # check terminal
+                if done:
+                    success_count += 1
+                    break
+                else:
+                    state = next_state
+
+        print("Success rate = {}".format(success_count/run_num))
+
+    def navigate_with_local_policy(self):
+        # init the environment
+        self.update_map2d_and_maze3d(set_new_maze=True)
 
         # episodes
-        episode_num = 100
-        states = [state]
-        rewards = []
-        actions = []
-        for t in range(episode_num):
-            # get one action
-            if self.use_goal:
-                action = self.agent.get_action(state, goal, 0)
-            else:
-                action = self.agent.get_action(state, 0)
+        run_num = 1000
+        # fail counter
+        fail_count = 0
+        # start testing experiment
+        for r in range(run_num):
+            # sample a start and goal position
+            self.fix_start = False
+            self.fix_goal = False
+            self.goal_dist = 100  # target distance
+            state, goal = self.update_map2d_and_maze3d(set_new_maze=False)
+            # obtain the sub-goals
+            self.env_map.update_mapper(state[0:2], goal[0:2])
+            path = [pos.tolist() + [0] for pos in self.env_map.path]
+            sub_goals = []
+            for i in range(0, len(self.env_map.path), 2):
+                if i != 0:
+                    sub_goals.append(self.env_map.path[i].tolist() + [0])
+            if not (path[-1] in sub_goals):
+                sub_goals.append(goal)
+            # navigating between sub-goals
+            for g in sub_goals:
+                done = False
+                time_step = 10
+                for t in range(time_step):
+                    action = self.agent.get_action(state, g, 0)
+                    next_state, reward, done, dist, trans, _, _ = my_lab.step(action)
+                    print("Current state = {}, Action = {}, Next state = {}, Goal = {}".format(state, ACTION_LIST[action], next_state, g))
+                    state = next_state
+                    if next_state == g:
+                        done = True
+                        break
+                if not done:
+                    print("Fail to reach sub-goal {}".format(g))
+                    fail_count += 1
+                    break
 
-            # step in the environment
-            next_state, reward, done, dist, trans, _, _ = my_lab.step(action)
-
-            # save the results
-            states.append(next_state)
-            actions.append(action)
-            rewards.append(reward)
-
-            # print the steps
-            print(f"Current state = {state}, Action = {ACTION_LIST[action]}, Next state = {next_state}")
-
-            # check terminal
-            if done:
-                break
-            else:
-                state = next_state
-
-        # compute the discounted return
-        G = 0
-        for r in reversed(rewards):
-            G = r + self.gamma * G
-        print("Discounted return of the init state = {}".format(G))
+        print("Success rate = {}".format((run_num - fail_count)/run_num))
 
     def update_map2d_and_maze3d(self, set_new_maze=False):
         """
@@ -163,6 +197,14 @@ class VisualPolicy(object):
 
 
 if __name__ == '__main__':
+    # set parameters
+    maze_size = 5
+    run_local = True
+    use_obs = False
+    use_goal = True
+    goal_dist = 2
+    seed = 0
+
     # set level name
     level_name = 'nav_random_maze'
     # necessary observations (correct: this is the egocentric observations (following the counter clock direction))
@@ -183,16 +225,9 @@ if __name__ == '__main__':
     my_lab = RandomMazeTileRaw(level_name,
                                observation_list,
                                configurations,
-                               use_true_state=True,
+                               use_true_state=not use_obs,
                                reward_type="sparse-1",
                                dist_epsilon=1e-3)
-
-    # set parameters
-    maze_size = 11
-    use_obs = False
-    use_goal = False
-    goal_dist = 100
-    seed = 0
 
     # load the agent
     if not use_obs:
@@ -212,7 +247,7 @@ if __name__ == '__main__':
         if not use_goal:
             my_agent = DQNAgent(use_true_state=False, use_small_obs=True)
             my_agent.policy_net.load_state_dict(
-                torch.load(f"./results/5-4/ddqn_{maze_size}x{maze_size}_obs_double_seed_{seed}.pt",
+                torch.load(f"./results/5-4/ddqn_{maze_size}x{maze_size}_panorama_obs_double_seed_{seed}.pt",
                            map_location=torch.device('cpu'))
             )
         else:
@@ -231,4 +266,8 @@ if __name__ == '__main__':
                          fix_start=True,
                          fix_goal=True,
                          g_dist=goal_dist)
-    myVis.run_fixed_start_goal_pos()
+    if not run_local:
+        myVis.run_fixed_start_goal_pos()
+    else:
+        # myVis.run_random_start_goal_pos()
+        myVis.navigate_with_local_policy()
