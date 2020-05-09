@@ -216,6 +216,8 @@ class RandomMazeTileRaw(object):
     def step(self, act):
         """ step #(num_steps) in Deepmind Lab """
         action = ACTION_LIST_TILE[act]
+        print("current pos = {}".format(self.current_pos))
+        print("act = {}".format(action))
         # compute the next position
         if action == 'up':
             next_pos = list(np.array(self.current_pos) + np.array([-1, 0, 0]))
@@ -231,6 +233,8 @@ class RandomMazeTileRaw(object):
             self.current_pos = next_pos if next_pos[0:2] in self.maze_valid_positions else self.current_pos
         else:
             raise Exception(f"Invalid action name. Expected up, down, left, right, but get {action}.")
+
+        print("next pos = {}".format(self.current_pos))
 
         """ check the terminal and return observations"""
         if self._lab.is_running() or self._use_state:  # If the maze is still running
@@ -431,7 +435,7 @@ class RandomMazeTileRaw(object):
             self.img_artists[7].set_data(observations[6])
             self.img_artists[8].set_data(observations[7])
         self.fig.canvas.draw()
-        plt.pause(0.0001)
+        plt.pause(5)
         return self.fig
 
     # show the front view

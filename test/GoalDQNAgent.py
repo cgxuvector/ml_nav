@@ -206,6 +206,7 @@ class GoalDQNAgent(object):
             goal = self.toTensor(goal)
             with torch.no_grad():
                 goal_q_values = self.policy_net(input_state, goal).view(1, -1)
+                print(goal_q_values)
                 action = goal_q_values.max(dim=1)[1].item()
         return action
 

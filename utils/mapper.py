@@ -392,17 +392,15 @@ class RoughMap(object):
         tmp_goal_pos = self.goal_pos if fix_goal else random.sample(goal_positions, 1)[0]
         # plan a new path
         pos_path = searchAlg.A_star(self.map2d_grid, tmp_init_pos, tmp_goal_pos)
-        # while len(pos_path) < dist + 1:
-        #     tmp_goal_pos = self.goal_pos if fix_goal else random.sample(goal_positions, 1)[0]
-        #     # plan a new path
-        #     pos_path = searchAlg.A_star(self.map2d_grid, tmp_init_pos, tmp_goal_pos)
-        # # print(tmp_init_pos, tmp_goal_pos, dist+1, len(pos_path), pos_path)
-        # # sample the init and goal along the trajectory
-        # valid_path_pos = [pos.tolist() for pos in pos_path]
-        # init_pos = valid_path_pos[0]
-        # goal_pos = valid_path_pos[dist]
-        init_pos = tmp_init_pos
-        goal_pos = tmp_goal_pos
+        while len(pos_path) < dist + 1:
+            tmp_goal_pos = self.goal_pos if fix_goal else random.sample(goal_positions, 1)[0]
+            # plan a new path
+            pos_path = searchAlg.A_star(self.map2d_grid, tmp_init_pos, tmp_goal_pos)
+        # print(tmp_init_pos, tmp_goal_pos, dist+1, len(pos_path), pos_path)
+        # sample the init and goal along the trajectory
+        valid_path_pos = [pos.tolist() for pos in pos_path]
+        init_pos = valid_path_pos[0]
+        goal_pos = valid_path_pos[dist]
         # update the mapper
         self.update_mapper(init_pos, goal_pos)
         return init_pos, goal_pos
