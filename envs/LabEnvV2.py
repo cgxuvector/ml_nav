@@ -166,7 +166,6 @@ class RandomMazeTileRaw(object):
             self.start_pos = configs['start_pos'] if configs['start_pos'] else self.start_pos
             if not self._use_state:
                 # maze_init_pos = self.position_map2maze(self.start_pos, self.maze_size)
-                # set the init position to avoid black spot influence
                 maze_init_pos = [0, 0, 0]
                 self._lab.write_property("params.start_pos.x", str(maze_init_pos[0]))
                 self._lab.write_property("params.start_pos.y", str(maze_init_pos[1]))
@@ -191,8 +190,7 @@ class RandomMazeTileRaw(object):
                 self._lab.reset(episode=0)
             else:
                 self._lab.reset()
-
-            # uncomment will cause environment crash
+            # uncomment will cause crash
             for i in range(10):
                 self._lab.step(ACTION_LIST[4], num_steps=4)
 
