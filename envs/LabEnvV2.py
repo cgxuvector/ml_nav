@@ -165,7 +165,9 @@ class RandomMazeTileRaw(object):
         if configs['start_pos']:
             self.start_pos = configs['start_pos'] if configs['start_pos'] else self.start_pos
             if not self._use_state:
-                maze_init_pos = self.position_map2maze(self.start_pos, self.maze_size)
+                # maze_init_pos = self.position_map2maze(self.start_pos, self.maze_size)
+                # set the init position to avoid black spot influence
+                maze_init_pos = [0, 0, 0]
                 self._lab.write_property("params.start_pos.x", str(maze_init_pos[0]))
                 self._lab.write_property("params.start_pos.y", str(maze_init_pos[1]))
                 self._lab.write_property("params.start_pos.yaw", str(maze_init_pos[2]))
@@ -190,6 +192,7 @@ class RandomMazeTileRaw(object):
             else:
                 self._lab.reset()
 
+            # uncomment will cause environment crash
             for i in range(10):
                 self._lab.step(ACTION_LIST[4], num_steps=4)
 
@@ -216,8 +219,6 @@ class RandomMazeTileRaw(object):
     def step(self, act):
         """ step #(num_steps) in Deepmind Lab """
         action = ACTION_LIST_TILE[act]
-        print("current pos = {}".format(self.current_pos))
-        print("act = {}".format(action))
         # compute the next position
         if action == 'up':
             next_pos = list(np.array(self.current_pos) + np.array([-1, 0, 0]))
@@ -233,8 +234,6 @@ class RandomMazeTileRaw(object):
             self.current_pos = next_pos if next_pos[0:2] in self.maze_valid_positions else self.current_pos
         else:
             raise Exception(f"Invalid action name. Expected up, down, left, right, but get {action}.")
-
-        print("next pos = {}".format(self.current_pos))
 
         """ check the terminal and return observations"""
         if self._lab.is_running() or self._use_state:  # If the maze is still running
@@ -435,7 +434,7 @@ class RandomMazeTileRaw(object):
             self.img_artists[7].set_data(observations[6])
             self.img_artists[8].set_data(observations[7])
         self.fig.canvas.draw()
-        plt.pause(5)
+        plt.pause(0.0001)
         return self.fig
 
     # show the front view
