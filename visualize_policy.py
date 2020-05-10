@@ -120,7 +120,7 @@ class VisualPolicy(object):
         # init the environment
         self.update_map2d_and_maze3d(set_new_maze=True)
         # episodes
-        run_num = 1
+        run_num = 100
         # fail counter
         fail_count = 0
         # start testing experiment
@@ -129,7 +129,7 @@ class VisualPolicy(object):
             # sample a start and goal position
             self.fix_start = False
             self.fix_goal = False
-            self.goal_dist = 4  # target distance
+            self.goal_dist = 2  # target distance
             # sample a pair of start and goal positions
             state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=False)
 
@@ -149,8 +149,8 @@ class VisualPolicy(object):
                 sub_goals_pos.append(path[-1])
                 if use_obs:
                     sub_goals_obs.append(goal)
-            print(path)
-            print(sub_goals_pos, start_pos, goal_pos, len(sub_goals_obs))
+            # print(path)
+            print(start_pos, goal_pos)
 
             # navigating between sub-goals
             last_trans = self.env.position_map2maze(start_pos + [0], [self.maze_size, self.maze_size])
@@ -168,7 +168,7 @@ class VisualPolicy(object):
                     action = self.agent.get_action(state, g, 0)
                     # step the environment and print info
                     next_state, reward, done, dist, trans, _, _ = my_lab.step(action)
-                    print("Current state = {}, Action = {}, Next state = {}, Goal = {}".format(last_trans, ACTION_LIST[action], trans, maze_goal_pos))
+                    # print("Current state = {}, Action = {}, Next state = {}, Goal = {}".format(last_trans, ACTION_LIST[action], trans, maze_goal_pos))
                     if t == 1 and idx == 0:
                         np.save(f'./{idx}_{t}_state.npy', state)
                         np.save(f'./{idx}_{t}_goal.npy', g)
@@ -183,7 +183,7 @@ class VisualPolicy(object):
                         tmp_sub_goal = g
                     if trans == tmp_sub_goal:
                         sub_goal_done = True
-                        print("Reach goal = {}".format(sub_goals_pos[idx]))
+                        # print("Reach goal = {}".format(sub_goals_pos[idx]))
                         break
                 if not sub_goal_done:
                     print("Fail to reach sub-goal {}".format(sub_goals_pos[idx]))
@@ -222,8 +222,6 @@ class VisualPolicy(object):
             maze_configs["update"] = True  # update flag
         else:
             init_pos, goal_pos = self.env_map.sample_random_start_goal_pos(self.fix_start, self.fix_goal, self.goal_dist)
-            init_pos = [10, 9]
-            goal_pos = [10, 7]
             self.env_map.update_mapper(init_pos, goal_pos)
             # set the init and goal position
             init_map_pos = self.env_map.init_pos
@@ -243,7 +241,7 @@ class VisualPolicy(object):
         # init the environment
         self.update_map2d_and_maze3d(set_new_maze=True)
         # episodes
-        run_num = 1
+        run_num = 100
         # fail counter
         fail_count = 0
         # start testing experiment
@@ -252,7 +250,7 @@ class VisualPolicy(object):
             # sample a start and goal position
             self.fix_start = False
             self.fix_goal = False
-            self.goal_dist = 13  # target distance
+            self.goal_dist = 12  # target distance
             # sample a pair of start and goal positions
             state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=False)
 
@@ -266,7 +264,6 @@ class VisualPolicy(object):
             # check the final goal is in the list
             if not (path[-1] in sub_goals_pos):
                 sub_goals_pos.append(path[-1])
-            print(path)
             print(sub_goals_pos, start_pos, goal_pos)
 
             # navigating between sub-goals
@@ -293,9 +290,9 @@ class VisualPolicy(object):
                     action = self.agent.get_action(state, goal, 0)
                     # step the environment and print info
                     next_state, reward, done, dist, trans, _, _ = my_lab.step(action)
-                    print("Current state = {}, Action = {}, Next state = {}, Goal = {}".format(last_trans,
-                                                                                               ACTION_LIST[action],
-                                                                                               trans, goal_position))
+                    # print("Current state = {}, Action = {}, Next state = {}, Goal = {}".format(last_trans,
+                    #                                                                            ACTION_LIST[action],
+                    #                                                                            trans, goal_position))
                     # update
                     state = next_state
                     last_trans = trans
@@ -386,7 +383,7 @@ class TEST(object):
 if __name__ == '__main__':
     random.seed(1234)
     # set parameters
-    maze_size = 13
+    maze_size = 9
     run_local = True
     use_obs = True
     use_goal = True
@@ -459,4 +456,4 @@ if __name__ == '__main__':
         myVis.run_fixed_start_goal_pos()
     else:
         # myVis.run_random_start_goal_pos()
-        myVis.navigate_with_local_policy()
+        myVis.test_navigate_with_local_policy()

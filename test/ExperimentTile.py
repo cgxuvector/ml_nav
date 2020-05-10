@@ -329,6 +329,133 @@ class Experiment(object):
         # save results
         self.save_results()
 
+    def run_random_local_goal_dqn_her(self):
+        """
+        Function is used to train the locally goal-conditioned double DQN.
+        """
+        # set the training statistics
+        states = []
+        actions = []
+        rewards = []
+        trans_poses = []
+        dones = []
+        episode_t = 0  # time step for one episode
+        train_episode_num = self.train_episode_num  # training number for each start-goal pair
+
+        # initialize the state and goal
+        state, goal = self.update_map2d_and_maze3d(set_new_maze=self.fix_maze)
+        states.append(state)
+
+        # start the training
+        pbar = tqdm.trange(self.max_time_steps)
+        for t in pbar:
+            # compute the epsilon
+            eps = self.schedule.get_value(t)
+
+            # get action
+            action = self.agent.get_action(state, goal, eps)
+
+            # step in the environment
+            next_state, reward, done, dist, trans, _, _ = self.env.step(action)
+            episode_t += 1
+            # save the transitions
+            states.append(next_state)
+            actions.append(action)
+            rewards.append(reward)
+            trans_poses.append(trans)
+            dones.append(done)
+
+            # check terminal
+            if done or (episode_t == self.max_steps_per_episode):
+                # compute the discounted return for each time step
+                G = 0
+                for r in reversed(rewards):
+                    G = r + self.gamma * G
+
+                # store the return, episode length, and final distance for current episode
+                self.returns.append(G)
+                self.lengths.append(episode_t)
+                self.distance.append(dist)
+                # compute the episode number
+                episode_idx = len(self.returns)
+
+                # construct the memory buffer using HER
+                self.hindsight_experience_replay(states, actions, rewards, trans_poses, goal, dones)
+
+                pbar.set_description(
+                    f'Episode: {episode_idx} | Steps: {episode_t} | Return: {G:2f} | Dist: {dist:.2f} | '
+                    f'Init: {self.env.start_pos} | Goal: {self.env.goal_pos} | '
+                    f'Eps: {eps:.3f} | Buffer: {len(self.replay_buffer)}'
+                )
+
+                # evaluate the current policy
+                # if (episode_idx - 1) % self.eval_policy_freq == 0:
+                # evaluate the current policy by interaction
+                #    self.policy_evaluate()
+
+                # reset the environments
+                states = []
+                actions = []
+                trans_poses = []
+                rewards = []
+                dones = []
+                episode_t = 0
+                # train a pair of start and goal with fixed number of episodes
+                if train_episode_num > 0:
+                    # keep the same start and goal
+                    self.fix_start = True
+                    self.fix_goal = True
+                    state, goal = self.update_map2d_and_maze3d(set_new_maze=not self.fix_maze)
+                    train_episode_num -= 1
+                else:
+                    # sample a new pair of start and goal
+                    self.fix_start = False
+                    self.fix_goal = False
+                    state, goal = self.update_map2d_and_maze3d(set_new_maze=not self.fix_maze)
+                    train_episode_num = self.train_episode_num
+                states.append(state)
+            else:
+                state = next_state
+                rewards.append(reward)
+
+            # train the agent
+            if t > self.start_train_step:
+                sampled_batch = self.replay_buffer.sample(self.batch_size)
+                self.agent.train_one_batch(t, sampled_batch)
+
+        # save results
+        self.save_results()
+
+    # adding transition to the buffer using HER
+    def hindsight_experience_replay(self, states, actions, rewards, trans_poses, goal, dones):
+        states_num = len(states) - 1
+        for t in range(states_num):
+            # extract one transition
+            state = states[t]  # s_t
+            action = actions[t]  # a_t
+            reward = rewards[t]  # r_t
+            next_state = states[t + 1]  # s_t+1
+            next_state_pos = trans_poses[t]  # position of the current next state
+            done = dones[t]  # done_t
+            # normal replay buffer
+            transition = self.toTransition(state, action, next_state, reward, goal,
+                                           done)  # add the current transition
+            self.replay_buffer.add(transition)
+            # Hindsight Experience Replay
+            future_indices = list(range(t+1, len(states)))
+            # sampled future goals
+            sampled_goals = random.sample(future_indices, self.her_future_k) if len(
+                future_indices) >= self.her_future_k else future_indices
+            # relabel the current transition
+            for idx in sampled_goals:
+                new_goal = states[idx]
+                new_goal_pos = trans_poses[idx - 1]
+                distance = self.env.compute_distance(next_state_pos, new_goal_pos)
+                new_reward = self.env.compute_reward(distance)
+                new_done = 0 if new_reward == -1 else 1
+                transition = self.toTransition(state, action, next_state, new_reward, new_goal, new_done)
+                self.replay_buffer.add(transition)
+
     def toTransition(self, state, action, next_state, reward, goal, done):
         """
         Function is used to construct a transition using state, action, next_state, reward, goal, done.

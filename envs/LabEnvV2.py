@@ -190,7 +190,7 @@ class RandomMazeTileRaw(object):
                 self._lab.reset(episode=0)
             else:
                 self._lab.reset()
-            # uncomment will cause crash
+
             for i in range(10):
                 self._lab.step(ACTION_LIST[4], num_steps=4)
 
