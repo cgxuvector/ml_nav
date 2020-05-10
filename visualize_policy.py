@@ -123,13 +123,14 @@ class VisualPolicy(object):
         run_num = 100
         # fail counter
         fail_count = 0
+        length = 0
         # start testing experiment
         for r in range(run_num):
             print("Run idx = {}".format(r+1))
             # sample a start and goal position
             self.fix_start = False
             self.fix_goal = False
-            self.goal_dist = 2  # target distance
+            self.goal_dist = 100  # target distance
             # sample a pair of start and goal positions
             state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=False)
 
@@ -150,7 +151,8 @@ class VisualPolicy(object):
                 if use_obs:
                     sub_goals_obs.append(goal)
             # print(path)
-            print(start_pos, goal_pos)
+            length += len(path)
+            print('run = ', r, ' - ', start_pos, goal_pos, len(path))
 
             # navigating between sub-goals
             last_trans = self.env.position_map2maze(start_pos + [0], [self.maze_size, self.maze_size])
@@ -161,7 +163,7 @@ class VisualPolicy(object):
 
             for idx, g in enumerate(nav_sub_goals):
                 sub_goal_done = False
-                max_time_step = 2
+                max_time_step = 10
                 maze_goal_pos = self.env.position_map2maze(sub_goals_pos[idx], [self.maze_size, self.maze_size])
                 for t in range(max_time_step):
                     # get the action
@@ -169,9 +171,9 @@ class VisualPolicy(object):
                     # step the environment and print info
                     next_state, reward, done, dist, trans, _, _ = my_lab.step(action)
                     # print("Current state = {}, Action = {}, Next state = {}, Goal = {}".format(last_trans, ACTION_LIST[action], trans, maze_goal_pos))
-                    if t == 1 and idx == 0:
-                        np.save(f'./{idx}_{t}_state.npy', state)
-                        np.save(f'./{idx}_{t}_goal.npy', g)
+                    # if t == 1 and idx == 0:
+                    #     np.save(f'./{idx}_{t}_state.npy', state)
+                    #     np.save(f'./{idx}_{t}_goal.npy', g)
 
                     # update
                     state = next_state
@@ -191,6 +193,7 @@ class VisualPolicy(object):
                     break
 
         print("Success rate = {}".format((run_num - fail_count)/run_num))
+        print("Average len = {}".format(length / run_num))
 
     def update_map2d_and_maze3d(self, set_new_maze=False):
         """
@@ -271,7 +274,7 @@ class VisualPolicy(object):
             start_pos = start_pos + [0]
             for g in sub_goals_pos:
                 sub_goal_done = False
-                max_time_step = 10
+                max_time_step = 2
                 maze_configs = defaultdict(lambda: None)
                 init_pos = start_pos
                 goal_pos = g
@@ -383,7 +386,7 @@ class TEST(object):
 if __name__ == '__main__':
     random.seed(1234)
     # set parameters
-    maze_size = 9
+    maze_size = 13
     run_local = True
     use_obs = True
     use_goal = True
@@ -438,7 +441,7 @@ if __name__ == '__main__':
         else:
             my_agent = GoalDQNAgent(use_true_state=False, use_small_obs=True)
             my_agent.policy_net.load_state_dict(
-                torch.load(f"./results/5-4/random_goal_ddqn_{maze_size}x{maze_size}_obs_double_seed_{seed}.pt",
+                torch.load(f"./results/5-9/random_goal_ddqn_{maze_size}x{maze_size}_obs_double_seed_{seed}.pt",
                            map_location=torch.device('cpu'))
             )
     my_agent.policy_net.eval()
@@ -456,4 +459,4 @@ if __name__ == '__main__':
         myVis.run_fixed_start_goal_pos()
     else:
         # myVis.run_random_start_goal_pos()
-        myVis.test_navigate_with_local_policy()
+        myVis.navigate_with_local_policy()
