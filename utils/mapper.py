@@ -316,7 +316,7 @@ class RoughMap(object):
     def cropper(self, map_img, pos):
         # update the position based on padding
         pad_step = int((self.loc_map_size - 1) / 2)
-        pad_pos = pos + [pad_step, pad_step]
+        pad_pos = np.array(pos) + np.array([pad_step, pad_step])
         # crop one local map
         loc_map = map_img[(pad_pos[0] - pad_step):(pad_pos[0] + pad_step + 1), \
                     (pad_pos[1] - pad_step):(pad_pos[1] + pad_step + 1)]

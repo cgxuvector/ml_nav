@@ -10,7 +10,8 @@ class VAELoss(nn.Module):
 
     def forward(self, x_input, x_output, x_distribution_params, z_distribution_params, beta):
         # compute the reconstrution loss
-        x_input = x_input.view(-1, 3 * 64 * 64)
+        # x_input = x_input.view(-1, 3 * 64 * 64)
+        x_input = x_input.view(-1, 3 * 32 * 32)
         log_prob_loss = -1 * F.mse_loss(x_input, x_distribution_params[0], reduction="element_wise")
 
         # kl divergence (positive KL divergence)

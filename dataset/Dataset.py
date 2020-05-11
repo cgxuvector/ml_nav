@@ -32,7 +32,9 @@ class LocmapObsDataset(Dataset):
                 - Customized dataset
     """
     # initialize the dataset
-    def __init__(self, mode='iid', dir_path='/mnt/sda/dataset/ml_nav/global_map_obs_fixed_texture', transform=None):
+    def __init__(self, mode='iid',
+                 dir_path='/mnt/sda/dataset/ml_nav/global_map_obs_fixed_texture_small',
+                 transform=None):
         self.mode = mode
         self.root_dir = dir_path
         self.transform = transform
@@ -254,6 +256,6 @@ class LocmapObsDataset(Dataset):
 #     # print("Idx = ", idx+1, type(x), x.dtype, y.dtype, x.size(), y.size(), z.dtype, z.size())
 #     fig = transformed_dataset.visualize_batch(batch, "group")
 #     plt.show()
-#     if idx == 10:
+#     if idx == 9:
 #         break
-#
+

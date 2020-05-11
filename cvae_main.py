@@ -15,7 +15,9 @@ def input_parser():
     parser.add_argument("--worker_num", type=int, default=4, help="number of the worker for data loader")
     parser.add_argument("--plot_save_name", type=str)
     parser.add_argument("--model_save_name", type=str)
+    parser.add_argument("--use_small_obs", type=bool, default=False)
     parser.add_argument("--warm_up", type=bool, default=False, help="If True, warm up is applied.")
+    parser.add_argument("--device", type=str, default='cpu')
 
     return parser.parse_args()
 
@@ -24,7 +26,7 @@ if __name__ == '__main__':
     input_args = input_parser()
     # load the dataset
     transformed_dataset = Dataset.LocmapObsDataset(mode="conditional-iid",
-                                                   dir_path='/mnt/sda/dataset/ml_nav/loc_map_obs_fixed_texture',
+                                                   dir_path='/mnt/sda/dataset/ml_nav/loc_map_obs_fixed_texture_small',
                                                    transform=transforms.Compose([ToTensor("conditional-iid")]))
 
     # split the dataset into training, validation and testing
@@ -46,8 +48,11 @@ if __name__ == '__main__':
     myTrainer = DCNTrainer.CVAETrainer(input_args.hidden_size, [dataLoader_trn, dataLoader_val, dataLoader_tst],
                                        input_args.epoch,
                                        warm_up=input_args.warm_up,
-                                       learning_rate=1e-3)
+                                       learning_rate=1e-3,
+                                       use_small_obs=input_args.use_small_obs,
+                                       device=input_args.device)
     myTrainer.train()
+
     # save the results
     save_data.save_loss(myTrainer.trn_loss_list, input_args.plot_save_name)
     save_data.save_loss(myTrainer.trn_recon_list, input_args.plot_save_name + "_recon_loss")

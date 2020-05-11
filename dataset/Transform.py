@@ -31,14 +31,16 @@ class ToTensor(object):
             image = sample["observation"]
             label = sample["label"]
             # note: resize with rescale the pixel value to [0, 1]
-            image = resize(image, (64, 64, 3)).transpose(2, 0, 1)
+            # image = resize(image, (64, 64, 3)).transpose(2, 0, 1)
+            image = resize(image, (32, 32, 3)).transpose(2, 0, 1)
             sample = {"observation": torch.from_numpy(image).float(), "label": torch.tensor(label).long()}
         elif self.mode == 'conditional-iid':
             obs_image = sample["observation"]
             map_image = sample["loc_map"]
             ori = sample["orientation"]
             # note: image is convert between [0, 1]
-            obs_image = resize(obs_image, (64, 64, 3)).transpose(2, 0, 1)
+            # obs_image = resize(obs_image, (64, 64, 3)).transpose(2, 0, 1)
+            obs_image = resize(obs_image, (32, 32, 3)).transpose(2, 0, 1)
             map_image = resize(map_image, (3, 3))  # local map
             # map_image = resize(map_image, (21, 21))  # global map
             sample = {"observation": torch.from_numpy(obs_image).float(),

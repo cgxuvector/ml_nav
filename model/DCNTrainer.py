@@ -90,15 +90,24 @@ class VAETrainer(object):
 
 
 class CVAETrainer(object):
-    def __init__(self, latent_dim, data_loaders, epoch, device=torch.device("cuda:0"), learning_rate=1e-3, weight_decay=5e-4, warm_up=False):
+    def __init__(self,
+                 latent_dim,
+                 data_loaders,
+                 epoch,
+                 device=torch.device("cuda:0"),
+                 learning_rate=1e-3,
+                 weight_decay=5e-4,
+                 warm_up=False,
+                 use_small_obs=False):
         self.dataLoader_trn = data_loaders[0]
         self.dataLoader_val = data_loaders[1]
         self.dataLoader_tst = data_loaders[2]
         self.device = device
         self.epoch = epoch
         self.wp = warm_up
+        self.small_obs = use_small_obs
         # define model
-        self.model = VAE.CVAE(latent_dim).to(device)
+        self.model = VAE.CVAE(latent_dim, use_small_obs).to(device)
 
         # training the model
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=learning_rate, weight_decay=weight_decay)

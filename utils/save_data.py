@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 from skimage import io
 import numpy as np
 import torch
+import IPython.terminal.debugger as Debug
 
 plt.rcParams.update({'font.size': 15})
 
@@ -11,8 +12,11 @@ def save_loc_maps_and_observations(size, seed, pos, loc_map, observations, obser
         default_path = "/mnt/sda/dataset/ml_nav/global_map_obs_various_texture/"
     elif obs_type == 'uniform':
         default_path = "/mnt/sda/dataset/ml_nav/global_map_obs_fixed_texture/"
+    elif obs_type == 'uniform-small':
+        default_path = "/mnt/sda/dataset/ml_nav/global_map_obs_fixed_texture_small/"
     else:
         assert False, "Obs Type Error: Please input either 'various' or 'uniform'"
+
     common_str = '_'.join([str(size), str(seed), str(pos[0]), str(pos[1])])
     # save the local map
     loc_map_name = '_'.join(['map', common_str]) + '.png'
@@ -22,7 +26,7 @@ def save_loc_maps_and_observations(size, seed, pos, loc_map, observations, obser
         if obs_name == '':
             continue
         img_name = '_'.join(['obs', common_str, obs_name]) + ".png"
-        io.imsave(default_path + img_name, observations[obs_name])
+        io.imsave(default_path + img_name, observations[idx])
 
 
 def save_loss(loss_list, loss_name):

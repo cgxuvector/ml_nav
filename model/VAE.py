@@ -5,45 +5,67 @@
 """
 import torch
 import torch.nn as nn
+import IPython.terminal.debugger as Debug
 
 
 # Convolutional Encoder
 class CNNEncoder(nn.Module):
-    def __init__(self, latent_dim):
+    def __init__(self, latent_dim, small_obs=False):
         super(CNNEncoder, self).__init__()
-
+        self.small_obs = small_obs
         # cnn layer to encode the observations
         # adding BatchNorm layer before ReLU
-        self.cnn_layer = nn.Sequential(
-            # 3 x 64 x 64 --> 32 x 31 x 31
-            nn.Conv2d(in_channels=3, out_channels=32, kernel_size=3),
-            nn.MaxPool2d(kernel_size=2, stride=2),
-            nn.BatchNorm2d(32),
-            nn.ReLU(),
+        if not self.small_obs:
+            self.cnn_layer = nn.Sequential(
+                # 3 x 64 x 64 --> 32 x 31 x 31
+                nn.Conv2d(in_channels=3, out_channels=32, kernel_size=3),
+                nn.MaxPool2d(kernel_size=2, stride=2),
+                nn.BatchNorm2d(32),
+                nn.ReLU(),
 
-            # 32 x 31 x 31 --> 64 x 14 x 14
-            nn.Conv2d(in_channels=32, out_channels=64, kernel_size=4),
-            nn.MaxPool2d(kernel_size=2, stride=2),
-            nn.BatchNorm2d(64),
-            nn.ReLU(),
+                # 32 x 31 x 31 --> 64 x 14 x 14
+                nn.Conv2d(in_channels=32, out_channels=64, kernel_size=4),
+                nn.MaxPool2d(kernel_size=2, stride=2),
+                nn.BatchNorm2d(64),
+                nn.ReLU(),
 
-            # 64 x 14 x 14 --> 128 x 6 x 6
-            nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3),
-            nn.MaxPool2d(kernel_size=2, stride=2),
-            nn.BatchNorm2d(128),
-            nn.ReLU(),
+                # 64 x 14 x 14 --> 128 x 6 x 6
+                nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3),
+                nn.MaxPool2d(kernel_size=2, stride=2),
+                nn.BatchNorm2d(128),
+                nn.ReLU(),
 
-            # 128 x 6 x 6 --> 256 x 2 x 2
-            nn.Conv2d(in_channels=128, out_channels=256, kernel_size=3),
-            nn.MaxPool2d(kernel_size=2, stride=2),
-            nn.BatchNorm2d(256),
-            nn.ReLU(),
+                # 128 x 6 x 6 --> 256 x 2 x 2
+                nn.Conv2d(in_channels=128, out_channels=256, kernel_size=3),
+                nn.MaxPool2d(kernel_size=2, stride=2),
+                nn.BatchNorm2d(256),
+                nn.ReLU(),
 
-            # 256 x 2 x 2 --> 512 x 1 x 1
-            nn.Conv2d(in_channels=256, out_channels=512, kernel_size=2),
-            nn.BatchNorm2d(512),
-            nn.ReLU()
-        )
+                # 256 x 2 x 2 --> 512 x 1 x 1
+                nn.Conv2d(in_channels=256, out_channels=512, kernel_size=2),
+                nn.BatchNorm2d(512),
+                nn.ReLU()
+            )
+        else:
+            self.cnn_layer = nn.Sequential(
+                # 3 x 32 x 32 --> 32 x 14 x 14
+                nn.Conv2d(in_channels=3, out_channels=32, kernel_size=5),
+                nn.MaxPool2d(kernel_size=2, stride=2),
+                nn.BatchNorm2d(32),
+                nn.ReLU(),
+
+                # 32 x 14 x 14 --> 64 x 6 x 6
+                nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3),
+                nn.MaxPool2d(kernel_size=2, stride=2),
+                nn.BatchNorm2d(64),
+                nn.ReLU(),
+
+                # 64 x 6 x 6 --> 128 x 2 x 2
+                nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3),
+                nn.MaxPool2d(kernel_size=2, stride=2),
+                nn.BatchNorm2d(128),
+                nn.ReLU(),
+            )
 
         # mean linear layer
         # no BatchNorm layer
@@ -73,27 +95,40 @@ class CNNEncoder(nn.Module):
 
 # Convolutional decoder
 class CNNDecoder(nn.Module):
-    def __init__(self, latent_dim):
+    def __init__(self, latent_dim, small_obs=False):
         super(CNNDecoder, self).__init__()
+        self.small_obs = small_obs
         # dense layer
         self.fc = nn.Sequential(
             nn.Linear(latent_dim + 34, 1024)
         )
         # deconvolutional layer
         # adding batch norm layer except the output layer
-        self.de_cnn_layer = nn.Sequential(
-            nn.ConvTranspose2d(in_channels=1024, out_channels=128, kernel_size=5, stride=1),
-            nn.BatchNorm2d(128),
-            nn.ReLU(),
-            nn.ConvTranspose2d(in_channels=128, out_channels=64, kernel_size=5, stride=2),
-            nn.BatchNorm2d(64),
-            nn.ReLU(),
-            nn.ConvTranspose2d(in_channels=64, out_channels=32, kernel_size=6, stride=2),
-            nn.BatchNorm2d(32),
-            nn.ReLU(),
-            nn.ConvTranspose2d(in_channels=32, out_channels=3, kernel_size=6, stride=2),
-            nn.Sigmoid()
-        )
+        if not self.small_obs:
+            self.de_cnn_layer = nn.Sequential(
+                nn.ConvTranspose2d(in_channels=1024, out_channels=128, kernel_size=5, stride=1),
+                nn.BatchNorm2d(128),
+                nn.ReLU(),
+                nn.ConvTranspose2d(in_channels=128, out_channels=64, kernel_size=5, stride=2),
+                nn.BatchNorm2d(64),
+                nn.ReLU(),
+                nn.ConvTranspose2d(in_channels=64, out_channels=32, kernel_size=6, stride=2),
+                nn.BatchNorm2d(32),
+                nn.ReLU(),
+                nn.ConvTranspose2d(in_channels=32, out_channels=3, kernel_size=6, stride=2),
+                nn.Sigmoid()
+            )
+        else:
+            self.de_cnn_layer = nn.Sequential(
+                nn.ConvTranspose2d(in_channels=1024, out_channels=128, kernel_size=5, stride=1),
+                nn.BatchNorm2d(128),
+                nn.ReLU(),
+                nn.ConvTranspose2d(in_channels=128, out_channels=64, kernel_size=5, stride=2),
+                nn.BatchNorm2d(64),
+                nn.ReLU(),
+                nn.ConvTranspose2d(in_channels=64, out_channels=3, kernel_size=8, stride=2),
+                nn.Sigmoid()
+            )
 
     def forward(self, x):
         # resize the input
@@ -102,15 +137,18 @@ class CNNDecoder(nn.Module):
         x = x.unsqueeze(2).unsqueeze(3)
         # deconvolution
         x = self.de_cnn_layer(x)
-        return x, [x.view(-1, 3 * 64 * 64), torch.ones_like(x.view(-1, 3 * 64 * 64))]
+        if not self.small_obs:
+            return x, [x.view(-1, 3 * 64 * 64), torch.ones_like(x.view(-1, 3 * 64 * 64))]
+        else:
+            return x, [x.view(-1, 3 * 32 * 32), torch.ones_like(x.view(-1, 3 * 32 * 32))]
 
 
 class CVAE(nn.Module):
-    def __init__(self, latent_dim):
+    def __init__(self, latent_dim, use_small_obs=False):
         super(CVAE, self).__init__()
 
-        self.encoder = CNNEncoder(latent_dim)
-        self.decoder = CNNDecoder(latent_dim)
+        self.encoder = CNNEncoder(latent_dim, use_small_obs)
+        self.decoder = CNNDecoder(latent_dim, use_small_obs)
 
     def reparameterized(self, mu, log_var):
         eps = torch.randn_like(log_var)

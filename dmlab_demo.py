@@ -25,12 +25,12 @@ def run_demo():
     }
 
     # maze sizes and seeds
-    maze_size_list = [7]
+    maze_size_list = [5]
     maze_seed_list = [0]
 
     # maze
     theme_list = ['MISHMASH']
-    decal_list = [0.1]
+    decal_list = [0.001]
 
     # mapper
     size = random.sample(maze_size_list, 1)[0]
@@ -65,6 +65,7 @@ def run_demo():
         for idx, pos in enumerate(env_map.path):
             print(r, ' - ', idx, ' - ', pos)
             state = myEnv.get_random_observations(pos.tolist() + [0])
+            Debug.set_trace()
             myEnv.show_panorama_view_test(1, state)
         init_pos, goal_pos = env_map.sample_random_start_goal_pos(False, False, 5)
         print(init_pos, goal_pos, env_map.path)

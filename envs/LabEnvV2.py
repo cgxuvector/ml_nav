@@ -432,7 +432,7 @@ class RandomMazeTileRaw(object):
             self.img_artists[7].set_data(observations[6])
             self.img_artists[8].set_data(observations[7])
         self.fig.canvas.draw()
-        plt.pause(0.0001)
+        plt.pause(2)
         return self.fig
 
     # show the front view
