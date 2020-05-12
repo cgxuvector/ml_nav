@@ -32,7 +32,8 @@ class LocmapObsDataset(Dataset):
                 - Customized dataset
     """
     # initialize the dataset
-    def __init__(self, mode='iid',
+    def __init__(self,
+                 mode='iid',
                  dir_path='/mnt/sda/dataset/ml_nav/global_map_obs_fixed_texture_small',
                  transform=None):
         self.mode = mode
