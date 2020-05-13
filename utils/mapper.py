@@ -430,12 +430,19 @@ class RoughMap(object):
         self.map_act, self.ego_act = self.path2egoaction(self.path)
 
 
+
+
+
+
 # """
 #     Testing code
 # """
-# env_map = RoughMap(13, 0, 3)
-# plt.imshow(env_map.map2d_bw)
-# plt.show()
+# def scope_map(global_map, pos):
+#     print("Current pos = ".format(pos))
+#     plt.imshow(global_map)
+#     plt.show()
+# env_map = RoughMap(13, 3, 3)
+# scope_map(env_map.map2d_roughPadded, env_map.init_pos)
 # print("Default start and goal pos = ", env_map.init_pos, env_map.goal_pos)
 # print("--------- Start sampling goals ---------")
 # for i in range(10):
