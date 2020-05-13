@@ -114,7 +114,7 @@ def load_data_from_runs(data_dir, size, use_random=False, use_goal=False, use_ob
                 if not use_obs:
                     file_name = f'random_goal_ddqn_{size}x{size}_true_state_her_double_seed_{r}_return.npy'
                 else:
-                    file_name = f'random_goal_ddqn_{size}x{size}_obs_double_seed_{r}_return.npy'
+                    file_name = f'random_goal_ddqn_{size}x{size}_panorama_obs_double_seed_{r}_return.npy'
             else:
                 if not use_obs:
                     file_name = f'goal_ddqn_{size}x{size}_true_state_her_double_seed_{r}_return.npy'
@@ -167,8 +167,8 @@ def plot_mean_std_error(name, x_label, y_label, m_list, std_list, opt_list, w_si
     ax.set_title(name)
     ax.set_ylim(mu.min(), 0)
     # ax.plot(t, optimal_val, label='oracle', color='black', ls='--')
-    ax.plot(t, mu, lw=1, label='mean', color='red')
-    ax.fill_between(t, mu + sigma_err, mu - sigma_err, lw=2, facecolor='red', alpha=0.5)
+    ax.plot(t, mu, lw=1, label='mean', color='green')
+    ax.fill_between(t, mu + sigma_err, mu - sigma_err, lw=2, facecolor='green', alpha=0.5)
     ax.legend(loc='lower right')
     ax.set_xlabel(x_label)
     ax.set_ylabel(y_label)
@@ -231,17 +231,17 @@ if __name__ == '__main__':
     # experiment settings
     root_dir = '../results/5-9/'
     maze_size = 13
-    plot_name = f'Random Goal-conditioned Double DQN with True State in maze {maze_size}x{maze_size}'
+    plot_name = f'Random Goal-conditioned Double DQN with Panorama Obs in maze {maze_size}x{maze_size}'
     # optimal value
     oracle_val = compute_oracle(maze_size, local_policy=True)
     run_num = 1
     win_size = 100
     # load data
     data_1_list, max_ep_1_len = load_data_from_runs(root_dir, maze_size, use_random=True, use_goal=True, use_obs=False)
-    data_2_list, max_ep_2_len = load_data_from_runs(root_dir, maze_size, use_random=True, use_goal=True, use_obs=True)
+    # data_2_list, max_ep_2_len = load_data_from_runs(root_dir, maze_size, use_random=True, use_goal=True, use_obs=True)
     # compute the mean and std error
     mean_1_list, std_err_1_list = compute_mean_and_std_error(data_1_list, max_ep_1_len)
-    mean_2_list, std_err_2_list = compute_mean_and_std_error(data_2_list, max_ep_2_len)
+    # mean_2_list, std_err_2_list = compute_mean_and_std_error(data_2_list, max_ep_2_len)
     # plot the results
     # optimal_list = [oracle_val] * max(max_ep_1_len, max_ep_2_len)
     optimal_list = [oracle_val] * max_ep_1_len
@@ -252,7 +252,7 @@ if __name__ == '__main__':
     #                              win_size)
     plot_mean_std_error(plot_name,
                         'Episode', r'Discounted return $S_{init}$',
-                        mean_2_list, std_err_2_list, optimal_list,
+                        mean_1_list, std_err_1_list, optimal_list,
                         win_size)
 
     # data_name = 'test_goal_return.npy'

@@ -392,11 +392,21 @@ class RoughMap(object):
         tmp_goal_pos = self.goal_pos if fix_goal else random.sample(goal_positions, 1)[0]
         # plan a new path
         pos_path = searchAlg.A_star(self.map2d_grid, tmp_init_pos, tmp_goal_pos)
-        while len(pos_path) < dist + 1:
-             tmp_goal_pos = self.goal_pos if fix_goal else random.sample(goal_positions, 1)[0]
-             # plan a new path
-             pos_path = searchAlg.A_star(self.map2d_grid, tmp_init_pos, tmp_goal_pos)
-        # print(tmp_init_pos, tmp_goal_pos, dist+1, len(pos_path), pos_path)
+        if dist != -1:
+            # counter
+            sample_clk = 0
+            while len(pos_path) < dist + 1:
+                # sample a goal position
+                tmp_goal_pos = self.goal_pos if fix_goal else random.sample(goal_positions, 1)[0]
+                # plan a new path
+                pos_path = searchAlg.A_star(self.map2d_grid, tmp_init_pos, tmp_goal_pos)
+                # increase one step
+                sample_clk += 1
+                if sample_clk > 100:
+                    # simplify the distance by one
+                    dist -= 1
+                    # reset the clock
+                    sample_clk = 0
         # sample the init and goal along the trajectory
         valid_path_pos = [pos.tolist() for pos in pos_path]
         init_pos = valid_path_pos[0]
@@ -424,7 +434,12 @@ class RoughMap(object):
 # """
 #     Testing code
 # """
-# env_map = RoughMap(11, 0, 3)
+# def scope_map(global_map, pos):
+#     print("Current pos = ".format(pos))
+#     plt.imshow(global_map)
+#     plt.show()
+# env_map = RoughMap(13, 3, 3)
+# scope_map(env_map.map2d_roughPadded, env_map.init_pos)
 # print("Default start and goal pos = ", env_map.init_pos, env_map.goal_pos)
 # print("--------- Start sampling goals ---------")
 # for i in range(10):

@@ -2,6 +2,7 @@ from utils import mapper
 import numpy as np
 from collections import namedtuple, defaultdict
 import tqdm
+from model import VAE
 from utils import memory
 from utils import ml_schedule
 import torch
@@ -45,8 +46,11 @@ class Experiment(object):
                  eps_start=1,  # exploration configurations
                  eps_end=0.01,
                  save_dir=None,  # saving configurations
-                 model_name=None
+                 model_name=None,
+                 use_imagine=False,  # imagination flag
+                 device='cpu'
                  ):
+        self.device = torch.device(device)
         # environment
         self.env = env
         self.env_map = None
@@ -66,6 +70,20 @@ class Experiment(object):
         # goal-conditioned configurations
         self.use_goal = use_goal
         self.goal_dist = goal_dist
+        self.use_imagine = use_imagine
+        # generate imagined goals
+        self.orientations = [torch.tensor([0, 0, 0, 0, 1, 0, 0, 0]),
+                             torch.tensor([0, 0, 1, 0, 0, 0, 0, 0]),
+                             torch.tensor([0, 1, 0, 0, 0, 0, 0, 0]),
+                             torch.tensor([1, 0, 0, 0, 0, 0, 0, 0]),
+                             torch.tensor([0, 0, 0, 1, 0, 0, 0, 0]),
+                             torch.tensor([0, 0, 0, 0, 0, 1, 0, 0]),
+                             torch.tensor([0, 0, 0, 0, 0, 0, 1, 0]),
+                             torch.tensor([0, 0, 0, 0, 0, 0, 0, 1])]
+        if self.use_imagine:
+            self.thinker = VAE.CVAE(64, use_small_obs=True)
+            self.thinker.load_state_dict(torch.load("./results/vae/model/small_obs_L64_B8.pt", map_location=self.device))
+            self.thinker.eval()
         # training configurations
         self.train_local_policy = train_local_policy
         self.train_episode_num = train_episode_num
@@ -108,7 +126,7 @@ class Experiment(object):
         episode_t = 0  # time step counter for one episode
 
         # initialize the start and goal positions
-        state, goal = self.update_map2d_and_maze3d(set_new_maze=self.fix_maze)
+        state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=self.fix_maze)
 
         # start the training
         pbar = tqdm.trange(self.max_time_steps)
@@ -158,7 +176,7 @@ class Experiment(object):
                 # reset the environments
                 rewards = []
                 episode_t = 0
-                state, goal = self.update_map2d_and_maze3d(set_new_maze=not self.fix_maze)
+                state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=not self.fix_maze)
             else:
                 state = next_state
                 rewards.append(reward)
@@ -181,7 +199,7 @@ class Experiment(object):
         episode_t = 0  # time step for one episode
 
         # update the start-goal positions
-        state, goal = self.update_map2d_and_maze3d(set_new_maze=self.fix_maze)
+        state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=self.fix_maze)
 
         # start the training
         pbar = tqdm.trange(self.max_time_steps)
@@ -230,7 +248,7 @@ class Experiment(object):
                 # reset the environments
                 rewards = []
                 episode_t = 0
-                state, goal = self.update_map2d_and_maze3d(set_new_maze=not self.fix_maze)
+                state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=not self.fix_maze)
             else:
                 state = next_state
                 rewards.append(reward)
@@ -254,7 +272,7 @@ class Experiment(object):
         train_episode_num = self.train_episode_num  # training number for each start-goal pair
 
         # initialize the state and goal
-        state, goal = self.update_map2d_and_maze3d(set_new_maze=self.fix_maze)
+        state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=self.fix_maze)
 
         # start the training
         pbar = tqdm.trange(self.max_time_steps)
@@ -271,6 +289,10 @@ class Experiment(object):
 
             # store the replay buffer and convert the data to tensor
             if self.use_replay_buffer:
+                # change the goal to imagine with probability 0.5
+                if random.uniform(0, 1) < 0.5:
+                    loc_goal_map = self.env_map.cropper(self.env_map.map2d_roughPadded, goal_pos)
+                    goal = self.imagine_goal_observation(loc_goal_map)
                 # construct the transition
                 trans = self.toTransition(state, action, next_state, reward, goal, done)
                 # add the transition into the buffer
@@ -289,6 +311,9 @@ class Experiment(object):
                 self.distance.append(dist)
                 # compute the episode number
                 episode_idx = len(self.returns)
+
+                if episode_idx == 1:
+                    break
 
                 pbar.set_description(
                     f'Episode: {episode_idx} | Steps: {episode_t} | Return: {G:2f} | Dist: {dist:.2f} | '
@@ -309,13 +334,13 @@ class Experiment(object):
                     # keep the same start and goal
                     self.fix_start = True
                     self.fix_goal = True
-                    state, goal = self.update_map2d_and_maze3d(set_new_maze=not self.fix_maze)
+                    state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=not self.fix_maze)
                     train_episode_num -= 1
                 else:
                     # sample a new pair of start and goal
                     self.fix_start = False
                     self.fix_goal = False
-                    state, goal = self.update_map2d_and_maze3d(set_new_maze=not self.fix_maze)
+                    state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=not self.fix_maze)
                     train_episode_num = self.train_episode_num
             else:
                 state = next_state
@@ -343,7 +368,7 @@ class Experiment(object):
         train_episode_num = self.train_episode_num  # training number for each start-goal pair
 
         # initialize the state and goal
-        state, goal = self.update_map2d_and_maze3d(set_new_maze=self.fix_maze)
+        state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=self.fix_maze)
         states.append(state)
 
         # start the training
@@ -405,13 +430,13 @@ class Experiment(object):
                     # keep the same start and goal
                     self.fix_start = True
                     self.fix_goal = True
-                    state, goal = self.update_map2d_and_maze3d(set_new_maze=not self.fix_maze)
+                    state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=not self.fix_maze)
                     train_episode_num -= 1
                 else:
                     # sample a new pair of start and goal
                     self.fix_start = False
                     self.fix_goal = False
-                    state, goal = self.update_map2d_and_maze3d(set_new_maze=not self.fix_maze)
+                    state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=not self.fix_maze)
                     train_episode_num = self.train_episode_num
                 states.append(state)
             else:
@@ -425,6 +450,20 @@ class Experiment(object):
 
         # save results
         self.save_results()
+
+    # generate the goal imagination
+    def imagine_goal_observation(self, pos_loc_map):
+        imagined_obs = []
+        loc_map = torch.from_numpy(pos_loc_map).flatten().view(1, -1).float()
+        for ori in self.orientations:
+            z = torch.randn(1, 64)
+            tmp_map = torch.cat(2 * [loc_map], dim=1)
+            tmp_ori = torch.cat(2 * [ori.view(-1, 1 * 1 * 8).float()], dim=1)
+            conditioned_z = torch.cat((z, tmp_map, tmp_ori), dim=1)
+            obs_reconstructed, _ = self.thinker.decoder(conditioned_z)
+            obs_reconstructed = obs_reconstructed.detach().squeeze(0).numpy().transpose(1, 2, 0) * 255
+            imagined_obs.append(obs_reconstructed)
+        return np.array(imagined_obs, dtype=np.uint8)
 
     # adding transition to the buffer using HER
     def hindsight_experience_replay(self, states, actions, rewards, trans_poses, goal, dones):
@@ -501,6 +540,8 @@ class Experiment(object):
             self.maze_seed = random.sample(self.maze_seed_list, 1)[0]
             # initialize the map 2D
             self.env_map = mapper.RoughMap(self.maze_size, self.maze_seed, 3)
+            init_pos = self.env_map.init_pos
+            goal_pos = self.env_map.goal_pos
             # initialize the maze 3D
             maze_configs["maze_name"] = f"maze_{self.maze_size}x{self.maze_size}"  # string type name
             maze_configs["maze_size"] = [self.maze_size, self.maze_size]  # [int, int] list
@@ -529,13 +570,13 @@ class Experiment(object):
         # obtain the state and goal observation
         state_obs, goal_obs, _, _ = self.env.reset(maze_configs)
         # return states and goals
-        return state_obs, goal_obs
+        return state_obs, goal_obs, init_pos, goal_pos
 
     # evaluate the policy during training
     def policy_evaluate(self):
         # reset the environment
         self.fix_start, self.fix_goal = True, True
-        state, goal = self.update_map2d_and_maze3d(set_new_maze=not self.fix_maze)
+        state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=not self.fix_maze)
         # record the statistics
         rewards = []
         actions = []

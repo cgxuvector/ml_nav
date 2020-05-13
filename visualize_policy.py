@@ -6,6 +6,7 @@ from __future__ import print_function
 
 import torch
 import random
+from model import VAE
 from test.DQNAgent import DQNAgent
 from test.GoalDQNAgent import GoalDQNAgent
 from utils import mapper
@@ -19,7 +20,7 @@ ACTION_LIST = ['up', 'down', 'left', 'right']
 
 
 class VisualPolicy(object):
-    def __init__(self, env, agent, size, set_goal, fix_start, fix_goal, g_dist, use_obs):
+    def __init__(self, env, agent, size, set_goal, fix_start, fix_goal, g_dist, use_obs, use_imagine):
         self.env = env
         self.env_map = None
         self.agent = agent
@@ -30,11 +31,24 @@ class VisualPolicy(object):
         self.fix_start = fix_start
         self.fix_goal = fix_goal
         self.theme_list = ['MISHMASH']
-        self.decal_list = [0.1]
+        self.decal_list = [0.001]
         self.use_goal = set_goal
         self.use_obs = use_obs
+        self.use_imagine = use_imagine
         self.goal_dist = g_dist
         self.gamma = 0.99
+        self.orientations = [torch.tensor([0, 0, 0, 0, 1, 0, 0, 0]),
+                             torch.tensor([0, 0, 1, 0, 0, 0, 0, 0]),
+                             torch.tensor([0, 1, 0, 0, 0, 0, 0, 0]),
+                             torch.tensor([1, 0, 0, 0, 0, 0, 0, 0]),
+                             torch.tensor([0, 0, 0, 1, 0, 0, 0, 0]),
+                             torch.tensor([0, 0, 0, 0, 0, 1, 0, 0]),
+                             torch.tensor([0, 0, 0, 0, 0, 0, 1, 0]),
+                             torch.tensor([0, 0, 0, 0, 0, 0, 0, 1])]
+        # load the vae model
+        self.cvae = VAE.CVAE(64, use_small_obs=True)
+        self.cvae.load_state_dict(torch.load("./results/vae/model/small_obs_L64_B8.pt", map_location='cpu'))
+        self.cvae.eval()
 
     def run_fixed_start_goal_pos(self):
         # init the environment
@@ -119,18 +133,17 @@ class VisualPolicy(object):
     def navigate_with_local_policy(self):
         # init the environment
         self.update_map2d_and_maze3d(set_new_maze=True)
-        # episodes
+        # evaluation number
         run_num = 100
         # fail counter
         fail_count = 0
+        # length counter
         length = 0
         # start testing experiment
         for r in range(run_num):
-            print("Run idx = {}".format(r+1))
             # sample a start and goal position
             self.fix_start = False
             self.fix_goal = False
-            self.goal_dist = 100  # target distance
             # sample a pair of start and goal positions
             state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=False)
 
@@ -143,41 +156,36 @@ class VisualPolicy(object):
                 if i != 0:
                     sub_goals_pos.append(path[i])
                     if self.use_obs:
-                        goal_obs = self.env.get_random_observations(path[i])
+                        if not self.use_imagine:
+                            goal_obs = self.env.get_random_observations(path[i])
+                        else:
+                            goal_loc_map = self.env_map.cropper(self.env_map.map2d_roughPadded, path[i][0:2])
+                            goal_obs = self.imagine_goal_obs(goal_loc_map)
                         sub_goals_obs.append(goal_obs)
             # check the final goal is in the list
             if not (path[-1] in sub_goals_pos):
                 sub_goals_pos.append(path[-1])
                 if use_obs:
                     sub_goals_obs.append(goal)
-            # print(path)
             length += len(path)
-            print('run = ', r, ' - ', start_pos, goal_pos, len(path))
-
+            print("Run idx = {}, start pos = {}, goal pos = {}, dist = {}".format(r + 1, start_pos, goal_pos, self.goal_dist))
             # navigating between sub-goals
-            last_trans = self.env.position_map2maze(start_pos + [0], [self.maze_size, self.maze_size])
             if not self.use_obs:
                 nav_sub_goals = sub_goals_pos
             else:
                 nav_sub_goals = sub_goals_obs
-
             for idx, g in enumerate(nav_sub_goals):
                 sub_goal_done = False
-                max_time_step = 10
+                max_time_step = 2
                 maze_goal_pos = self.env.position_map2maze(sub_goals_pos[idx], [self.maze_size, self.maze_size])
                 for t in range(max_time_step):
                     # get the action
                     action = self.agent.get_action(state, g, 0)
                     # step the environment and print info
                     next_state, reward, done, dist, trans, _, _ = my_lab.step(action)
-                    # print("Current state = {}, Action = {}, Next state = {}, Goal = {}".format(last_trans, ACTION_LIST[action], trans, maze_goal_pos))
-                    # if t == 1 and idx == 0:
-                    #     np.save(f'./{idx}_{t}_state.npy', state)
-                    #     np.save(f'./{idx}_{t}_goal.npy', g)
 
                     # update
                     state = next_state
-                    last_trans = trans
                     # check termination
                     if self.use_obs:
                         tmp_sub_goal = maze_goal_pos
@@ -185,7 +193,6 @@ class VisualPolicy(object):
                         tmp_sub_goal = g
                     if trans == tmp_sub_goal:
                         sub_goal_done = True
-                        # print("Reach goal = {}".format(sub_goals_pos[idx]))
                         break
                 if not sub_goal_done:
                     print("Fail to reach sub-goal {}".format(sub_goals_pos[idx]))
@@ -194,6 +201,19 @@ class VisualPolicy(object):
 
         print("Success rate = {}".format((run_num - fail_count)/run_num))
         print("Average len = {}".format(length / run_num))
+
+    def imagine_goal_obs(self, pos_loc_map):
+        imagined_obs = []
+        loc_map = torch.from_numpy(pos_loc_map).flatten().view(1, -1).float()
+        for ori in self.orientations:
+            z = torch.randn(1, 64)
+            tmp_map = torch.cat(2 * [loc_map], dim=1)
+            tmp_ori = torch.cat(2 * [ori.view(-1, 1 * 1 * 8).float()], dim=1)
+            conditioned_z = torch.cat((z, tmp_map, tmp_ori), dim=1)
+            obs_reconstructed, _ = self.cvae.decoder(conditioned_z)
+            obs_reconstructed = obs_reconstructed.detach().squeeze(0).numpy().transpose(1, 2, 0) * 255
+            imagined_obs.append(obs_reconstructed)
+        return np.array(imagined_obs, dtype=np.uint8)
 
     def update_map2d_and_maze3d(self, set_new_maze=False):
         """
@@ -240,156 +260,19 @@ class VisualPolicy(object):
         # return states and goals
         return state_obs, goal_obs, init_map_pos, goal_map_pos
 
-    def test_navigate_with_local_policy(self):
-        # init the environment
-        self.update_map2d_and_maze3d(set_new_maze=True)
-        # episodes
-        run_num = 100
-        # fail counter
-        fail_count = 0
-        # start testing experiment
-        for r in range(run_num):
-            print("Run idx = {}".format(r + 1))
-            # sample a start and goal position
-            self.fix_start = False
-            self.fix_goal = False
-            self.goal_dist = 12  # target distance
-            # sample a pair of start and goal positions
-            state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=False)
-
-            # get the planned path
-            path = [pos.tolist() + [0] for pos in self.env_map.path]
-            # get sub-goals
-            sub_goals_pos = []
-            for i in range(0, len(path), 2):
-                if i != 0:
-                    sub_goals_pos.append(path[i])
-            # check the final goal is in the list
-            if not (path[-1] in sub_goals_pos):
-                sub_goals_pos.append(path[-1])
-            print(sub_goals_pos, start_pos, goal_pos)
-
-            # navigating between sub-goals
-            last_trans = self.env.position_map2maze(start_pos + [0], [self.maze_size, self.maze_size])
-            start_pos = start_pos + [0]
-            for g in sub_goals_pos:
-                sub_goal_done = False
-                max_time_step = 2
-                maze_configs = defaultdict(lambda: None)
-                init_pos = start_pos
-                goal_pos = g
-                self.env_map.update_mapper(init_pos[0:2], goal_pos[0:2])
-                # set the maze configurations
-                maze_configs['start_pos'] = init_pos
-                maze_configs['goal_pos'] = goal_pos
-                maze_configs['maze_valid_pos'] = self.env_map.valid_pos
-                maze_configs['update'] = False
-                # obtain the state and goal observation
-                goal_position = self.env.position_map2maze(goal_pos, [self.maze_size, self.maze_size])
-                state, goal, _, _ = self.env.reset(maze_configs)
-                print(start_pos, goal_pos)
-                for t in range(max_time_step):
-                    # get the action
-                    action = self.agent.get_action(state, goal, 0)
-                    # step the environment and print info
-                    next_state, reward, done, dist, trans, _, _ = my_lab.step(action)
-                    # print("Current state = {}, Action = {}, Next state = {}, Goal = {}".format(last_trans,
-                    #                                                                            ACTION_LIST[action],
-                    #                                                                            trans, goal_position))
-                    # update
-                    state = next_state
-                    last_trans = trans
-                    # check termination
-                    if trans == goal_position:
-                        sub_goal_done = True
-                        print("Reach goal = {}".format(g))
-                        start_pos = g
-                        break
-                if not sub_goal_done:
-                    print("Fail to reach sub-goal {}".format(g))
-                    fail_count += 1
-                    break
-
-        print("Success rate = {}".format((run_num - fail_count) / run_num))
-
-
-class TEST(object):
-    def __init__(self):
-        self.figs = None
-        self.arrays = None
-        self.img_artists = []
-
-    def show_panorama_view_test(self, flag, state):
-        observations = state
-        print(state.shape)
-        # init or update data
-        if flag is None:
-            self.fig, self.arrays = plt.subplots(3, 3)
-            self.arrays[0, 1].set_title("Front view")
-            self.arrays[0, 1].axis("off")
-            self.img_artists.append(self.arrays[0, 1].imshow(observations[0]))
-            self.arrays[0, 0].set_title("Front-left view")
-            self.arrays[0, 0].axis("off")
-            self.img_artists.append(self.arrays[0, 0].imshow(observations[1]))
-            self.arrays[1, 0].set_title("Left view")
-            self.arrays[1, 0].axis("off")
-            self.img_artists.append(self.arrays[1, 0].imshow(observations[2]))
-            self.arrays[1, 1].set_title("Top-down view")
-            self.arrays[1, 1].axis("off")
-            # self.img_artists.append(self.arrays[1, 1].imshow(ndimage.rotate(self._top_down_obs, -90)))
-            self.arrays[2, 0].set_title("Back-left view")
-            self.arrays[2, 0].axis("off")
-            self.img_artists.append(self.arrays[2, 0].imshow(observations[3]))
-            self.arrays[2, 1].set_title("Back view")
-            self.arrays[2, 1].axis("off")
-            self.img_artists.append(self.arrays[2, 1].imshow(observations[4]))
-            self.arrays[2, 2].set_title("Back-right view")
-            self.arrays[2, 2].axis("off")
-            self.img_artists.append(self.arrays[2, 2].imshow(observations[5]))
-            self.arrays[1, 2].set_title("Right view")
-            self.arrays[1, 2].axis("off")
-            self.img_artists.append(self.arrays[1, 2].imshow(observations[6]))
-            self.arrays[0, 2].set_title("Front-right view")
-            self.arrays[0, 2].axis("off")
-            self.img_artists.append(self.arrays[0, 2].imshow(observations[7]))
-        else:
-            self.img_artists[0].set_data(observations[0])
-            self.img_artists[1].set_data(observations[1])
-            self.img_artists[2].set_data(observations[2])
-            # self.img_artists[3].set_data(ndimage.rotate(self._top_down_obs, -90))
-            self.img_artists[3].set_data(observations[3])
-            self.img_artists[4].set_data(observations[4])
-            self.img_artists[5].set_data(observations[5])
-            self.img_artists[6].set_data(observations[6])
-            self.img_artists[7].set_data(observations[7])
-        self.fig.canvas.draw()
-        plt.pause(0.0001)
-        return self.fig
-
-    def test_demo(self):
-        state_1 = np.load('./1_1_state.npy')
-        goal_1 = np.load('./1_1_goal.npy')
-
-        state_2 = np.load('./0_1_state.npy')
-        goal_2 = np.load('./0_1_goal.npy')
-
-        q_values_1 = my_agent.get_action(state_2, goal_1, 0)
-        q_values_2 = my_agent.get_action(state_1, goal_2, 0)
-
-        # fig1 = myTest.show_panorama_view_test(None, goal_1)
-        # fig2 = myTest.show_panorama_view_test(None, goal_2)
-        # fig2 = myTest.show_panorama_view_test(None, abs(state_2 - state_1))
-        # plt.show()
-        print('Hello world')
-
 
 if __name__ == '__main__':
-    random.seed(1234)
+    # random seed
+    rnd_seed = 1234
+    random.seed(rnd_seed)
+    np.random.seed(rnd_seed)
+    torch.manual_seed(rnd_seed)
     # set parameters
-    maze_size = 13
+    maze_size = 7
     run_local = True
     use_obs = True
     use_goal = True
+    use_imagine = True
     goal_dist = 2
     seed = 0
 
@@ -422,28 +305,32 @@ if __name__ == '__main__':
         if not use_goal:
             my_agent = DQNAgent(use_true_state=True, use_small_obs=True)
             my_agent.policy_net.load_state_dict(
-                torch.load(f"./results/5-4/ddqn_{maze_size}x{maze_size}_true_state_double_seed_{seed}.pt",
+                torch.load(f"./results/5-9/ddqn_{maze_size}x{maze_size}_true_state_double_seed_{seed}.pt",
                            map_location=torch.device('cpu'))
             )
+            print("Vanilla double DQN with true state.")
         else:
             my_agent = GoalDQNAgent(use_true_state=True, use_small_obs=True)
             my_agent.policy_net.load_state_dict(
-                torch.load(f"./results/5-4/random_goal_ddqn_{maze_size}x{maze_size}_true_state_double_seed_{seed}.pt",
+                torch.load(f"./results/5-9/random_goal_ddqn_{maze_size}x{maze_size}_true_state_double_seed_{seed}.pt",
                            map_location=torch.device('cpu'))
             )
+            print("Random Goal-conditioned double DQN with true state.")
     else:
         if not use_goal:
             my_agent = DQNAgent(use_true_state=False, use_small_obs=True)
             my_agent.policy_net.load_state_dict(
-                torch.load(f"./results/5-4/ddqn_{maze_size}x{maze_size}_panorama_obs_double_seed_{seed}.pt",
+                torch.load(f"./results/5-9/ddqn_{maze_size}x{maze_size}_panorama_obs_double_seed_{seed}.pt",
                            map_location=torch.device('cpu'))
             )
+            print("Vanilla double DQN with panorama observation.")
         else:
             my_agent = GoalDQNAgent(use_true_state=False, use_small_obs=True)
             my_agent.policy_net.load_state_dict(
                 torch.load(f"./results/5-9/random_goal_ddqn_{maze_size}x{maze_size}_obs_double_seed_{seed}.pt",
                            map_location=torch.device('cpu'))
             )
+            print("Random Goal-conditioned double DQN with panorama observation.")
     my_agent.policy_net.eval()
 
     # run the agent
@@ -454,9 +341,9 @@ if __name__ == '__main__':
                          fix_start=True,
                          fix_goal=True,
                          g_dist=goal_dist,
-                         use_obs=use_obs)
+                         use_obs=use_obs,
+                         use_imagine=use_imagine)
     if not run_local:
         myVis.run_fixed_start_goal_pos()
     else:
-        # myVis.run_random_start_goal_pos()
         myVis.navigate_with_local_policy()
