@@ -82,7 +82,7 @@ class Experiment(object):
                              torch.tensor([0, 0, 0, 0, 0, 0, 0, 1])]
         if self.use_imagine:
             self.thinker = VAE.CVAE(64, use_small_obs=True)
-            self.thinker.load_state_dict(torch.load("./results/vae/model/small_obs_L64_B8.pt", map_location=self.device))
+            self.thinker.load_state_dict(torch.load("/mnt/sda/dataset/ml_nav/VAE/model/small_obs_L64_B8.pt", map_location=self.device))
             self.thinker.eval()
         # training configurations
         self.train_local_policy = train_local_policy
@@ -311,9 +311,6 @@ class Experiment(object):
                 self.distance.append(dist)
                 # compute the episode number
                 episode_idx = len(self.returns)
-
-                if episode_idx == 1:
-                    break
 
                 pbar.set_description(
                     f'Episode: {episode_idx} | Steps: {episode_t} | Return: {G:2f} | Dist: {dist:.2f} | '
