@@ -30,6 +30,7 @@ class Experiment(object):
                  goal_dist=np.inf,
                  use_true_state=False,  # state configurations
                  train_local_policy=False,
+                 sample_start_goal_num=10,
                  train_episode_num=10,  # training configurations
                  start_train_step=1000,
                  max_time_steps=50000,
@@ -82,10 +83,12 @@ class Experiment(object):
                              torch.tensor([0, 0, 0, 0, 0, 0, 0, 1])]
         if self.use_imagine:
             self.thinker = VAE.CVAE(64, use_small_obs=True)
-            self.thinker.load_state_dict(torch.load("/mnt/sda/dataset/ml_nav/VAE/model/small_obs_L64_B8.pt", map_location=self.device))
+            self.thinker.load_state_dict(torch.load("/mnt/sda/dataset/ml_nav/VAE/model/small_obs_L64_B8.pt",
+                                                    map_location=self.device))
             self.thinker.eval()
         # training configurations
         self.train_local_policy = train_local_policy
+        self.sample_start_goal_num = sample_start_goal_num
         self.train_episode_num = train_episode_num
         self.start_train_step = start_train_step
         self.max_time_steps = max_time_steps
@@ -269,6 +272,7 @@ class Experiment(object):
         # set the training statistics
         rewards = []
         episode_t = 0  # time step for one episode
+        sample_start_goal_num = self.sample_start_goal_num
         train_episode_num = self.train_episode_num  # training number for each start-goal pair
 
         # initialize the state and goal
@@ -327,18 +331,29 @@ class Experiment(object):
                 rewards = []
                 episode_t = 0
                 # train a pair of start and goal with fixed number of episodes
-                if train_episode_num > 0:
-                    # keep the same start and goal
-                    self.fix_start = True
-                    self.fix_goal = True
-                    state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=not self.fix_maze)
-                    train_episode_num -= 1
+                if sample_start_goal_num > 0:
+                    if train_episode_num > 0:
+                        # keep the same start and goal
+                        self.fix_start = True
+                        self.fix_goal = True
+                        state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=False)
+                        train_episode_num -= 1
+                    else:
+                        # sample a new pair of start and goal
+                        self.fix_start = False
+                        self.fix_goal = False
+                        state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=False)
+                        train_episode_num = self.train_episode_num
+                        sample_start_goal_num -= 1
                 else:
-                    # sample a new pair of start and goal
+                    # sample a new maze
                     self.fix_start = False
                     self.fix_goal = False
-                    state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=not self.fix_maze)
+                    state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=True)
+                    Debug.set_trace()
+                    # reset the training control
                     train_episode_num = self.train_episode_num
+                    sample_start_goal_num = self.sample_start_goal_num
             else:
                 state = next_state
                 rewards.append(reward)
@@ -537,6 +552,7 @@ class Experiment(object):
             self.maze_seed = random.sample(self.maze_seed_list, 1)[0]
             # initialize the map 2D
             self.env_map = mapper.RoughMap(self.maze_size, self.maze_seed, 3)
+            self.env_map.sample_random_start_goal_pos(False, False, self.goal_dist)
             init_pos = self.env_map.init_pos
             goal_pos = self.env_map.goal_pos
             # initialize the maze 3D

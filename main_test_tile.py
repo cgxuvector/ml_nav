@@ -39,7 +39,7 @@ def parse_input():
     parser.add_argument("--device", type=str, default="cpu", help="Device to use")
     parser.add_argument("--lr", type=float, default=1e-3, help="Learning rate")
     parser.add_argument("--start_train_step", type=int, default=1000, help="Start training time step")
-    parser.add_argument("--sampled_goal_num", type=int, default=5, help="Number of sampled start and goal positions.")
+    parser.add_argument("--sampled_goal_num", type=int, default=10, help="Number of sampled start and goal positions.")
     parser.add_argument("--train_episode_num", type=int, default=10, help="Number of training epochs for each sample.")
     parser.add_argument("--total_time_steps", type=int, default=50000, help="Total time steps")
     parser.add_argument("--episode_time_steps", type=int, default=100, help="Time steps per episode")
@@ -181,6 +181,7 @@ def run_experiment(inputs):
         goal_dist=inputs.goal_dist,
         use_true_state=inputs.use_true_state,
         train_local_policy=inputs.train_local_policy,
+        sample_start_goal_num=inputs.sampled_goal_num,
         train_episode_num=inputs.train_episode_num,
         start_train_step=inputs.start_train_step,
         max_time_steps=inputs.total_time_steps,
