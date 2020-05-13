@@ -5,6 +5,7 @@ from torchvision import transforms
 from utils import save_data
 from model import DCNTrainer
 import argparse
+import torch
 
 
 def input_parser():
@@ -18,12 +19,14 @@ def input_parser():
     parser.add_argument("--use_small_obs", type=bool, default=False)
     parser.add_argument("--warm_up", type=bool, default=False, help="If True, warm up is applied.")
     parser.add_argument("--device", type=str, default='cpu')
-
+    parser.add_argument("--random_seed", type=int, default=1234)
     return parser.parse_args()
 
 
 if __name__ == '__main__':
     input_args = input_parser()
+    # set random seed
+    torch.manual_seed(input_args.random_seed)
     # load the dataset
     transformed_dataset = Dataset.LocmapObsDataset(mode="conditional-iid",
                                                    dir_path='/mnt/sda/dataset/ml_nav/loc_map_obs_fixed_texture_small',

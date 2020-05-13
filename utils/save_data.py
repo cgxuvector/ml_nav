@@ -13,7 +13,7 @@ def save_loc_maps_and_observations(size, seed, pos, loc_map, observations, obser
     elif obs_type == 'uniform':
         default_path = "/mnt/sda/dataset/ml_nav/global_map_obs_fixed_texture/"
     elif obs_type == 'uniform-small':
-        default_path = "/mnt/sda/dataset/ml_nav/global_map_obs_fixed_texture_small/"
+        default_path = "/mnt/sda/dataset/ml_nav/loc_map_obs_fixed_texture_small/"
     else:
         assert False, "Obs Type Error: Please input either 'various' or 'uniform'"
 
@@ -30,7 +30,7 @@ def save_loc_maps_and_observations(size, seed, pos, loc_map, observations, obser
 
 
 def save_loss(loss_list, loss_name):
-    root_dir = "./results/loss/"
+    root_dir = "/mnt/sda/dataset/ml_nav/VAE/plot/"
     fig, arr = plt.subplots(1, 1)
     fig.canvas.set_window_title(loss_name)
     arr.set_title(" ".join(loss_name.split("_")))
@@ -45,7 +45,7 @@ def save_loss(loss_list, loss_name):
 
 
 def save_metric(metric_list, metric_name):
-    root_dir = "./results/metric/"
+    root_dir = "/mnt/sda/dataset/ml_nav/VAE/plot/"
     fig, arr = plt.subplots(1, 1, figsize=(8, 8))
     fig.canvas.set_window_title(metric_name)
     arr.set_title(" ".join(metric_name.split("_")))
@@ -60,6 +60,6 @@ def save_metric(metric_list, metric_name):
 
 
 def save_model(model, model_name):
-    root_dir = "/mnt/sda/dataset/ml_nav/model/"
+    root_dir = "/mnt/sda/dataset/ml_nav/VAE/model/"
     torch.save(model.state_dict(), root_dir + model_name + '.pt')
     print(model_name + ".pt is saved.")
