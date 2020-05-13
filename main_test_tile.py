@@ -25,11 +25,12 @@ def parse_input():
     parser.add_argument("--fix_maze", type=str, default="True", help="Fix the maze")
     parser.add_argument("--fix_start", type=str, default="True", help="Fix the start position")
     parser.add_argument("--fix_goal", type=str, default="True", help="Fix the goal position")
-    parser.add_argument("--decal_freq", type=float, default=0.1, help="Wall decorator frequency")
+    parser.add_argument("--decal_freq", type=float, default=0.001, help="Wall decorator frequency")
     parser.add_argument("--use_true_state", type=str, default="True", help="Using true state flag")
     parser.add_argument("--use_small_obs", type=str, default='False', help="Using small observations flag")
     parser.add_argument("--use_goal", type=str, default="False", help="Using goal conditioned flag")
-    parser.add_argument("--goal_dist", type=int, default=100, help="Set distance between start and goal")
+    parser.add_argument("--goal_dist", type=int, default=-1, help="Set distance between start and goal")
+    parser.add_argument("--use_imagine", type=str, default="False", help="Using imagination of goal")
     # set the running mode
     parser.add_argument("--run_num", type=int, default=1, help="Number of run for each experiment.")
     parser.add_argument("--random_seed", type=int, default=0, help="Random seed")
@@ -71,6 +72,7 @@ def strTobool(inputs):
     inputs.use_small_obs = True if inputs.use_small_obs == "True" else False
     inputs.use_true_state = True if inputs.use_true_state == "True" else False
     inputs.use_goal = True if inputs.use_goal == "True" else False
+    inputs.use_imagine = True if inputs.use_imagine == "True" else False
     # set params of training
     inputs.train_local_policy = True if inputs.train_local_policy == "True" else False
     inputs.use_memory = True if inputs.use_memory == "True" else False
@@ -192,7 +194,9 @@ def run_experiment(inputs):
         batch_size=inputs.batch_size,
         gamma=inputs.gamma,
         save_dir=inputs.save_dir,
-        model_name=inputs.model_idx
+        model_name=inputs.model_idx,
+        use_imagine=inputs.use_imagine,
+        device=inputs.device
     )
     # run the experiments
     if inputs.use_goal:

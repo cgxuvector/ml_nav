@@ -241,6 +241,4 @@ if __name__ == '__main__':
     dataLoader_tst = DataLoader(transformed_dataset, batch_size=1, sampler=tst_sampler, num_workers=input_args.worker_num)
 
     # trainer
-    # image_generation(dataLoader_trn)
     generate_panoramic_observations(input_args, [dataLoader_trn, dataLoader_val, dataLoader_tst], 'variance')
-    # generate_panoramic_observations_test(dataLoader_val)

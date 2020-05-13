@@ -392,20 +392,21 @@ class RoughMap(object):
         tmp_goal_pos = self.goal_pos if fix_goal else random.sample(goal_positions, 1)[0]
         # plan a new path
         pos_path = searchAlg.A_star(self.map2d_grid, tmp_init_pos, tmp_goal_pos)
-        # counter
-        sample_clk = 0
-        while len(pos_path) < dist + 1:
-            # sample a goal position
-            tmp_goal_pos = self.goal_pos if fix_goal else random.sample(goal_positions, 1)[0]
-            # plan a new path
-            pos_path = searchAlg.A_star(self.map2d_grid, tmp_init_pos, tmp_goal_pos)
-            # increase one step
-            sample_clk += 1
-            if sample_clk > 100:
-                # simplify the distance by one
-                dist -= 1
-                # reset the clock
-                sample_clk = 0
+        if dist != -1:
+            # counter
+            sample_clk = 0
+            while len(pos_path) < dist + 1:
+                # sample a goal position
+                tmp_goal_pos = self.goal_pos if fix_goal else random.sample(goal_positions, 1)[0]
+                # plan a new path
+                pos_path = searchAlg.A_star(self.map2d_grid, tmp_init_pos, tmp_goal_pos)
+                # increase one step
+                sample_clk += 1
+                if sample_clk > 100:
+                    # simplify the distance by one
+                    dist -= 1
+                    # reset the clock
+                    sample_clk = 0
         # sample the init and goal along the trajectory
         valid_path_pos = [pos.tolist() for pos in pos_path]
         init_pos = valid_path_pos[0]
@@ -428,10 +429,6 @@ class RoughMap(object):
         self.path, self.map2d_path = self.generate_path(self.init_pos, self.goal_pos)
         # update the action
         self.map_act, self.ego_act = self.path2egoaction(self.path)
-
-
-
-
 
 
 # """
