@@ -27,7 +27,7 @@ class VisualPolicy(object):
         self.maze_size = size
         self.maze_seed = 0
         self.maze_size_list = [size]
-        self.maze_seed_list = [0]
+        self.maze_seed_list = [6]
         self.fix_start = fix_start
         self.fix_goal = fix_goal
         self.theme_list = ['MISHMASH']
@@ -168,7 +168,11 @@ class VisualPolicy(object):
                 if use_obs:
                     sub_goals_obs.append(goal)
             length += len(path)
-            print("Run idx = {}, start pos = {}, goal pos = {}, dist = {}".format(r + 1, start_pos, goal_pos, self.goal_dist))
+            if self.goal_dist == -1:
+                distance = len(path)
+            else:
+                distance =self.goal_dist
+            print("Run idx = {}, start pos = {}, goal pos = {}, dist = {}".format(r + 1, start_pos, goal_pos, distance))
             # navigating between sub-goals
             if not self.use_obs:
                 nav_sub_goals = sub_goals_pos
@@ -180,7 +184,8 @@ class VisualPolicy(object):
                 maze_goal_pos = self.env.position_map2maze(sub_goals_pos[idx], [self.maze_size, self.maze_size])
                 for t in range(max_time_step):
                     # get the action
-                    action = self.agent.get_action(state, g, 0)
+                    # action = self.agent.get_action(state, g, 0)
+                    action = random.sample(range(4), 1)[0]
                     # step the environment and print info
                     next_state, reward, done, dist, trans, _, _ = my_lab.step(action)
 
@@ -226,6 +231,7 @@ class VisualPolicy(object):
             # randomly select a maze
             self.maze_size = random.sample(self.maze_size_list, 1)[0]
             self.maze_seed = random.sample(self.maze_seed_list, 1)[0]
+            print("Maze : {} - {}".format(self.maze_size, self.maze_seed))
             # initialize the map 2D
             self.env_map = mapper.RoughMap(self.maze_size, self.maze_seed, 3)
             init_map_pos = self.env_map.init_pos
@@ -327,7 +333,7 @@ if __name__ == '__main__':
         else:
             my_agent = GoalDQNAgent(use_true_state=False, use_small_obs=True)
             my_agent.policy_net.load_state_dict(
-                torch.load(f"./results/5-9/random_goal_ddqn_{maze_size}x{maze_size}_obs_double_seed_{seed}.pt",
+                torch.load(f"./results/5-12/random_imagine_goal_ddqn_{maze_size}x{maze_size}_obs_double_random_maze_seed_{seed}.pt",
                            map_location=torch.device('cpu'))
             )
             print("Random Goal-conditioned double DQN with panorama observation.")
