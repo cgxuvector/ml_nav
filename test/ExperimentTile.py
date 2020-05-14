@@ -350,7 +350,6 @@ class Experiment(object):
                     self.fix_start = False
                     self.fix_goal = False
                     state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=True)
-                    Debug.set_trace()
                     # reset the training control
                     train_episode_num = self.train_episode_num
                     sample_start_goal_num = self.sample_start_goal_num
@@ -377,7 +376,9 @@ class Experiment(object):
         trans_poses = []
         dones = []
         episode_t = 0  # time step for one episode
+        sample_start_goal_num = self.sample_start_goal_num  # sampled start and goal pair
         train_episode_num = self.train_episode_num  # training number for each start-goal pair
+
 
         # initialize the state and goal
         state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=self.fix_maze)
@@ -438,18 +439,28 @@ class Experiment(object):
                 dones = []
                 episode_t = 0
                 # train a pair of start and goal with fixed number of episodes
-                if train_episode_num > 0:
-                    # keep the same start and goal
-                    self.fix_start = True
-                    self.fix_goal = True
-                    state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=not self.fix_maze)
-                    train_episode_num -= 1
+                if sample_start_goal_num > 0:
+                    if train_episode_num > 0:
+                        # keep the same start and goal
+                        self.fix_start = True
+                        self.fix_goal = True
+                        state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=False)
+                        train_episode_num -= 1
+                    else:
+                        # sample a new pair of start and goal
+                        self.fix_start = False
+                        self.fix_goal = False
+                        state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=False)
+                        train_episode_num = self.train_episode_num
+                        sample_start_goal_num -= 1
                 else:
-                    # sample a new pair of start and goal
+                    # sample a new maze
                     self.fix_start = False
                     self.fix_goal = False
-                    state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=not self.fix_maze)
+                    state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=True)
+                    # reset
                     train_episode_num = self.train_episode_num
+                    sample_start_goal_num = self.sample_start_goal_num
                 states.append(state)
             else:
                 state = next_state
@@ -554,7 +565,7 @@ class Experiment(object):
             self.env_map = mapper.RoughMap(self.maze_size, self.maze_seed, 3)
             self.env_map.sample_random_start_goal_pos(False, False, self.goal_dist)
             init_pos = self.env_map.init_pos
-            goal_pos = self.env_map.goal_pos
+            goal_pos = self.env_map.goal_pos 
             # initialize the maze 3D
             maze_configs["maze_name"] = f"maze_{self.maze_size}x{self.maze_size}"  # string type name
             maze_configs["maze_size"] = [self.maze_size, self.maze_size]  # [int, int] list
