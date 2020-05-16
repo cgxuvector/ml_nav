@@ -122,12 +122,12 @@ class GoalDeepQNet(nn.Module):
         if not self.true_state:
             if not self.small_obs:
                 # compute state embedding
-                state_fea = self.conv_qNet(state).view(-1, 1 * 8 * 256)
-                goal_fea = self.conv_qNet(goal).view(-1, 1 * 8 * 256)
+                state_fea = self.conv_qNet(state).contiguous().view(-1, 1 * 8 * 256)
+                goal_fea = self.conv_qNet(goal).contiguous().view(-1, 1 * 8 * 256)
             else:
                 # compute state embedding
-                state_fea = self.conv_qNet(state).view(-1, 1 * 8 * 128 * 4)
-                goal_fea = self.conv_qNet(goal).view(-1, 1 * 8 * 128 * 4)
+                state_fea = self.conv_qNet(state).contiguous().view(-1, 1 * 8 * 128 * 4)
+                goal_fea = self.conv_qNet(goal).contiguous().view(-1, 1 * 8 * 128 * 4)
             # concatenate the tensor
             state_goal_fea = torch.cat((state_fea, goal_fea), dim=1)
             # concatenate the goal with state
