@@ -27,7 +27,7 @@ class VisualPolicy(object):
         self.maze_size = size
         self.maze_seed = 0
         self.maze_size_list = [size]
-        self.maze_seed_list = [6]
+        self.maze_seed_list = [0]
         self.fix_start = fix_start
         self.fix_goal = fix_goal
         self.theme_list = ['MISHMASH']
@@ -137,6 +137,7 @@ class VisualPolicy(object):
         run_num = 100
         # fail counter
         fail_count = 0
+        success_count = 0
         # length counter
         length = 0
         # start testing experiment
@@ -173,6 +174,24 @@ class VisualPolicy(object):
             else:
                 distance =self.goal_dist
             print("Run idx = {}, start pos = {}, goal pos = {}, dist = {}".format(r + 1, start_pos, goal_pos, distance))
+            # # navigating between sub-goals
+            # if not self.use_obs:
+            #     nav_sub_goals = sub_goals_pos
+            # else:
+            #     nav_sub_goals = sub_goals_obs
+            # maze_goal_pos = self.env.position_map2maze(goal_pos + [0], [self.maze_size, self.maze_size])
+            # for t in range(100):
+            #     action = self.agent.get_action(state, goal, 0)
+            #     # action = random.sample(range(4), 1)[0]
+            #     # step the environment and print info
+            #     next_state, reward, done, dist, trans, _, _ = my_lab.step(action)
+            #
+            #     # update
+            #     state = next_state
+            #     # check termination
+            #     if trans == maze_goal_pos:
+            #         success_count += 1
+            #         break
             # navigating between sub-goals
             if not self.use_obs:
                 nav_sub_goals = sub_goals_pos
@@ -184,8 +203,8 @@ class VisualPolicy(object):
                 maze_goal_pos = self.env.position_map2maze(sub_goals_pos[idx], [self.maze_size, self.maze_size])
                 for t in range(max_time_step):
                     # get the action
-                    # action = self.agent.get_action(state, g, 0)
-                    action = random.sample(range(4), 1)[0]
+                    action = self.agent.get_action(state, g, 0)
+                    # action = random.sample(range(4), 1)[0]
                     # step the environment and print info
                     next_state, reward, done, dist, trans, _, _ = my_lab.step(action)
 
@@ -206,6 +225,8 @@ class VisualPolicy(object):
 
         print("Success rate = {}".format((run_num - fail_count)/run_num))
         print("Average len = {}".format(length / run_num))
+        # print("Success rate = {}".format(success_count / run_num))
+        # print("Average len = {}".format(length / run_num))
 
     def imagine_goal_obs(self, pos_loc_map):
         imagined_obs = []
@@ -279,7 +300,7 @@ if __name__ == '__main__':
     use_obs = True
     use_goal = True
     use_imagine = True
-    goal_dist = 2
+    goal_dist = 15
     seed = 0
 
     # set level name
@@ -336,7 +357,7 @@ if __name__ == '__main__':
                 torch.load(f"./results/5-12/random_imagine_goal_ddqn_{maze_size}x{maze_size}_obs_double_random_maze_seed_{seed}.pt",
                            map_location=torch.device('cpu'))
             )
-            print("Random Goal-conditioned double DQN with panorama observation.")
+            print("Random Goal-conditioned double DQN with panorama HER observation.")
     my_agent.policy_net.eval()
 
     # run the agent

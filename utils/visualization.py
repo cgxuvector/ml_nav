@@ -114,7 +114,7 @@ def load_data_from_runs(data_dir, size, use_random=False, use_goal=False, use_ob
                 if not use_obs:
                     file_name = f'random_goal_ddqn_{size}x{size}_true_state_her_double_seed_{r}_return.npy'
                 else:
-                    file_name = f'random_imagine_goal_ddqn_{size}x{size}_obs_double_random_maze_seed_{r}_return.npy'
+                    file_name = f'random_goal_ddqn_{size}x{size}_obs_double_her_seed_{r}_return.npy'
             else:
                 if not use_obs:
                     file_name = f'goal_ddqn_{size}x{size}_true_state_her_double_seed_{r}_return.npy'
@@ -230,12 +230,12 @@ def compute_oracle(size, local_policy=False):
 if __name__ == '__main__':
     # experiment settings
     root_dir = '../results/5-12/'
-    maze_size = 7
-    plot_name = f'Random Goal-conditioned Double DQN with Mixed Obs in random maze {maze_size}x{maze_size}'
+    maze_size = 5
+    plot_name = f'Random Goal-conditioned Double DQN with HER in maze {maze_size}x{maze_size}'
     # optimal value
     oracle_val = compute_oracle(maze_size, local_policy=True)
     run_num = 1
-    win_size = 2
+    win_size = 50
     # load data
     # data_1_list, max_ep_1_len = load_data_from_runs(root_dir, maze_size, use_random=True, use_goal=True, use_obs=False)
     data_2_list, max_ep_2_len = load_data_from_runs(root_dir, maze_size, use_random=True, use_goal=True, use_obs=True)
