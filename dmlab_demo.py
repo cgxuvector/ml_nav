@@ -25,11 +25,11 @@ def run_demo():
     }
 
     # maze sizes and seeds
-    maze_size_list = [5]
+    maze_size_list = [15]
     maze_seed_list = [0]
 
     # maze
-    theme_list = ['MISHMASH']
+    theme_list = ['INVISIBLE_WALLS']
     decal_list = [0.001]
 
     # mapper
@@ -58,8 +58,12 @@ def run_demo():
     # set the maze
     state, _, _, _ = myEnv.reset(maze_configs)
 
+    plt.imshow(myEnv._top_down_obs)
+    plt.show()
     # create observation windows
     myEnv.show_panorama_view_test(None, state)
+
+    Debug.set_trace()
 
     for r in range(5):
         for idx, pos in enumerate(env_map.path):

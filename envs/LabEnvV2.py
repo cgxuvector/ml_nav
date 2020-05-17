@@ -3,6 +3,7 @@ import numpy as np
 from collections import defaultdict
 from scipy import ndimage
 import matplotlib.pyplot as plt
+import time
 import IPython.terminal.debugger as Debug
 
 plt.rcParams.update({'font.size': 8})
@@ -191,7 +192,7 @@ class RandomMazeTileRaw(object):
             else:
                 self._lab.reset()
 
-            for i in range(10):
+            for i in range(1):
                 self._lab.step(ACTION_LIST[4], num_steps=4)
 
         """ initialize the 3D maze"""

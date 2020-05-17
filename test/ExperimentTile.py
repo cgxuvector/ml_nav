@@ -564,7 +564,7 @@ class Experiment(object):
             self.maze_seed = random.sample(self.maze_seed_list, 1)[0]
             # initialize the map 2D
             self.env_map = mapper.RoughMap(self.maze_size, self.maze_seed, 3)
-            self.env_map.sample_random_start_goal_pos(False, False, self.goal_dist)
+            self.env_map.sample_random_start_goal_pos(self.fix_start, self.fix_goal, self.goal_dist)
             init_pos = self.env_map.init_pos
             goal_pos = self.env_map.goal_pos 
             # initialize the maze 3D
