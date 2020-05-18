@@ -27,6 +27,7 @@ ACTION_LIST_TILE = ['up', 'down', 'left', 'right']
 
 # valid observations
 VALID_OBS = ['RGBD_INTERLEAVED',
+             'RGB.LOOK_RANDOM_PANORAMA_VIEW',
              'RGB.LOOK_PANORAMA_VIEW',
              'RGB.LOOK_TOP_DOWN_VIEW'
             ]
@@ -180,8 +181,7 @@ class RandomMazeTileRaw(object):
                 # self._lab.write_property("params.goal_pos.yaw", str(maze_goal_pos[2]))
                 # send the view position
                 self._lab.write_property("params.view_pos.x", str(maze_goal_pos[0]))
-                self._lab.write_property("params.view_pos.y", str(maze_goal_pos[1]))
-                self._lab.write_property("params.view_pos.z", str(40))
+                self._lab.write_property("params.view_pos.y", str(maze_goal_pos[1])) 
                 self._lab.write_property("params.view_pos.yaw", str(maze_goal_pos[2]))
 
         """ update the environment """
@@ -196,15 +196,15 @@ class RandomMazeTileRaw(object):
 
         """ initialize the 3D maze"""
         # initialize the current state
-        self._current_state = self._lab.observations() if not self._use_state else self.start_pos
+        # self._current_state = self._lab.observations() if not self._use_state else self.start_pos
         # initialize the current position
         self.current_pos = self.start_pos
         # initialize the current observations
-        self._last_observation = self.get_random_observations(self.current_pos) if not self._use_state else self.current_pos
+        self._last_observation = self.get_random_observations_tile(self.current_pos) if not self._use_state else self.current_pos
         # initialize the top down view
-        self._top_down_obs = self._current_state['RGB.LOOK_TOP_DOWN_VIEW'] if not self._use_state else None
+        # self._top_down_obs = self._current_state['RGB.LOOK_TOP_DOWN_VIEW'] if not self._use_state else None
         # initialize the goal observations
-        self._goal_observation = self.get_random_observations(self.goal_pos) if not self._use_state else self.goal_pos
+        self._goal_observation = self.get_random_observations_tile(self.goal_pos) if not self._use_state else self.goal_pos
         # initialize the positions and orientations
         self._trans = self.position_map2maze(self.current_pos, self.maze_size)
         self._rots = None
@@ -234,13 +234,9 @@ class RandomMazeTileRaw(object):
             raise Exception(f"Invalid action name. Expected up, down, left, right, but get {action}.")
 
         """ check the terminal and return observations"""
-        if self._lab.is_running() or self._use_state:  # If the maze is still running
-            # get the next state
-            self._current_state = self._lab.observations() if not self._use_state else self.current_pos
+        if self._lab.is_running() or self._use_state:  # If the maze is still running  
             # get the next observations
-            self._last_observation = self.get_random_observations(self.current_pos) if not self._use_state else self._current_state
-            # get the next top down observations
-            self._top_down_obs = self._current_state['RGB.LOOK_TOP_DOWN_VIEW'] if not self._use_state else None
+            self._last_observation = self.get_random_observations_tile(self.current_pos) if not self._use_state else self._current_state
             # get the next position
             pos_x, pos_y, pos_z = self.position_map2maze(self.current_pos, self.maze_size) if not self._use_state else self.current_pos
             # get the next orientations
@@ -310,6 +306,16 @@ class RandomMazeTileRaw(object):
             ego_observations.append(self._lab.observations()['RGB.LOOK_RANDOM_VIEW'])
         return np.array(ego_observations, dtype=np.uint8)
 
+    def get_random_observations_tile(self, pos):
+        # convert to maze positions
+        pos = self.position_map2maze(pos, self.maze_size) if not self._use_state else pos
+        # send the parameters
+        self._lab.write_property("params.view_pos.x", str(pos[0]))
+        self._lab.write_property("params.view_pos.y", str(pos[1]))
+        # store observations
+        ego_observations = self._lab.observations()["RGB.LOOK_RANDOM_PANORAMA_VIEW"]
+        return np.array(ego_observations, dtype=np.uint8)
+       
     def reach_goal(self, current_pos):
         # compute the distance and angle error
         goal_pos = self.position_map2maze(self.goal_pos, self.maze_size) if not self._use_state else self.goal_pos

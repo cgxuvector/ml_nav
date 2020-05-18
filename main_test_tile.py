@@ -86,10 +86,10 @@ def strTobool(inputs):
 # make the environment
 def make_env(inputs):
     # set level name
-    level_name = 'nav_random_maze'
+    level_name = 'nav_random_maze_tile'
     # necessary observations (correct: this is the egocentric observations (following the counter clock direction))
     observation_list = [
-        'RGB.LOOK_PANORAMA_VIEW',
+        'RGB.LOOK_RANDOM_PANORAMA_VIEW',
         'RGB.LOOK_TOP_DOWN_VIEW'
     ]
     if inputs.use_small_obs:
