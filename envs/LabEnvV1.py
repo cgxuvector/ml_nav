@@ -3,6 +3,7 @@ import numpy as np
 from collections import defaultdict
 from scipy import ndimage
 import matplotlib.pyplot as plt
+import time
 import IPython.terminal.debugger as Debug
 plt.rcParams.update({'font.size': 8})
 
@@ -260,18 +261,24 @@ class RandomMazeV1(object):
         :param pos: List contains [x, y, ori]
         :return: List of egocentric observations at position (x, y)
         """
+        start = time.time()
         # store observations
         ego_observations = []
         # re-arrange the observations of the agent
         ori_idx = list(self.orientations).index(pos[2])
         re_arranged_ori_indices = list(range(ori_idx, 8, 1)) + list(range(0, ori_idx, 1))
         angles = self.orientations[re_arranged_ori_indices]
+        print("Set orientation = {}".format(time.time() - start))
         # obtain the egocentric observations
+        start = time.time()
         self._lab.write_property("params.view_pos.x", str(pos[0] + 1))
+        print("Send param time = {}".format(time.time() - start))
         self._lab.write_property("params.view_pos.y", str(pos[1] + 1))
         for a in angles:
             self._lab.write_property("params.view_pos.yaw", str(a))
+            start = time.time()
             ego_observations.append(self._lab.observations()['RGB.LOOK_RANDOM_VIEW'])
+            print("Retrieve obs = {}".format(time.time() - start))
         return np.array(ego_observations, dtype=np.uint8)
 
     def reach_goal(self, current_pos):
