@@ -570,7 +570,7 @@ class Experiment(object):
             init_pos = self.env_map.init_pos
             goal_pos = self.env_map.goal_pos 
             # initialize the maze 3D
-            maze_configs["maze_name"] = f"maze_{self.maze_size}x{self.maze_size}"  # string type name
+            maze_configs["maze_name"] = f"maze_{self.maze_size}_{self.maze_seed}"  # string type name
             maze_configs["maze_size"] = [self.maze_size, self.maze_size]  # [int, int] list
             maze_configs["maze_seed"] = '1234'  # string type number
             maze_configs["maze_texture"] = random.sample(self.theme_list, 1)[0]  # string type name in theme_list
