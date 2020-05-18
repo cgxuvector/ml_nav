@@ -10,7 +10,7 @@ import numpy as np
 import IPython.terminal.debugger as Debug
 
 
-DEFAULT_SIZE = [5, 7, 9, 11, 13]
+DEFAULT_SIZE = [5, 7, 9, 11, 13, 15, 17, 19, 21]
 DEFAULT_SEED = list(range(20))
 
 
