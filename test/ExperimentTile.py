@@ -8,6 +8,7 @@ from utils import ml_schedule
 import torch
 import random
 import os
+import time
 import IPython.terminal.debugger as Debug
 
 
@@ -83,7 +84,7 @@ class Experiment(object):
                              torch.tensor([0, 0, 0, 0, 0, 0, 0, 1])]
         if self.use_imagine:
             self.thinker = VAE.CVAE(64, use_small_obs=True)
-            self.thinker.load_state_dict(torch.load("/mnt/cheng_results/trained_model/VAE/small_obs_L64_B8.pt",
+            self.thinker.load_state_dict(torch.load("/mnt/sda/dataset/ml_nav/VAE/model/small_obs_L64_B8.pt",
                                                     map_location=self.device))
             self.thinker.eval()
         # training configurations
@@ -214,8 +215,10 @@ class Experiment(object):
             action = self.agent.get_action(state, goal, eps)
 
             # step in the environment
+            #start = time.time()
             next_state, reward, done, dist, trans, _, _ = self.env.step(action)
-
+            #print("Step time = {}".format(time.time() - start))
+            
             # store the replay buffer and convert the data to tensor
             if self.use_replay_buffer:
                 # construct the transition
@@ -563,7 +566,7 @@ class Experiment(object):
             self.maze_seed = random.sample(self.maze_seed_list, 1)[0]
             # initialize the map 2D
             self.env_map = mapper.RoughMap(self.maze_size, self.maze_seed, 3)
-            self.env_map.sample_random_start_goal_pos(False, False, self.goal_dist)
+            self.env_map.sample_random_start_goal_pos(self.fix_start, self.fix_goal, self.goal_dist)
             init_pos = self.env_map.init_pos
             goal_pos = self.env_map.goal_pos 
             # initialize the maze 3D
