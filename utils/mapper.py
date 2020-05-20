@@ -434,10 +434,11 @@ class RoughMap(object):
 # """
 #     Testing code
 # """
-# for i in range(20):
-#     env_map = RoughMap(7, i, 3)
-#     plt.title(f"maze : {7} - {i}")
-#     plt.imshow(env_map.map2d_rough)
+# maze_size = 15
+# for i in range(2):
+#     env_map = RoughMap(maze_size, i, 3)
+#     plt.title(f"maze : {maze_size} - {i}")
+#     plt.imshow(env_map.map2d_path)
 #     plt.pause(0.0001)
 #     plt.show()
 
