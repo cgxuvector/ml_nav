@@ -3,7 +3,6 @@ import numpy as np
 from collections import defaultdict
 from scipy import ndimage
 import matplotlib.pyplot as plt
-import time
 import IPython.terminal.debugger as Debug
 
 plt.rcParams.update({'font.size': 8})
@@ -28,8 +27,8 @@ ACTION_LIST_TILE = ['up', 'down', 'left', 'right']
 
 # valid observations
 VALID_OBS = ['RGBD_INTERLEAVED',
-             'RGB.LOOK_PANORAMA_VIEW',
              'RGB.LOOK_RANDOM_PANORAMA_VIEW',
+             'RGB.LOOK_PANORAMA_VIEW',
              'RGB.LOOK_TOP_DOWN_VIEW'
             ]
 
@@ -308,19 +307,13 @@ class RandomMazeTileRaw(object):
         return np.array(ego_observations, dtype=np.uint8)
 
     def get_random_observations_tile(self, pos):
-        """
-                Function is used to get the observations at any position with any orientation.
-                Tile version.
-                :param pos: List contains [x, y, ori]
-                :return: List of egocentric observations at position (x, y)
-        """
         # convert to maze positions
         pos = self.position_map2maze(pos, self.maze_size) if not self._use_state else pos
-        # send the position
+        # send the parameters
         self._lab.write_property("params.view_pos.x", str(pos[0]))
         self._lab.write_property("params.view_pos.y", str(pos[1]))
-        # obtain the observation
-        ego_observations = self._lab.observations()['RGB.LOOK_RANDOM_PANORAMA_VIEW']
+        # store observations
+        ego_observations = self._lab.observations()["RGB.LOOK_RANDOM_PANORAMA_VIEW"]
         return np.array(ego_observations, dtype=np.uint8)
 
     def reach_goal(self, current_pos):
