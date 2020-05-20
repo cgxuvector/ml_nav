@@ -56,7 +56,7 @@ def A_star(maze, start, end):
                 3. f: g + h
 
             The searching process is:
-                1. construct to lists:
+                1. construct two lists:
                     open_list: contains all the promising next node.
                         1) legal next node (no obstacle, i.e. 0)
                         2) least cost (node.f < open_node.f or not in open_list)
@@ -73,7 +73,7 @@ def A_star(maze, start, end):
                     euclidean dist: 8
     """
     # set the start and end points to be zero
-    # print("A star search begin: Start {} - End {}".format(start, end))
+    print("A star search begin: Start {} - End {}".format(start, end))
     maze[start[0]][start[1]] = 0
     maze[end[0]][end[1]] = 0
 
@@ -97,7 +97,6 @@ def A_star(maze, start, end):
 
     # Loop until you find the end
     while len(open_list) > 0:
-
         # obtain the node with the least f value in open list
         current_node = open_list[0]
         current_index = 0
@@ -113,7 +112,6 @@ def A_star(maze, start, end):
             while current is not None:
                 path.append(current.position)
                 current = current.parent
-
             return path[::-1]  # Return reversed path
 
         # remove the current node from the open list
@@ -122,7 +120,6 @@ def A_star(maze, start, end):
         closed_list.append(current_node)
 
         # Generate neighbors
-        children = []
         for pos in [[0, -1], (0, 1), (-1, 0), (1, 0)]:  # Adjacent squares
             # Get node position
             node_pos = current_node.position + np.array(pos)
@@ -148,11 +145,11 @@ def A_star(maze, start, end):
                 continue
 
             # compute the measures of current node
-            new_node.g = current_node.g
+            new_node.g = current_node.g + 1
             # Manhattan distance
-            # new_node.h = abs(new_node.position[0] - end[0]) + abs(new_node.position[1] - end[1])
+            new_node.h = abs(new_node.position[0] - end[0]) + abs(new_node.position[1] - end[1])
             # Euclidean distance
-            new_node.h = np.sqrt((new_node.position[0] - end[0]) ** 2 + (new_node.position[1] - end[1]) ** 2)
+            # new_node.h = np.sqrt((new_node.position[0] - end[0]) ** 2 + (new_node.position[1] - end[1]) ** 2)
             new_node.f = new_node.g + new_node.h
 
             # check whether add it into the open list
@@ -161,11 +158,11 @@ def A_star(maze, start, end):
                 if not (open_node == new_node):
                     continue
                 else:
+                    # if in the open list and have smaller cost
                     in_open_flag = True
                     if open_node.f > new_node.f:
                         open_list.append(new_node)
 
+            # if not in the open list then add it
             if not in_open_flag:
                 open_list.append(new_node)
-
-
