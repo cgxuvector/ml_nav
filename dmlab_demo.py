@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 
 def run_demo():
     # level name
-    level = "nav_random_maze_tile"
+    level = "nav_random_maze_tile_bsp"
 
     # desired observations
     observation_list = ['RGB.LOOK_RANDOM_PANORAMA_VIEW',
@@ -29,7 +29,7 @@ def run_demo():
     }
 
     # maze sizes and seeds
-    maze_size_list = [5]
+    maze_size_list = [5, 7, 9, 11, 13, 15, 17, 19, 21]
     maze_seed_list = [0]
 
     # maze
@@ -50,9 +50,8 @@ def run_demo():
     #                      configurations)
 
     # initialize the maze environment
-    start = time.time()
     maze_configs = defaultdict(lambda: None)
-    maze_configs["maze_name"] = f"maze_{size}x{size}"  # string type name
+    maze_configs["maze_name"] = f"maze_{size}_{seed}"  # string type name
     maze_configs["maze_size"] = [size, size]  # [int, int] list
     maze_configs["maze_seed"] = '1234'  # string type number
     maze_configs["maze_texture"] = random.sample(theme_list, 1)[0]  # string type name in theme_list
@@ -64,6 +63,7 @@ def run_demo():
     maze_configs["goal_pos"] = env_map.goal_pos + [0]  # goal position on the txt map [rows, cols, orientation]
     maze_configs["update"] = True  # update flag
     # set the maze
+    start = time.time()
     state, _, _, _ = myEnv.reset(maze_configs)
     print("New maze reset = {}".format(time.time() - start))
 
@@ -78,8 +78,6 @@ def run_demo():
         start = time.time()
         next_state, r, done, dist, _, _, _ = myEnv.step(action)
         step_time.append(time.time() - start)
-        print("Step time = {}".format(time.time() - start))
-        Debug.set_trace()
         if done:
             success_count += 1
         if done or t % 10 == 0:
@@ -91,7 +89,7 @@ def run_demo():
             maze_configs['start_pos'] = init_pos + [0]
             maze_configs['goal_pos'] = goal_pos + [0]
             maze_configs['maze_valid_pos'] = env_map.valid_pos
-            maze_configs['update'] = False
+            maze_configs['update'] = True
             myEnv.reset(maze_configs)
             reset_time.append(time.time() - start)
             print("Same maze reset = {}".format(time.time() - start))

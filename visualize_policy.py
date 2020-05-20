@@ -57,7 +57,7 @@ class VisualPolicy(object):
         state, goal, _, _ = self.update_map2d_and_maze3d(set_new_maze=True)
 
         # episodes
-        episode_num = 10
+        episode_num = 100
         states = [state]
         rewards = []
         actions = []
@@ -257,8 +257,10 @@ class VisualPolicy(object):
             self.env_map = mapper.RoughMap(self.maze_size, self.maze_seed, 3)
             init_map_pos = self.env_map.init_pos
             goal_map_pos = self.env_map.goal_pos
+            print(self.env.position_map2maze(init_map_pos + [0], [self.maze_size, self.maze_size]),
+                  self.env.position_map2maze(goal_map_pos + [0], [self.maze_size, self.maze_size]))
             # initialize the maze 3D
-            maze_configs["maze_name"] = f"maze_{self.maze_size}x{self.maze_size}"  # string type name
+            maze_configs["maze_name"] = f"maze_{self.maze_size}_{self.maze_seed}"  # string type name
             maze_configs["maze_size"] = [self.maze_size, self.maze_size]  # [int, int] list
             maze_configs["maze_seed"] = '1234'  # string type number
             maze_configs["maze_texture"] = random.sample(self.theme_list, 1)[0]  # string type name in theme_list
@@ -295,19 +297,19 @@ if __name__ == '__main__':
     np.random.seed(rnd_seed)
     torch.manual_seed(rnd_seed)
     # set parameters
-    maze_size = 7
-    run_local = True
+    maze_size = 17
+    run_local = False
     use_obs = True
     use_goal = True
-    use_imagine = True
+    use_imagine = False
     goal_dist = 15
     seed = 0
 
     # set level name
-    level_name = 'nav_random_maze'
+    level_name = 'nav_random_maze_tile_bsp'
     # necessary observations (correct: this is the egocentric observations (following the counter clock direction))
     observation_list = [
-        'RGB.LOOK_PANORAMA_VIEW',
+        'RGB.LOOK_RANDOM_PANORAMA_VIEW',
         'RGB.LOOK_TOP_DOWN_VIEW'
     ]
     observation_width = 32
@@ -354,7 +356,7 @@ if __name__ == '__main__':
         else:
             my_agent = GoalDQNAgent(use_true_state=False, use_small_obs=True)
             my_agent.policy_net.load_state_dict(
-                torch.load(f"./results/5-12/random_imagine_goal_ddqn_{maze_size}x{maze_size}_obs_double_random_maze_seed_{seed}.pt",
+                torch.load(f"./results/5-18/goal_ddqn_{maze_size}x{maze_size}_obs_double_seed_{seed}.pt",
                            map_location=torch.device('cpu'))
             )
             print("Random Goal-conditioned double DQN with panorama HER observation.")

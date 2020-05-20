@@ -197,13 +197,13 @@ class RandomMazeTileRaw(object):
 
         """ initialize the 3D maze"""
         # initialize the current state
-        self._current_state = self._lab.observations() if not self._use_state else self.start_pos
+        # self._current_state = self._lab.observations() if not self._use_state else self.start_pos
         # initialize the current position
         self.current_pos = self.start_pos
         # initialize the current observations
         self._last_observation = self.get_random_observations_tile(self.current_pos) if not self._use_state else self.current_pos
         # initialize the top down view
-        self._top_down_obs = self._current_state['RGB.LOOK_TOP_DOWN_VIEW'] if not self._use_state else None
+        # self._top_down_obs = self._current_state['RGB.LOOK_TOP_DOWN_VIEW'] if not self._use_state else None
         # initialize the goal observations
         self._goal_observation = self.get_random_observations_tile(self.goal_pos) if not self._use_state else self.goal_pos
         # initialize the positions and orientations
