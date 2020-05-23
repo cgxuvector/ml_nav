@@ -236,7 +236,7 @@ class RandomMazeTileRaw(object):
         """ check the terminal and return observations"""
         if self._lab.is_running() or self._use_state:  # If the maze is still running
             # get the next observations
-            self._last_observation = self.get_random_observations_tile(self.current_pos) if not self._use_state else self._current_state
+            self._last_observation = self.get_random_observations_tile(self.current_pos) if not self._use_state else self.current_pos
             # get the next position
             pos_x, pos_y, pos_z = self.position_map2maze(self.current_pos, self.maze_size) if not self._use_state else self.current_pos
             # get the next orientations
