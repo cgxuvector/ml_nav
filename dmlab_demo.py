@@ -1,12 +1,13 @@
 import random
-import numpy as np
 from utils import mapper
-from envs.LabEnvV2 import RandomMazeTileRaw
-from envs.LabEnvV1 import RandomMazeV1
+from envs.LabEnvV3 import RandomMazeTileRaw
 from collections import defaultdict
 import IPython.terminal.debugger as Debug
 import time
 import matplotlib.pyplot as plt
+
+
+ACTION_LIST_TILE = ['up', 'down', 'left', 'right']
 
 
 def run_demo():
@@ -17,20 +18,18 @@ def run_demo():
     observation_list = ['RGB.LOOK_RANDOM_PANORAMA_VIEW',
                         'RGB.LOOK_TOP_DOWN_VIEW'
                         ]
-    # observation_list = ['RGB.LOOK_PANORAMA_VIEW',
-    #                     'RGB.LOOK_TOP_DOWN_VIEW'
-    #                     ]
 
     # configurations
     configurations = {
-        'width': str(32),
-        'height': str(32),
+        'width': str(128),
+        'height': str(128),
         "fps": str(60)
     }
 
     # maze sizes and seeds
-    maze_size_list = [5, 7, 9, 11, 13, 15, 17, 19, 21]
+    maze_size_list = [7]
     maze_seed_list = [0]
+    use_true_state = True
 
     # maze
     theme_list = ['MISHMASH']
@@ -40,14 +39,11 @@ def run_demo():
     size = random.sample(maze_size_list, 1)[0]
     seed = random.sample(maze_seed_list, 1)[0]
     env_map = mapper.RoughMap(size, seed, 3, False)
-
     # create the map environment
     myEnv = RandomMazeTileRaw(level,
                               observation_list,
-                              configurations)
-    # myEnv = RandomMazeV1(level,
-    #                      observation_list,
-    #                      configurations)
+                              configurations,
+                              use_true_state=use_true_state)
 
     # initialize the maze environment
     maze_configs = defaultdict(lambda: None)
@@ -59,44 +55,53 @@ def run_demo():
     maze_configs["maze_map_txt"] = "".join(env_map.map2d_txt)  # string type map
     maze_configs["maze_valid_pos"] = env_map.valid_pos  # list of valid positions
     # initialize the maze start and goal positions
-    maze_configs["start_pos"] = env_map.init_pos + [0]  # start position on the txt map [rows, cols, orientation]
-    maze_configs["goal_pos"] = env_map.goal_pos + [0]  # goal position on the txt map [rows, cols, orientation]
+    maze_configs["start_pos"] = [1, 1] + [0]  # start position on the txt map [rows, cols, orientation]
+    maze_configs["goal_pos"] = [5, 5] + [0]  # goal position on the txt map [rows, cols, orientation]
     maze_configs["update"] = True  # update flag
     # set the maze
-    start = time.time()
-    state, _, _, _ = myEnv.reset(maze_configs)
-    print("New maze reset = {}".format(time.time() - start))
+    state, goal, _, _ = myEnv.reset(maze_configs)
+    print(f"Start = {myEnv.start_pos}, Goal = {myEnv.goal_pos}")
+
+    if not use_true_state:
+        myEnv.show_panorama_view_test(None, state)
+
+    if not use_true_state:
+        last_trans = myEnv._trans
 
     # maximal time steps
-    max_time_steps = 1000
-    step_time = []
-    reset_time = []
     success_count = 0
-    total_count = 0
-    for t in range(max_time_steps):
-        action = random.sample(range(4), 1)[0]
-        start = time.time()
-        next_state, r, done, dist, _, _, _ = myEnv.step(action)
-        step_time.append(time.time() - start)
+    action_list = [2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3]
+    for t in range(len(action_list)):
+        action = action_list[t]
+        next_state, r, done, dist, trans, _, _ = myEnv.step(action)
+        if not use_true_state:
+            print(f"Step = {t}, current_pos={last_trans}, action={ACTION_LIST_TILE[action]}, current_pos={trans}")
+        else:
+            print(f"Step = {t}, current_pos={state}, action={ACTION_LIST_TILE[action]}, next_pos={next_state}")
+
+        if not use_true_state:
+            myEnv.show_panorama_view_test(1, next_state)
+            last_trans = trans
+        state = next_state
         if done:
             success_count += 1
-        if done or t % 10 == 0:
-            total_count += 1
-            start = time.time()
-            maze_configs = defaultdict(lambda: None)
-            init_pos, goal_pos = env_map.sample_random_start_goal_pos(True, True, 2)
-            # self.env_map.update_mapper(init_pos, goal_pos)
-            maze_configs['start_pos'] = init_pos + [0]
-            maze_configs['goal_pos'] = goal_pos + [0]
-            maze_configs['maze_valid_pos'] = env_map.valid_pos
-            maze_configs['update'] = True
-            myEnv.reset(maze_configs)
-            reset_time.append(time.time() - start)
-            print("Same maze reset = {}".format(time.time() - start))
-
-    print("Mean step time = {}".format(sum(step_time) / len(step_time)))
-    print("Mean reset time = {}".format(sum(reset_time) / len(reset_time)))
-    print("Success rate = {}".format(success_count/total_count))
+        # if done or t % 10 == 0:
+        #     total_count += 1
+        #     start = time.time()
+        #     maze_configs = defaultdict(lambda: None)
+        #     init_pos, goal_pos = env_map.sample_random_start_goal_pos(True, True, 2)
+        #     # self.env_map.update_mapper(init_pos, goal_pos)
+        #     maze_configs['start_pos'] = init_pos + [0]
+        #     maze_configs['goal_pos'] = goal_pos + [0]
+        #     maze_configs['maze_valid_pos'] = env_map.valid_pos
+        #     maze_configs['update'] = True
+        #     myEnv.reset(maze_configs)
+        #     reset_time.append(time.time() - start)
+        #     print("Same maze reset = {}".format(time.time() - start))
+    #
+    # print("Mean step time = {}".format(sum(step_time) / len(step_time)))
+    # print("Mean reset time = {}".format(sum(reset_time) / len(reset_time)))
+    # print("Success rate = {}".format(success_count/total_count))
 
 
 if __name__ == '__main__':

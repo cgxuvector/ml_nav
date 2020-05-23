@@ -1,7 +1,7 @@
 from test.ExperimentTile import Experiment
 from test.GoalDQNAgent import GoalDQNAgent
 from test.DQNAgent import DQNAgent
-from envs.LabEnvV2 import RandomMazeTileRaw
+from envs.LabEnvV3 import RandomMazeTileRaw
 from collections import namedtuple
 import argparse
 import torch
@@ -211,8 +211,8 @@ def run_experiment(inputs):
                 my_experiment.run_random_local_goal_dqn_her()
     else:
         # train a vanilla policy
-        # my_experiment.run_dqn()
-        my_experiment.run_maze_complexity_comparison()
+        my_experiment.run_dqn()
+        # my_experiment.run_maze_complexity_comparison()
 
 
 if __name__ == '__main__':
