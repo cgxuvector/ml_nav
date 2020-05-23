@@ -148,11 +148,11 @@ def A_star(maze, start, end):
                 continue
 
             # compute the measures of current node
-            new_node.g = current_node.g
+            new_node.g = current_node.g + 1
             # Manhattan distance
-            # new_node.h = abs(new_node.position[0] - end[0]) + abs(new_node.position[1] - end[1])
+            new_node.h = abs(new_node.position[0] - end[0]) + abs(new_node.position[1] - end[1])
             # Euclidean distance
-            new_node.h = np.sqrt((new_node.position[0] - end[0]) ** 2 + (new_node.position[1] - end[1]) ** 2)
+            # new_node.h = np.sqrt((new_node.position[0] - end[0]) ** 2 + (new_node.position[1] - end[1]) ** 2)
             new_node.f = new_node.g + new_node.h
 
             # check whether add it into the open list
