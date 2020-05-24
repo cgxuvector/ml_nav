@@ -126,6 +126,7 @@ class Experiment(object):
         """
             Function is used to run maze complexity analysis
         """
+        print("Experiment: Analyzing maze complexity.")
         # testing pairs
         self.maze_size = random.sample(self.maze_size_list, 1)[0]
         # test_pairs = [[[1, 1], [self.maze_size - 2, self.maze_size - 2]],  # top left - bottom right
@@ -203,6 +204,7 @@ class Experiment(object):
         """
         Function is used to train the vanilla double DQN agent.
         """
+        print("Experiment: Run double DQN.")
         # set the training statistics
         rewards = []  # list of rewards for one episode
         episode_t = 0  # time step counter for one episode
@@ -276,6 +278,7 @@ class Experiment(object):
         """
         Function is used to train the globally goal-conditioned double DQN.
         """
+        print("Experiment: Run goal-conditioned DQN")
         # set the training statistics
         rewards = []  # list of rewards for one episode
         episode_t = 0  # time step for one episode
@@ -350,6 +353,7 @@ class Experiment(object):
         """
         Function is used to train the locally goal-conditioned double DQN.
         """
+        print("Experiment: Run random local goal-conditioned DQN")
         # set the training statistics
         rewards = []
         episode_t = 0  # time step for one episode
