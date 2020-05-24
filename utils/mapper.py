@@ -434,18 +434,11 @@ class RoughMap(object):
 # """
 #     Testing code
 # """
-# def scope_map(global_map, pos):
-#     print("Current pos = ".format(pos))
-#     plt.imshow(global_map)
-#     plt.show()
-# env_map = RoughMap(13, 3, 3)
-# scope_map(env_map.map2d_roughPadded, env_map.init_pos)
-# print("Default start and goal pos = ", env_map.init_pos, env_map.goal_pos)
-# print("--------- Start sampling goals ---------")
-# for i in range(10):
-#     state, goal = env_map.sample_global_start_goal_pos_new(False, False, 5)
-#     plt.title(f'{i} = , {state}, {goal}')
-#     plt.imshow(env_map.map2d_path)
+# maze_size = 21
+# for i in range(1):
+#     env_map = RoughMap(maze_size, i, 3)
+#     plt.title(f"maze : {maze_size} - {i}")
+#     plt.imshow(env_map.map2d_rough)
 #     plt.pause(0.0001)
 #     plt.show()
 

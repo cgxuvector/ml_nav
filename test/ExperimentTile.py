@@ -8,6 +8,7 @@ from utils import ml_schedule
 import torch
 import random
 import os
+import numpy as np
 import time
 import IPython.terminal.debugger as Debug
 
@@ -84,7 +85,7 @@ class Experiment(object):
                              torch.tensor([0, 0, 0, 0, 0, 0, 0, 1])]
         if self.use_imagine:
             self.thinker = VAE.CVAE(64, use_small_obs=True)
-            self.thinker.load_state_dict(torch.load("/mnt/sda/dataset/ml_nav/VAE/model/small_obs_L64_B8.pt",
+            self.thinker.load_state_dict(torch.load("/mnt/cheng_results/trained_model/VAE/small_obs_L64_B8.pt",
                                                     map_location=self.device))
             self.thinker.eval()
         # training configurations
@@ -120,6 +121,83 @@ class Experiment(object):
         # saving settings
         self.model_name = model_name
         self.save_dir = save_dir
+
+    def run_maze_complexity_comparison(self):
+        """
+            Function is used to run maze complexity analysis
+        """
+        # testing pairs
+        self.maze_size = random.sample(self.maze_size_list, 1)[0]
+        # test_pairs = [[[1, 1], [self.maze_size - 2, self.maze_size - 2]],  # top left - bottom right
+        #               [[1, self.maze_size - 2], [self.maze_size - 2, 1]],  # top right - bottom left
+        #               [[1, 1], [1, self.maze_size - 2]],  # top left - top right
+        #               [[1, 1], [self.maze_size - 2, 1]],  # top left - bottom left
+        #               [[1, self.maze_size - 2], [self.maze_size - 2, self.maze_size - 2]],  # top right - bottom right
+        #               [[self.maze_size - 2, 1], [self.maze_size - 2, self.maze_size - 2]]]  # bottom left - bottom right
+        test_pairs = [[[1, 1], [self.maze_size - 2, self.maze_size - 2]]]
+        # maze seed
+        maze_seed_list = list(range(1))
+
+        for seed in maze_seed_list:
+            # initialize the map 2D
+            maze_configs = defaultdict(lambda: None)
+            self.env_map = mapper.RoughMap(self.maze_size, seed, 3)
+            print(f"****** Maze {self.maze_size} - {seed} ******")
+            for pair in test_pairs:
+                # update the start and goal position
+                self.env_map.update_mapper(pair[0], pair[1])
+                # initialize the maze 3D
+                maze_configs["maze_name"] = f"maze_{self.maze_size}_{self.maze_seed}"  # string type name
+                maze_configs["maze_size"] = [self.maze_size, self.maze_size]  # [int, int] list
+                maze_configs["maze_seed"] = '1234'  # string type number
+                maze_configs["maze_texture"] = random.sample(self.theme_list, 1)[0]  # string type name in theme_list
+                maze_configs["maze_decal_freq"] = random.sample(self.decal_list, 1)[0]  # float number in decal_list
+                maze_configs["maze_map_txt"] = "".join(self.env_map.map2d_txt)  # string type map
+                maze_configs["maze_valid_pos"] = self.env_map.valid_pos  # list of valid positions
+                # initialize the maze start and goal positions
+                maze_configs["start_pos"] = self.env_map.init_pos + [0]  # start position on the txt map [rows, cols, orientation]
+                maze_configs["goal_pos"] = self.env_map.goal_pos + [0]  # goal position on the txt map [rows, cols, orientation]
+                # initialize the update flag
+                maze_configs["update"] = True  # update flag
+                # reset the environment
+                state, goal, _, _ = self.env.reset(maze_configs)
+
+                # random policy running number
+                run_num = 1000
+                success_count = 0
+                length_count = []
+                episode_len = 1
+                # start estimation
+                print(f"-- Start = {self.env_map.init_pos} - Goal = {self.env_map.goal_pos}")
+                for r in range(run_num):
+                    print(f"r = {r}, start = {self.env_map.init_pos}, goal = {self.env_map.goal_pos}")
+                    # navigation using random policy
+                    for t in range(self.max_steps_per_episode):
+                        # get action
+                        action = random.sample(range(4), 1)[0]
+                        # step in the environment
+                        next_state, reward, done, dist, trans, _, _ = self.env.step(action)
+                        episode_len += 1
+                        # check terminal
+                        if done:
+                            success_count += 1
+                            break
+                    # save the episode length
+                    length_count.append(episode_len)
+                    # reset the episode
+                    episode_len = 1
+                    # switch the start and goal position after 50 runs
+                    # if r > run_num / 2 - 2:
+                    #     self.env_map.update_mapper(pair[1], pair[0])
+                    maze_configs["start_pos"] = self.env_map.init_pos + [0]
+                    maze_configs["goal_pos"] = self.env_map.goal_pos + [0]
+                    # initialize the update flag
+                    maze_configs["update"] = False  # update flag
+                    # reset the environment
+                    self.env.reset(maze_configs)
+                print(f"-- Mean success rate = {success_count / run_num}")
+                print(f"-- Mean navigation length = {sum(length_count) / len(length_count)}")
+                print("-----------------------------------------")
 
     def run_dqn(self):
         """
@@ -373,6 +451,7 @@ class Experiment(object):
         Function is used to train the locally goal-conditioned double DQN.
         """
         # set the training statistics
+        print("Baseline 1: Goal-conditioned DQN with HER")
         states = []
         actions = []
         rewards = []

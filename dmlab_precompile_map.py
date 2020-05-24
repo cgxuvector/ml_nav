@@ -3,17 +3,15 @@ from utils import mapper
 from envs.LabEnvV2 import RandomMazeTileRaw
 from collections import defaultdict
 import os
-import sys
 import shutil
 import fnmatch
 import IPython.terminal.debugger as Debug
-import time
 import matplotlib.pyplot as plt
 
 
 def run_demo():
     # level name
-    level = "nav_random_maze_tile"
+    level = "nav_random_maze_tile_bsp"
 
     # desired observations
     observation_list = ['RGB.LOOK_RANDOM_PANORAMA_VIEW',
