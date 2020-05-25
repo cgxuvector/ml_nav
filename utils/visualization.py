@@ -102,24 +102,24 @@ def load_data_from_runs(data_dir, size, use_random=False, use_goal=False, use_ob
         # get the name
         if not use_goal:
             if not use_obs:
-                file_name = f'ddqn_{size}x{size}_true_state_her_double_seed_{r}_return.npy'
+                file_name = f'ddqn_{size}x{size}_true_state_double_seed_{r}_return.npy'
                 
             else:
                 file_name = f'ddqn_{size}x{size}_panorama_obs_double_seed_{r}_return.npy'
         else:
             if use_random:
                 if not use_obs:
-                    file_name = f'random_goal_ddqn_{size}x{size}_true_state_her_double_seed_{r}_return.npy'
+                    file_name = f'random_goal_ddqn_{size}x{size}_true_state_double_seed_{r}_return.npy'
                 else:
                     # file_name = f'random_imagine_goal_ddqn_{size}x{size}_obs_double_random_maze_m50000_seed_{r}_return.npy'
                     # file_name = f'random_imagine_goal_ddqn_obs_double_random_maze_m80000_t2m_b128_seed_{r}_return.npy'
-                    file_name = f'baseline_1_random_goal_ddqn_obs_double_random_maze_m80000_t2M_her_seed_{r}_return.npy'
-                    # file_name = f'test_7x7_her_obs_seed_{r}_return.npy'
+                    # file_name = f'baseline_1_random_goal_ddqn_obs_double_random_maze_m80000_t2M_her_seed_{r}_return.npy'
+                    file_name = f'test_{size}x{size}_her_obs_seed_{r}_return.npy'
             else:
                 if not use_obs:
-                    file_name = f'goal_ddqn_{size}x{size}_true_state_her_double_seed_{r}_return.npy'
+                    file_name = f'goal_ddqn_{size}x{size}_true_state_double_seed_{r}_return.npy'
                 else:
-                    file_name = f'goal_ddqn_{size}x{size}_obs_double_m50000_t1M_ep2000_seed_{r}_return.npy'
+                    file_name = f'goal_ddqn_{size}x{size}_obs_double_seed_{r}_return.npy'
         print(file_name)
         # load the data
         data = np.load(data_dir + file_name)
@@ -168,7 +168,7 @@ def plot_mean_std_error(name, x_label, y_label, m_list, std_list, opt_list, w_si
     fig, ax = plt.subplots(1)
     ax.set_title(name)
     ax.set_ylim(mu.min(), 0)
-    ax.plot(t, optimal_val, label='oracle', color='black', ls='--')
+    # ax.plot(t, optimal_val, label='oracle', color='black', ls='--')
     ax.plot(t, mu, lw=1, label='smoothed curve', color='purple')
     # ax.fill_between(t, mu + sigma_err, mu - sigma_err, lw=2, facecolor='green', alpha=0.5)
     ax.plot(t, sigma_err, label='raw curve', color='purple', alpha=0.3)
@@ -234,12 +234,12 @@ def compute_oracle(size, local_policy=False):
 
 if __name__ == '__main__':
     # experiment settings
-    root_dir = '../results/5-22/'
-    maze_size = 9
-    plot_name = f'Baseline 1: Double DQN + HER with panorama view in maze {maze_size}x{maze_size}'
-    plot_name = f'Baseline 1: Double DQN + HER with panorama view in multiple mazes'
+    root_dir = '../results/5-23/'
+    maze_size = 13
+    plot_name = f'Baseline HER: Double DQN with panorama view in maze {maze_size}x{maze_size}'
+    # plot_name = f'Baseline 1: Double DQN + HER with panorama view in multiple mazes'
     # optimal value
-    oracle_val = compute_oracle(maze_size, local_policy=True)
+    oracle_val = compute_oracle(maze_size, local_policy=False)
     run_num = 1
     win_size = 100
     # load data

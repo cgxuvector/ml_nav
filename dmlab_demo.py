@@ -43,7 +43,8 @@ def run_demo():
     myEnv = RandomMazeTileRaw(level,
                               observation_list,
                               configurations,
-                              use_true_state=use_true_state)
+                              use_true_state=use_true_state,
+                              reward_type='sparse-1')
 
     # initialize the maze environment
     maze_configs = defaultdict(lambda: None)
@@ -60,7 +61,7 @@ def run_demo():
     maze_configs["update"] = True  # update flag
     # set the maze
     state, goal, _, _ = myEnv.reset(maze_configs)
-    print(f"Start = {myEnv.start_pos}, Goal = {myEnv.goal_pos}")
+    print(f"Start = {myEnv.start_trans}, Goal = {myEnv.goal_trans}")
 
     if not use_true_state:
         myEnv.show_panorama_view_test(None, state)
@@ -70,14 +71,14 @@ def run_demo():
 
     # maximal time steps
     success_count = 0
-    action_list = [2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3]
+    action_list = [2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3]
     for t in range(len(action_list)):
         action = action_list[t]
         next_state, r, done, dist, trans, _, _ = myEnv.step(action)
         if not use_true_state:
-            print(f"Step = {t}, current_pos={last_trans}, action={ACTION_LIST_TILE[action]}, current_pos={trans}")
+            print(f"Step = {t}, current_pos={last_trans}, action={ACTION_LIST_TILE[action]}, current_pos={trans}, reward={r}, done={done}")
         else:
-            print(f"Step = {t}, current_pos={state}, action={ACTION_LIST_TILE[action]}, next_pos={next_state}")
+            print(f"Step = {t}, current_pos={state}, action={ACTION_LIST_TILE[action]}, next_pos={next_state}, reward={r}, done={done}")
 
         if not use_true_state:
             myEnv.show_panorama_view_test(1, next_state)
