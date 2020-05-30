@@ -287,9 +287,8 @@ if __name__ == '__main__':
     random.seed(user_inputs.random_seed)
     trn_size, trn_seed, tst_size, tst_seed = split_trn_tst_mazes(user_inputs)
 
-    # Debug.set_trace()
     # run the experiment for fix number of times
-    for r, size, seed, tst in zip(range(user_inputs.run_num), trn_size, trn_seed, tst_seed):
+    for r, size, seed, tst in zip(range(user_inputs.run_num), trn_size, trn_seed):
         # set different random seed
         user_inputs.random_seed = r
 
