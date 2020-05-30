@@ -24,7 +24,6 @@ class VisualPolicy(object):
         self.env = env
         self.env_map = None
         self.agent = agent
-        size = 15
         self.maze_size = size
         self.maze_seed = 0
         self.maze_size_list = [size]
@@ -68,7 +67,7 @@ class VisualPolicy(object):
             print("Run idx = {}, Init = {}, Goal = {}, Dist = {}".format(r, start_pos, goal_pos, len(self.env_map.path)))
             # set the maximal steps
             episode_num = len(self.env_map.path)
-            episode_num = 100
+            # episode_num = 100
             for t in range(episode_num):
                 action = random.sample(range(4), 1)[0]
 
@@ -377,10 +376,10 @@ if __name__ == '__main__':
     # set parameters
     maze_size = 7
     run_local = True
-    use_obs = True
+    use_obs = False
     use_goal = True
     use_imagine = True
-    goal_dist = 20
+    goal_dist = 1
     seed = 0
 
     # set level name
@@ -407,52 +406,52 @@ if __name__ == '__main__':
                                reward_type="sparse-1",
                                dist_epsilon=1e-3)
 
-    # load the agent
-    if not use_obs:
-        if not use_goal:
-            my_agent = DQNAgent(use_true_state=True, use_small_obs=True)
-            my_agent.policy_net.load_state_dict(
-                torch.load(f"./results/5-9/ddqn_{maze_size}x{maze_size}_true_state_double_seed_{seed}.pt",
-                           map_location=torch.device('cpu'))
-            )
-            print("Vanilla double DQN with true state.")
-        else:
-            my_agent = GoalDQNAgent(use_true_state=True, use_small_obs=True)
-            my_agent.policy_net.load_state_dict(
-                torch.load(f"./results/5-9/random_goal_ddqn_{maze_size}x{maze_size}_true_state_double_seed_{seed}.pt",
-                           map_location=torch.device('cpu'))
-            )
-            print("Random Goal-conditioned double DQN with true state.")
-    else:
-        if not use_goal:
-            my_agent = DQNAgent(use_true_state=False, use_small_obs=True)
-            my_agent.policy_net.load_state_dict(
-                torch.load(f"./results/5-9/ddqn_{maze_size}x{maze_size}_panorama_obs_double_seed_{seed}.pt",
-                           map_location=torch.device('cpu'))
-            )
-            print("Vanilla double DQN with panorama observation.")
-        else:
-            my_agent = GoalDQNAgent(use_true_state=False, use_small_obs=True)
-            # my_agent.policy_net.load_state_dict(
-            #     torch.load(f"./results/5-18/random_imagine_goal_ddqn_{maze_size}x{maze_size}_obs_double_random_maze_m50000_seed_{seed}.pt",
-            #                map_location=torch.device('cpu'))
-            # )
-            my_agent.policy_net.load_state_dict(
-                torch.load(
-                    f"./results/5-22/baseline_1_random_goal_ddqn_obs_double_random_maze_m80000_t2M_her_seed_{seed}.pt",
-                    map_location=torch.device('cpu'))
-            )
-            # my_agent.policy_net.load_state_dict(
-            #     torch.load(
-            #         f"./results/5-22/baseline_1_random_goal_ddqn_{maze_size}x{maze_size}_obs_double_random_maze_m50000_her_seed_{seed}.pt",
-            #         map_location=torch.device('cpu'))
-            # )
-            print("Random Goal-conditioned double DQN with panorama HER observation.")
-    my_agent.policy_net.eval()
+    # # load the agent
+    # if not use_obs:
+    #     if not use_goal:
+    #         my_agent = DQNAgent(use_true_state=True, use_small_obs=True)
+    #         my_agent.policy_net.load_state_dict(
+    #             torch.load(f"./results/5-9/ddqn_{maze_size}x{maze_size}_true_state_double_seed_{seed}.pt",
+    #                        map_location=torch.device('cpu'))
+    #         )
+    #         print("Vanilla double DQN with true state.")
+    #     else:
+    #         my_agent = GoalDQNAgent(use_true_state=True, use_small_obs=True)
+    #         my_agent.policy_net.load_state_dict(
+    #             torch.load(f"./results/5-9/random_goal_ddqn_{maze_size}x{maze_size}_true_state_double_seed_{seed}.pt",
+    #                        map_location=torch.device('cpu'))
+    #         )
+    #         print("Random Goal-conditioned double DQN with true state.")
+    # else:
+    #     if not use_goal:
+    #         my_agent = DQNAgent(use_true_state=False, use_small_obs=True)
+    #         my_agent.policy_net.load_state_dict(
+    #             torch.load(f"./results/5-9/ddqn_{maze_size}x{maze_size}_panorama_obs_double_seed_{seed}.pt",
+    #                        map_location=torch.device('cpu'))
+    #         )
+    #         print("Vanilla double DQN with panorama observation.")
+    #     else:
+    #         my_agent = GoalDQNAgent(use_true_state=False, use_small_obs=True)
+    #         # my_agent.policy_net.load_state_dict(
+    #         #     torch.load(f"./results/5-18/random_imagine_goal_ddqn_{maze_size}x{maze_size}_obs_double_random_maze_m50000_seed_{seed}.pt",
+    #         #                map_location=torch.device('cpu'))
+    #         # )
+    #         my_agent.policy_net.load_state_dict(
+    #             torch.load(
+    #                 f"./results/5-22/baseline_1_random_goal_ddqn_obs_double_random_maze_m80000_t2M_her_seed_{seed}.pt",
+    #                 map_location=torch.device('cpu'))
+    #         )
+    #         # my_agent.policy_net.load_state_dict(
+    #         #     torch.load(
+    #         #         f"./results/5-22/baseline_1_random_goal_ddqn_{maze_size}x{maze_size}_obs_double_random_maze_m50000_her_seed_{seed}.pt",
+    #         #         map_location=torch.device('cpu'))
+    #         # )
+    #         print("Random Goal-conditioned double DQN with panorama HER observation.")
+    # my_agent.policy_net.eval()
 
     # run the agent
     myVis = VisualPolicy(env=my_lab,
-                         agent=my_agent,
+                         agent=None,
                          size=maze_size,
                          set_goal=use_goal,
                          fix_start=True,
@@ -465,5 +464,5 @@ if __name__ == '__main__':
     else:
         # myVis.navigate_with_local_policy()
         # myVis.run_local_on_global()
-        # myVis.run_random_policy()
-        myVis.run_random_start_goal_pos()
+        myVis.run_random_policy()
+        # myVis.run_random_start_goal_pos()

@@ -430,15 +430,3 @@ class RoughMap(object):
         # update the action
         self.map_act, self.ego_act = self.path2egoaction(self.path)
 
-
-# """
-#     Testing code
-# """
-# maze_size = 13
-# for i in range(1):
-#     env_map = RoughMap(maze_size, i, 3)
-#     plt.title(f"maze : {maze_size} - {i}")
-#     plt.imshow(env_map.map2d_path)
-#     plt.pause(0.0001)
-#     plt.show()
-
