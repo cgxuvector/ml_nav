@@ -164,14 +164,15 @@ class Experiment(object):
                 state, goal, _, _ = self.env.reset(maze_configs)
 
                 # random policy running number
-                run_num = 1000
+                run_num = 100
                 success_count = 0
                 length_count = []
-                episode_len = 1
+                episode_len = 0
                 # start estimation
                 print(f"-- Start = {self.env_map.init_pos} - Goal = {self.env_map.goal_pos}")
+                last_trans = state
                 for r in range(run_num):
-                    print(f"r = {r}, start = {self.env_map.init_pos}, goal = {self.env_map.goal_pos}")
+                    #print(f"r = {r}, start = {self.env_map.init_pos}, goal = {self.env_map.goal_pos}")
                     # navigation using random policy
                     for t in range(self.max_steps_per_episode):
                         # get action
@@ -180,13 +181,20 @@ class Experiment(object):
                         next_state, reward, done, dist, trans, _, _ = self.env.step(action)
                         episode_len += 1
                         # check terminal
+                        #print(f"Run = {t}, state={last_trans}, action={DEFAULT_ACTION_LIST[action]}, next_state={next_state}, goal_map={self.env.position_maze2map(trans, self.env.maze_size)}")
+                        #if self.env.position_maze2map(trans, self.env.maze_size) == [11, 11, 0]:
+                        #    done = 1
                         if done:
+                            print("Success: ", trans, self.env.goal_trans, f" done={done}")
                             success_count += 1
+                            # Debug.set_trace()
                             break
+                        last_trans = next_state
+                    
                     # save the episode length
                     length_count.append(episode_len)
                     # reset the episode
-                    episode_len = 1
+                    episode_len = 0
                     # switch the start and goal position after 50 runs
                     # if r > run_num / 2 - 2:
                     #     self.env_map.update_mapper(pair[1], pair[0])
@@ -481,6 +489,7 @@ class Experiment(object):
 
             # step in the environment
             next_state, reward, done, dist, trans, _, _ = self.env.step(action)
+            
             episode_t += 1
             # save the transitions
             states.append(next_state)
@@ -651,7 +660,7 @@ class Experiment(object):
             self.env_map = mapper.RoughMap(self.maze_size, self.maze_seed, 3)
             self.env_map.sample_random_start_goal_pos(self.fix_start, self.fix_goal, self.goal_dist)
             init_pos = self.env_map.init_pos
-            goal_pos = self.env_map.goal_pos 
+            goal_pos = self.env_map.goal_pos
             # initialize the maze 3D
             maze_configs["maze_name"] = f"maze_{self.maze_size}_{self.maze_seed}"  # string type name
             maze_configs["maze_size"] = [self.maze_size, self.maze_size]  # [int, int] list
