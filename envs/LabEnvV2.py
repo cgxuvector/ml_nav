@@ -203,6 +203,10 @@ class RandomMazeTileRaw(object):
         self._last_observation = self.get_random_observations_tile(self.current_pos) if not self._use_state else self.current_pos
         # initialize the top down view
         # self._top_down_obs = self._current_state['RGB.LOOK_TOP_DOWN_VIEW'] if not self._use_state else None
+        # plt.axis('off')
+        # plt.imshow(ndimage.rotate(self._top_down_obs, -90))
+        # plt.savefig(f'{self.maze_size}_{self.maze_seed}_top_down.png', dpi=300)
+        # plt.imshow()
         # initialize the goal observations
         self._goal_observation = self.get_random_observations_tile(self.goal_pos) if not self._use_state else self.goal_pos
         # initialize the positions and orientations
