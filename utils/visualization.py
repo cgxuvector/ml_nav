@@ -102,24 +102,21 @@ def load_data_from_runs(data_dir, size, use_random=False, use_goal=False, use_ob
         # get the name
         if not use_goal:
             if not use_obs:
-                file_name = f'ddqn_{size}x{size}_true_state_her_double_seed_{r}_return.npy'
+                file_name = f'ddqn_{size}x{size}_true_state_double_seed_{r}_return.npy'
                 
             else:
                 file_name = f'ddqn_{size}x{size}_panorama_obs_double_seed_{r}_return.npy'
         else:
             if use_random:
                 if not use_obs:
-                    file_name = f'random_goal_ddqn_{size}x{size}_true_state_her_double_seed_{r}_return.npy'
+                    file_name = f'random_goal_ddqn_{size}x{size}_true_state_double_seed_{r}_return.npy'
                 else:
-                    # file_name = f'random_imagine_goal_ddqn_{size}x{size}_obs_double_random_maze_m50000_seed_{r}_return.npy'
-                    # file_name = f'random_imagine_goal_ddqn_obs_double_random_maze_m80000_t2m_b128_seed_{r}_return.npy'
-                    file_name = f'baseline_1_random_goal_ddqn_obs_double_random_maze_m80000_t2M_her_seed_{r}_return.npy'
-                    # file_name = f'test_7x7_her_obs_seed_{r}_return.npy'
+                    file_name = f'random_imagine_goal_ddqn_{size}x{size}_obs_double_random_maze_dist_1_seed_{r}_return.npy'
             else:
                 if not use_obs:
-                    file_name = f'goal_ddqn_{size}x{size}_true_state_her_double_seed_{r}_return.npy'
+                    file_name = f'goal_ddqn_{size}x{size}_true_state_double_soft_seed_{r}_return.npy'
                 else:
-                    file_name = f'goal_ddqn_{size}x{size}_obs_double_m50000_t1M_ep2000_seed_{r}_return.npy'
+                    file_name = f'goal_ddqn_{size}x{size}_obs_double_soft_seed_{r}_return.npy'
         print(file_name)
         # load the data
         data = np.load(data_dir + file_name)
@@ -221,9 +218,9 @@ def compute_oracle(size, local_policy=False):
     plt.imshow(map.map2d_path)
     plt.show()
     if not local_policy:
-        optimal_step = len(map.path) - 1
+        optimal_step = (len(map.path) - 1) * 3
     else:
-        optimal_step = 2
+        optimal_step = 3
     gamma = 0.99
     rewards = [-1] * (optimal_step - 1)
     G = 0
@@ -234,10 +231,10 @@ def compute_oracle(size, local_policy=False):
 
 if __name__ == '__main__':
     # experiment settings
-    root_dir = '../results/5-22/'
-    maze_size = 9
-    plot_name = f'Baseline 1: Double DQN + HER with panorama view in maze {maze_size}x{maze_size}'
-    plot_name = f'Baseline 1: Double DQN + HER with panorama view in multiple mazes'
+    root_dir = '../results/5-25/'
+    maze_size = 7
+    plot_name = f'Local Goal-conditioned Double DQN with true state in maze {maze_size}x{maze_size}'
+    # plot_name = f'Baseline 1: Double DQN + HER with panorama view in multiple mazes'
     # optimal value
     oracle_val = compute_oracle(maze_size, local_policy=True)
     run_num = 1

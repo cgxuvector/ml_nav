@@ -92,8 +92,10 @@ class RandomMazeTileRaw(object):
         """ configurable parameters for the navigation"""
         # start and goal position w.r.t. rough map
         self.start_pos = [1, 1, 0]
+        self.start_trans = None
         self.current_map_pos = None
         self.goal_pos = [3, 3, 0]
+        self.goal_trans = None
         # reward configurations
         self.reward_type = reward_type
         # terminal conditions
@@ -190,13 +192,13 @@ class RandomMazeTileRaw(object):
         # initialize the current position
         self.current_map_pos = self.start_pos
         # initialize the current observations
-        current_trans = self.position_map2maze(self.current_map_pos, self.maze_size)
-        goal_trans = self.position_map2maze(self.goal_pos, self.maze_size)
-        self._last_observation = self.get_random_observations_tile(current_trans) if not self._use_state else self.current_map_pos
+        self.start_trans = self.position_map2maze(self.start_pos, self.maze_size)
+        self.goal_trans = self.position_map2maze(self.goal_pos, self.maze_size)
+        self._last_observation = self.get_random_observations_tile(self.start_trans) if not self._use_state else self.start_trans
         # initialize the goal observations
-        self._goal_observation = self.get_random_observations_tile(goal_trans) if not self._use_state else self.goal_pos
+        self._goal_observation = self.get_random_observations_tile(self.goal_trans) if not self._use_state else self.goal_trans
         # initialize the positions and orientations
-        self._trans = current_trans
+        self._trans = self.start_trans
         self._rots = [0, 0, 0]
         # initialize the distance
         self._last_distance = np.inf
@@ -224,9 +226,9 @@ class RandomMazeTileRaw(object):
         """ check the terminal and return observations"""
         if self._lab.is_running() or self._use_state:  # If the maze is still running
             # get the next observations
-            self._last_observation = self.get_random_observations_tile(self._trans) if not self._use_state else self.current_map_pos
+            self._last_observation = self.get_random_observations_tile(self._trans) if not self._use_state else self._trans
             # get the next position
-            pos_x, pos_y, pos_z = self._trans if not self._use_state else self.current_map_pos
+            pos_x, pos_y, pos_z = self._trans if not self._use_state else self._trans
             # get the next orientations
             pos_pitch, pos_yaw, pos_roll = 0, 0, 0
             # check if the agent reaches the goal given the current position and orientation
@@ -277,8 +279,7 @@ class RandomMazeTileRaw(object):
 
     def reach_goal(self, current_pos):
         # compute the distance and angle error
-        goal_pos = self.position_map2maze(self.goal_pos, self.maze_size) if not self._use_state else self.goal_pos
-        dist = self.compute_distance(current_pos, goal_pos)
+        dist = self.compute_distance(current_pos, self.goal_trans)
         if dist < self.dist_epsilon:
             return 1, dist
         else:

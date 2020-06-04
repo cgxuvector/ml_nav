@@ -216,7 +216,7 @@ class GoalDQNAgent(object):
             self.target_net.load_state_dict(self.policy_net.state_dict())
         else:  # soft update
             for param, target_param in zip(self.policy_net.parameters(), self.target_net.parameters()):
-                target_param.data.copy_((1 - self.tau) * param.data + self.tau * target_param.data)
+                target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
 
     # update the policy network
     def update_policy_net(self, batch_data):
@@ -260,10 +260,13 @@ class GoalDQNAgent(object):
         if not np.mod(t + 1, self.freq_update_policy):
             # sample a batch to train policy net
             self.update_policy_net(batch)
+            if self.soft_update:
+                self.update_target_net()
 
         # update the target network
-        if not np.mod(t + 1, self.freq_update_target):
-            self.update_target_net()
+        if not self.soft_update:
+            if not np.mod(t + 1, self.freq_update_target):
+                self.update_target_net()
 
     def convert2tensor(self, batch):
         if not self.use_true_state:

@@ -51,7 +51,7 @@ class RoughMap(object):
         # obtain the grid world map to do the planning
         self.map2d_grid = self.load_map('grid')
         self.path, self.map2d_path = self.generate_path(self.init_pos, self.goal_pos)
-        # egocentric actions
+        # egocentric actionsd
         self.map_act, self.ego_act = self.path2egoaction(self.path)
         # egocentric local maps (size adjustable)
         self.map2d_rough = np.ones(self.map2d_grid.shape) - self.map2d_grid
@@ -432,13 +432,16 @@ class RoughMap(object):
 
 
 # """
-#     Testing code
+#     Plot rough map
 # """
-# maze_size = 21
-# for i in range(1):
-#     env_map = RoughMap(maze_size, i, 3)
-#     plt.title(f"maze : {maze_size} - {i}")
-#     plt.imshow(env_map.map2d_rough)
-#     plt.pause(0.0001)
-#     plt.show()
+# size_list = [17, 19]
+# seed_list = [0, 1, 2, 3, 4, 5]
+# for size in size_list:
+#     for seed in seed_list:
+#         env_map = RoughMap(size, seed, 3)
+#         # init_pos, goal_pos = env_map.sample_random_start_goal_pos(False, False, 35)
+#         plt.axis('off')
+#         plt.imshow(env_map.map2d_rough)
+#         plt.savefig(f'{size}x{seed}_map.png', dpi=300)
+#         plt.show()
 
