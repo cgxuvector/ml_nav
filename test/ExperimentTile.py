@@ -129,21 +129,25 @@ class Experiment(object):
         print("Experiment: Analyzing maze complexity.")
         # testing pairs
         self.maze_size = random.sample(self.maze_size_list, 1)[0]
-        # test_pairs = [[[1, 1], [self.maze_size - 2, self.maze_size - 2]],  # top left - bottom right
-        #               [[1, self.maze_size - 2], [self.maze_size - 2, 1]],  # top right - bottom left
-        #               [[1, 1], [1, self.maze_size - 2]],  # top left - top right
-        #               [[1, 1], [self.maze_size - 2, 1]],  # top left - bottom left
-        #               [[1, self.maze_size - 2], [self.maze_size - 2, self.maze_size - 2]],  # top right - bottom right
-        #               [[self.maze_size - 2, 1], [self.maze_size - 2, self.maze_size - 2]]]  # bottom left - bottom right
-        test_pairs = [[[1, 1], [self.maze_size - 2, self.maze_size - 2]]]
+        test_pairs = [[[1, 1], [self.maze_size - 2, self.maze_size - 2]],  # top left - bottom right
+                      [[1, self.maze_size - 2], [self.maze_size - 2, 1]]]  # top right - bottom left
+                      #[[1, 1], [1, self.maze_size - 2]],  # top left - top right
+                      #[[1, 1], [self.maze_size - 2, 1]],  # top left - bottom left
+                      #[[1, self.maze_size - 2], [self.maze_size - 2, self.maze_size - 2]],  # top right - bottom right
+                      #[[self.maze_size - 2, 1], [self.maze_size - 2, self.maze_size - 2]]]  # bottom left - bottom right
+        # test_pairs = [[[1, 1], [self.maze_size - 2, self.maze_size - 2]]]
         # maze seed
-        maze_seed_list = list(range(1))
-
+        maze_seed_list = self.maze_seed_list
+   
+        complex_mean_success = []
+        complex_mean_length = []
         for seed in maze_seed_list:
             # initialize the map 2D
             maze_configs = defaultdict(lambda: None)
             self.env_map = mapper.RoughMap(self.maze_size, seed, 3)
             print(f"****** Maze {self.maze_size} - {seed} ******")
+            mean_success_rate = 0
+            mean_len = 0
             for pair in test_pairs:
                 # update the start and goal position
                 self.env_map.update_mapper(pair[0], pair[1])
@@ -169,10 +173,9 @@ class Experiment(object):
                 length_count = []
                 episode_len = 0
                 # start estimation
-                print(f"-- Start = {self.env_map.init_pos} - Goal = {self.env_map.goal_pos}")
+                # print(f"-- Start = {self.env_map.init_pos} - Goal = {self.env_map.goal_pos}")
                 last_trans = state
-                for r in range(run_num):
-                    #print(f"r = {r}, start = {self.env_map.init_pos}, goal = {self.env_map.goal_pos}")
+                for r in range(run_num): 
                     # navigation using random policy
                     for t in range(self.max_steps_per_episode):
                         # get action
@@ -180,14 +183,9 @@ class Experiment(object):
                         # step in the environment
                         next_state, reward, done, dist, trans, _, _ = self.env.step(action)
                         episode_len += 1
-                        # check terminal
-                        #print(f"Run = {t}, state={last_trans}, action={DEFAULT_ACTION_LIST[action]}, next_state={next_state}, goal_map={self.env.position_maze2map(trans, self.env.maze_size)}")
-                        #if self.env.position_maze2map(trans, self.env.maze_size) == [11, 11, 0]:
-                        #    done = 1
+                        # print(f"Step={t}: state={last_trans}, action={DEFAULT_ACTION_LIST[action]}, next_state={next_state}, done={done}")
                         if done:
-                            print("Success: ", trans, self.env.goal_trans, f" done={done}")
                             success_count += 1
-                            # Debug.set_trace()
                             break
                         last_trans = next_state
                     
@@ -196,17 +194,30 @@ class Experiment(object):
                     # reset the episode
                     episode_len = 0
                     # switch the start and goal position after 50 runs
-                    # if r > run_num / 2 - 2:
-                    #     self.env_map.update_mapper(pair[1], pair[0])
+                    if r > (run_num / 2) - 2:
+                        self.env_map.update_mapper(pair[1], pair[0])
                     maze_configs["start_pos"] = self.env_map.init_pos + [0]
                     maze_configs["goal_pos"] = self.env_map.goal_pos + [0]
                     # initialize the update flag
                     maze_configs["update"] = False  # update flag
                     # reset the environment
                     self.env.reset(maze_configs)
-                print(f"-- Mean success rate = {success_count / run_num}")
-                print(f"-- Mean navigation length = {sum(length_count) / len(length_count)}")
-                print("-----------------------------------------")
+                mean_success_rate += success_count / run_num
+                mean_len += sum(length_count) / len(length_count)
+            complex_mean_success.append(mean_success_rate / 6)
+            complex_mean_length.append(mean_len / 6)
+            print(f"-- Mean traverse success rate = {mean_success_rate / 6}")
+            print(f"-- Mean navigation length = {mean_len / 6}")
+            print("-----------------------------------------")
+       
+        save_path = '/'.join([self.save_dir, f"complex_analysis_diagnoal_{self.maze_size}x{self.maze_size}_ep{self.max_steps_per_episode}.txt"])
+        counter = 0
+        with open(save_path, 'w') as f:
+            for s_val, l_val in zip(complex_mean_success, complex_mean_length):
+                tmp_str = ','.join([str(counter), str(s_val), str(l_val)]) + '\n'
+                counter += 1
+                f.write(tmp_str)
+            f.close()
 
     def run_dqn(self):
         """

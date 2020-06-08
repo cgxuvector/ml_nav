@@ -21,7 +21,7 @@ from model import VAE
 from test.GoalDQNAgent import GoalDQNAgent
 from utils import mapper
 from collections import defaultdict
-from envs.LabEnvV3 import RandomMazeTileRaw
+from envs.LabEnvV2 import RandomMazeTileRaw
 import numpy as np
 import matplotlib.pyplot as plt
 import IPython.terminal.debugger as Debug
@@ -33,6 +33,8 @@ class EvalPolicy(object):
     def __init__(self, env, agent, size_list, seed_list, dist_list, res_path, res_name, args):
         # evaluation env object
         self.env = env
+        self.device = args.device
+        self.args = args
         # 2D rough map object
         self.env_map = None
         # agent object
@@ -62,7 +64,7 @@ class EvalPolicy(object):
                              torch.tensor([0, 0, 0, 0, 0, 0, 0, 1])]
         # load the vae model
         self.cvae = VAE.CVAE(64, use_small_obs=True)
-        self.cvae.load_state_dict(torch.load("./results/vae/model/small_obs_L64_B8.pt", map_location='cpu'))
+        self.cvae.load_state_dict(torch.load("/mnt/cheng_results/trained_model/VAE/small_obs_L64_B8.pt", map_location=torch.device(self.device)))
         self.cvae.eval()
 
         # save parameters
@@ -77,6 +79,7 @@ class EvalPolicy(object):
             for m_seed in self.maze_seed_list:
                 # loop all distances
                 for g_dist in self.goal_dist:
+                    print(f"Evaluate maze={m_size}-{m_seed} with dist={g_dist}")
                     # init the 3D environment
                     self.update_map2d_and_maze3d(set_new_maze=True, maze_size=m_size, maze_seed=m_seed, dist=g_dist)
 
@@ -94,18 +97,24 @@ class EvalPolicy(object):
                                                                                         dist=g_dist)
                         # set the maximal steps
                         print("Run idx = {}, Init = {}, Goal = {}, Dist = {}".format(r, start_pos, goal_pos, len(self.env_map.path)))
-                        max_episode_len = (len(self.env_map.path) - 1) * 3
+                        if self.args.step_type == 'optimal':
+                            max_episode_len = (len(self.env_map.path) - 1)
+                        else:
+                            max_episode_len = 50
                         for t in range(max_episode_len):
                             # randomly sample an action
                             action = random.sample(range(4), 1)[0]
                             # step in the environment
                             next_state, reward, done, dist, trans, _, _ = my_lab.step(action)
-
+                            
+                            #print(f"state={state}, action={ACTION_LIST[action]}, next_state={next_state}, done={done}")
+                            state = next_state
                             # check terminal
                             if done:
                                 success_count += 1
+                                #Debug.set_trace()
                                 break
-
+           
                     # print the results
                     print("Success rate = {}".format(success_count / run_num))
                     # store the results
@@ -128,6 +137,7 @@ class EvalPolicy(object):
             for m_seed in self.maze_seed_list:
                 # loop all the distance
                 for g_dist in self.goal_dist:
+                    print(f"Evaluate maze-{m_size}-{m_seed} with dist={g_dist}")
                     # sample a 3D maze environment
                     self.update_map2d_and_maze3d(set_new_maze=True, maze_size=m_size, maze_seed=m_seed, dist=g_dist)
                     # evaluation number
@@ -194,11 +204,15 @@ class EvalPolicy(object):
                             nav_sub_goals = sub_goals_pos
                         else:
                             nav_sub_goals = sub_goals_obs
+                        state_pos = self.env.position_map2maze(start_pos + [0], [m_size, m_size])
                         for idx, g in enumerate(nav_sub_goals):
                             # flag for sub-goal navigation
                             sub_goal_done = False
                             # maximal steps for sub-goal navigation
-                            max_time_step = 10
+                            if self.args.step_type == 'optimal':
+                                max_time_step = 2
+                            else:
+                                max_time_step = 10
                             # convert the goal position to maze position
                             maze_goal_pos = self.env.position_map2maze(sub_goals_pos[idx], [m_size, m_size])
                             for t in range(max_time_step):
@@ -208,6 +222,8 @@ class EvalPolicy(object):
                                 act_list.append(ACTION_LIST[action])
                                 # step the environment and print info
                                 next_state, reward, done, dist, next_trans, _, _ = my_lab.step(action)
+                                print(f"state={state_pos}, action={ACTION_LIST[action]}, next_state={next_trans}, done={done}")
+                                state_pos = next_trans
                                 # update
                                 state = next_state
                                 # check termination
@@ -223,10 +239,12 @@ class EvalPolicy(object):
                                 print(f"Failed actions = {act_list}")
                                 fail_count += 1
                                 break
-
-                    print("Success rate = {}".format((run_count - fail_count) / run_count))
-                    eval_results[f"{m_size}-{m_seed}-{g_dist}"] = (run_count - fail_count) / run_count
-
+                    if run_count:
+                        print("Success rate = {}".format((run_count - fail_count) / run_count))
+                        eval_results[f"{m_size}-{m_seed}-{g_dist}"] = (run_count - fail_count) / run_count
+                    else:
+                        print("No sampled pair is satisfied")
+                        eval_results[f"{m_size}-{m_seed}-{g_dist}"] = None
         # print info
         print("Evaluation finished")
         # save the dictionary as txt file
@@ -300,7 +318,10 @@ class EvalPolicy(object):
 
 def parse_input():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--eval_mode", type=str, default='random-policy', help="Evaluation mode")
+    parser.add_argument("--run_mode", type=str, default='random-policy', help="Evaluation mode")
+    parser.add_argument("--eval_mode", type=str, default='train', help="test")
+    parser.add_argument("--device", type=str, default='cpu', help="Device name")
+    parser.add_argument("--random_seed", type=int, default=1234)
     parser.add_argument("--maze_size_list", type=str, default='5', help="Maze size list")
     parser.add_argument("--maze_seed_list", type=str, default='0', help="Maze seed list")
     parser.add_argument("--dist_list", type=str, default="1", help="Distance list")
@@ -309,6 +330,9 @@ def parse_input():
     parser.add_argument("--run_num", type=int, default=100, help="Number of evaluation run")
     parser.add_argument("--use_true_state", type=str, default="True", help="Whether use the true state")
     parser.add_argument("--use_goal", type=str, default="True", help="Whether use the goal conditioned policy")
+    parser.add_argument("--step_type", type=str, default="optimal", help="navigate to the goal in optimal steps") 
+    parser.add_argument("--split_seed", type=int, default=0)
+    
     return parser.parse_args()
 
 
@@ -320,18 +344,19 @@ def strTobool(inputs):
 
 
 if __name__ == '__main__':
-    # random seed
-    rnd_seed = 1234
-    random.seed(rnd_seed)
-    np.random.seed(rnd_seed)
-    torch.manual_seed(rnd_seed)
-
     # set the evaluation model
     args = parse_input()
     args = strTobool(args)
+    run_mode = args.run_mode
     eval_mode = args.eval_mode
     save_path = args.save_path
     file_name = args.file_name
+    
+    # random seed
+    rnd_seed = args.random_seed
+    random.seed(rnd_seed)
+    np.random.seed(rnd_seed)
+    torch.manual_seed(rnd_seed)
 
     # set maze to be evaluated
     if len(args.maze_size_list) == 1:
@@ -346,9 +371,19 @@ if __name__ == '__main__':
         dist_list = [int(args.dist_list)]
     else:
         dist_list = [int(s) for s in args.dist_list.split(",")]
-    maze_size_eval = maze_size
-    maze_seed_eval = maze_seed
-    dist_eval = dist_list  # [2, 3, 6, 9, 10]
+    maze_size_eval_trn = maze_size
+    maze_seed_eval_trn = maze_seed
+    maze_size_eval_tst = list(set(range(5, 23, 2)) - set(maze_size_eval_trn))
+    maze_seed_eval_tst = list(set(range(0, 20, 1)) - set(maze_seed_eval_trn))
+    dist_eval = dist_list
+    
+    # compute the train mazes
+    if eval_mode == "train":
+        maze_size_eval = maze_size_eval_trn
+        maze_seed_eval = maze_seed_eval_trn
+    else:
+        maze_size_eval = maze_size_eval_tst
+        maze_seed_eval = maze_seed_eval_tst
 
     # set level name
     level_name = 'nav_random_maze_tile_bsp'
@@ -374,7 +409,7 @@ if __name__ == '__main__':
                                reward_type="sparse-1",
                                dist_epsilon=1e-3)
 
-    if eval_mode == 'random-policy':
+    if run_mode == 'random-policy':
         # run the agent
         myVis = EvalPolicy(env=my_lab,
                            agent=None,
@@ -385,11 +420,11 @@ if __name__ == '__main__':
                            res_name=file_name,
                            args=args)
         myVis.eval_random_policy()
-    elif eval_mode == 'imagine-local-policy':
+    elif run_mode == 'imagine-local-policy':
         my_agent = GoalDQNAgent(use_true_state=args.use_true_state, use_small_obs=True)
         my_agent.policy_net.load_state_dict(
-            torch.load(f"./results/5-25/random_imagine_goal_ddqn_{7}x{7}_obs_double_random_maze_dist_1_seed_{0}.pt",
-                       map_location=torch.device('cpu'))
+            torch.load(f"/mnt/cheng_results/results_RL/5-30/random_imagine_goal_ddqn_{7}x{7}_obs_double_random_maze_env2_seed_{args.split_seed}.pt",
+                map_location=torch.device(args.device))
         )
         my_agent.policy_net.eval()
         # run the agent
@@ -402,4 +437,5 @@ if __name__ == '__main__':
                            res_name=file_name,
                            args=args)
         myVis.eval_navigate_with_local_policy()
-
+    else:
+        raise Exception(f"Invalid run mode. Expect random-policy or imagine-local-policy, but get {args.run_mode}")

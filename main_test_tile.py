@@ -130,6 +130,7 @@ def make_env(inputs):
                             use_true_state=inputs.use_true_state,
                             reward_type="sparse-1",
                             dist_epsilon=1e-3)
+    
     return lab, maze_size, maze_seed
 
 
@@ -216,8 +217,8 @@ def run_experiment(inputs):
                 my_experiment.run_random_local_goal_dqn_her()
     else:
         # train a vanilla policy
-        my_experiment.run_dqn()
-        # my_experiment.run_maze_complexity_comparison()
+        # my_experiment.run_dqn()
+        my_experiment.run_maze_complexity_comparison()
 
 
 def split_trn_tst_mazes(args):
@@ -229,7 +230,7 @@ def split_trn_tst_mazes(args):
     seed_list = args.maze_seed_list.split(',') if len(args.maze_seed_list) > 1 else [args.maze_seed_list[0]]
 
     if not args.mix_maze:
-        assert(len(args.maze_size_list) == 1), f"Invalid maze size input, expect only 1 size type, but get {len(args.maze_size_list)}"
+        assert(len([int(args.maze_size_list)]) == 1), f"Invalid maze size input, expect only 1 size type, but get {len(args.maze_size_list)}"
         assert(len(seed_list) >= args.trn_num_each_maze), f"The number of total mazes is smaller than the number" \
                                                           f"of necessary training mazes."
         for run in range(args.run_num):
@@ -286,9 +287,10 @@ if __name__ == '__main__':
     assert(user_inputs.run_num >= user_inputs.fold_k), f"The number of run should be same as the fold number k."
     random.seed(user_inputs.random_seed)
     trn_size, trn_seed, tst_size, tst_seed = split_trn_tst_mazes(user_inputs)
-
+    
+    # run_experiment(user_inputs)
     # run the experiment for fix number of times
-    for r, size, seed, tst in zip(range(user_inputs.run_num), trn_size, trn_seed):
+    for r, size, seed in zip(range(user_inputs.run_num), trn_size, trn_seed):
         # set different random seed
         user_inputs.random_seed = r
 
@@ -305,7 +307,6 @@ if __name__ == '__main__':
         print(f"Run the {r + 1} experiment with random seed = {user_inputs.random_seed} using mazes size {size} and "
               f"seed {seed}")
         user_inputs.model_idx = input_model_idx + f'_seed_{r}'
-
         run_experiment(user_inputs)
 
 
