@@ -434,14 +434,14 @@ class RoughMap(object):
 # """
 #     Plot rough map
 # """
-# size_list = [17, 19]
-# seed_list = [0, 1, 2, 3, 4, 5]
+# size_list = [15]
+# seed_list = [4]
 # for size in size_list:
 #     for seed in seed_list:
 #         env_map = RoughMap(size, seed, 3)
-#         # init_pos, goal_pos = env_map.sample_random_start_goal_pos(False, False, 35)
+#         # init_pos, goal_pos = env_map.sample_random_start_goal_pos(False, False, 12)
 #         plt.axis('off')
 #         plt.imshow(env_map.map2d_rough)
-#         plt.savefig(f'{size}x{seed}_map.png', dpi=300)
+#         # plt.savefig(f'{size}x{seed}_map.png', dpi=300)
 #         plt.show()
 

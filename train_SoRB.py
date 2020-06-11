@@ -1,188 +1,313 @@
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
-import collections
+"""
+    Implementation of training SoRB. Actually, the training only contains train a goal-conditioned DQN agent.
+    Currently, I don't use distributional RL. Just use the same model but without discounted factor
+"""
+from baselines.SoRB_agent import GoalDQNAgent
+from envs.LabEnvV2 import RandomMazeTileRaw
+from collections import namedtuple
+import argparse
+import torch
 import random
-import time
-import tqdm
-
-import gym
-import gym.spaces
-import matplotlib.pyplot as plt
-import networkx as nx
 import numpy as np
-import scipy.sparse.csgraph
-import tensorflow as tf
-import tensorflow_probability as tfp
-
-from tf_agents.agents import tf_agent
-from tf_agents.agents.ddpg import actor_network
-from tf_agents.agents.ddpg import critic_network
-from tf_agents.drivers import dynamic_step_driver
-from tf_agents.environments import gym_wrapper
-from tf_agents.environments import tf_py_environment
-from tf_agents.environments import wrappers
-from tf_agents.eval import metric_utils
-from tf_agents.metrics import tf_metrics
-from tf_agents.networks import utils
-from tf_agents.policies import actor_policy
-from tf_agents.policies import ou_noise_policy
-from tf_agents.policies import tf_policy
-from tf_agents.replay_buffers import tf_uniform_replay_buffer
-from tf_agents.trajectories import time_step
-from tf_agents.trajectories import trajectory
-from tf_agents.utils import common
-
-from baselines.goal_agent import UvfAgent
-from baselines.env import *
+import IPython.terminal.debugger as Debug
 
 
-# @title Training script.
-def train_eval(
-        tf_agent,
-        tf_env,
-        eval_tf_env,
-        num_iterations=2000000,
-        # Params for collect
-        initial_collect_steps=1000,
-        batch_size=64,
-        # Params for eval
-        num_eval_episodes=100,
-        eval_interval=10000,
-        # Params for checkpoints, summaries, and logging
-        log_interval=1000,
-        random_seed=0):
-    """A simple train and eval for UVF.  """
-    tf.compat.v1.logging.info('random_seed = %d' % random_seed)
-    np.random.seed(random_seed)
-    random.seed(random_seed)
-    tf.compat.v1.set_random_seed(random_seed)
+DEFAULT_SIZE = [5, 7, 9, 11, 13, 15, 17, 19, 21]
+DEFAULT_SEED = list(range(20))
 
-    max_episode_steps = tf_env.pyenv.envs[0]._duration
-    global_step = tf.compat.v1.train.get_or_create_global_step()
-    replay_buffer = tf_uniform_replay_buffer.TFUniformReplayBuffer(
-        tf_agent.collect_data_spec,
-        batch_size=tf_env.batch_size)
 
-    eval_metrics = [
-        tf_metrics.AverageReturnMetric(buffer_size=num_eval_episodes),
+def parse_input():
+    parser = argparse.ArgumentParser()
+    # set the agent
+    parser.add_argument("--agent", type=str, default="random", help="Type of the agent (random, dqn, goal-dqn)")
+    parser.add_argument("--dqn_mode", type=str, default="vanilla", help="Type of the DQN (vanilla, double)")
+    # set the env params
+    parser.add_argument("--maze_size_list", type=str, default="5", help="Maze size list")
+    parser.add_argument("--maze_seed_list", type=str, default="0", help="Maze seed list")
+    parser.add_argument("--fix_maze", type=str, default="True", help="Fix the maze")
+    parser.add_argument("--fix_start", type=str, default="True", help="Fix the start position")
+    parser.add_argument("--fix_goal", type=str, default="True", help="Fix the goal position")
+    parser.add_argument("--decal_freq", type=float, default=0.001, help="Wall decorator frequency")
+    parser.add_argument("--use_true_state", type=str, default="True", help="Using true state flag")
+    parser.add_argument("--use_small_obs", type=str, default='False', help="Using small observations flag")
+    parser.add_argument("--use_goal", type=str, default="False", help="Using goal conditioned flag")
+    parser.add_argument("--goal_dist", type=int, default=-1, help="Set distance between start and goal")
+    parser.add_argument("--use_imagine", type=str, default="False", help="Using imagination of goal")
+    # set the running mode
+    parser.add_argument("--run_num", type=int, default=1, help="Number of run for each experiment.")
+    parser.add_argument("--random_seed", type=int, default=0, help="Random seed")
+    # set the training mode
+    parser.add_argument("--train_local_policy", type=str, default="False", help="Whether train a local policy.")
+    parser.add_argument("--device", type=str, default="cpu", help="Device to use")
+    parser.add_argument("--lr", type=float, default=1e-3, help="Learning rate")
+    parser.add_argument("--start_train_step", type=int, default=1000, help="Start training time step")
+    parser.add_argument("--sampled_goal_num", type=int, default=10, help="Number of sampled start and goal positions.")
+    parser.add_argument("--train_episode_num", type=int, default=10, help="Number of training epochs for each sample.")
+    parser.add_argument("--total_time_steps", type=int, default=50000, help="Total time steps")
+    parser.add_argument("--episode_time_steps", type=int, default=100, help="Time steps per episode")
+    parser.add_argument("--eval_policy_freq", type=int, default=10, help="Evaluate the current learned policy frequency")
+    parser.add_argument("--dqn_update_target_freq", type=int, default=1000, help="Frequency of updating the target")
+    parser.add_argument("--dqn_update_policy_freq", type=int, default=4, help="Frequency of updating the policy")
+    parser.add_argument("--soft_target_update", type=str, default="False", help="Soft update flag")
+    parser.add_argument("--dqn_gradient_clip", type=str, default="False", help="Clip the gradient flag")
+    parser.add_argument("--mix_maze", type=str, default="False", help="If set true, then the training mazes are mixed size")
+    parser.add_argument("--fold_k", type=int, default="1", help="Cross validation")
+    parser.add_argument("--trn_num_each_maze", type=int, default=1, help="Number of the training mazes for each size")
+    # set the memory params
+    parser.add_argument("--memory_size", type=int, default=20000, help="Memory size or replay buffer size")
+    parser.add_argument("--batch_size", type=int, default=64, help="Size of the mini-batch")
+    parser.add_argument("--use_memory", type=str, default="True", help="If true, use the memory")
+    parser.add_argument("--use_her", type=str, default="False", help="If true, use the Hindsight Experience Replay")
+    parser.add_argument("--future_k", type=int, default=4, help="Number of sampling future states")
+    # set RL params
+    parser.add_argument("--gamma", type=float, default=0.99, help="Gamma")
+    # set the saving params
+    parser.add_argument("--model_idx", type=str, default=None, help="model index")
+    parser.add_argument("--save_dir", type=str, default=None, help="saving folder")
+
+    return parser.parse_args()
+
+
+# convert the True/False from str to bool
+def strTobool(inputs):
+    # set params of mazes
+    inputs.fix_maze = True if inputs.fix_maze == "True" else False
+    inputs.fix_start = True if inputs.fix_start == "True" else False
+    inputs.fix_goal = True if inputs.fix_goal == "True" else False
+    inputs.use_small_obs = True if inputs.use_small_obs == "True" else False
+    inputs.use_true_state = True if inputs.use_true_state == "True" else False
+    inputs.use_goal = True if inputs.use_goal == "True" else False
+    inputs.use_imagine = True if inputs.use_imagine == "True" else False
+    # set params of training
+    inputs.train_local_policy = True if inputs.train_local_policy == "True" else False
+    inputs.use_memory = True if inputs.use_memory == "True" else False
+    inputs.soft_target_update = True if inputs.soft_target_update == 'True' else False
+    inputs.dqn_gradient_clip = True if inputs.dqn_gradient_clip == 'True' else False
+    # set params of HER
+    inputs.use_her = True if inputs.use_her == "True" else False
+    # use mixed mazes as training
+    inputs.mix_maze = True if inputs.mix_maze == "True" else False
+    return inputs
+
+
+# make the environment
+def make_env(inputs):
+    # set level name
+    level_name = 'nav_random_maze_tile_bsp'
+    # necessary observations (correct: this is the egocentric observations (following the counter clock direction))
+    observation_list = [
+        'RGB.LOOK_RANDOM_PANORAMA_VIEW',
+        'RGB.LOOK_TOP_DOWN_VIEW'
     ]
+    if inputs.use_small_obs:
+        observation_width = 32
+        observation_height = 32
+    else:
+        observation_width = 64
+        observation_height = 64
+    observation_fps = 60
+    # set configurations
+    configurations = {
+        'width': str(observation_width),
+        'height': str(observation_height),
+        'fps': str(observation_fps)
+    }
+    # set the mazes
+    if len(inputs.maze_size_list) == 1:
+        maze_size = [int(inputs.maze_size_list)]
+    else:
+        maze_size = [int(s) for s in inputs.maze_size_list.split(",")]
+    if len(inputs.maze_seed_list) == 1:
+        maze_seed = [int(inputs.maze_seed_list)]
+    else:
+        maze_seed = [int(s) for s in inputs.maze_seed_list.split(",")]
+    assert set(maze_size) <= set(DEFAULT_SIZE), f"Input contains invalid maze size. Expect a subset of {DEFAULT_SIZE}, " \
+                                                f"but get {maze_size}."
+    assert set(maze_seed) <= set(DEFAULT_SEED), f"Input contains invalid maze seed. Expect a subset of {DEFAULT_SEED}, " \
+                                                f"but get {maze_seed}."
+    # create the environment
+    lab = RandomMazeTileRaw(level_name,
+                            observation_list,
+                            configurations,
+                            use_true_state=inputs.use_true_state,
+                            reward_type="sparse-1",
+                            dist_epsilon=1e-3)
+    return lab, maze_size, maze_seed
 
-    eval_policy = tf_agent.policy
-    collect_policy = tf_agent.collect_policy
-    initial_collect_driver = dynamic_step_driver.DynamicStepDriver(
-        tf_env,
-        collect_policy,
-        observers=[replay_buffer.add_batch],
-        num_steps=initial_collect_steps)
 
-    collect_driver = dynamic_step_driver.DynamicStepDriver(
-        tf_env,
-        collect_policy,
-        observers=[replay_buffer.add_batch],
-        num_steps=1)
+# make the agent
+def make_agent(inputs):
+    if inputs.agent == 'dqn':
+        agent = DQNAgent(dqn_mode=inputs.dqn_mode,
+                         target_update_frequency=inputs.dqn_update_target_freq,
+                         policy_update_frequency=inputs.dqn_update_policy_freq,
+                         use_small_obs=inputs.use_small_obs,
+                         use_true_state=inputs.use_true_state,
+                         use_target_soft_update=inputs.soft_target_update,
+                         use_gradient_clip=inputs.dqn_gradient_clip,
+                         gamma=inputs.gamma,
+                         device=inputs.device,
+                         )
+    elif inputs.agent == 'goal-dqn':
+        agent = GoalDQNAgent(dqn_mode=inputs.dqn_mode,
+                             target_update_frequency=inputs.dqn_update_target_freq,
+                             policy_update_frequency=inputs.dqn_update_policy_freq,
+                             use_small_obs=inputs.use_small_obs,
+                             use_true_state=inputs.use_true_state,
+                             use_target_soft_update=inputs.soft_target_update,
+                             use_gradient_clip=inputs.dqn_gradient_clip,
+                             gamma=inputs.gamma,
+                             device=inputs.device,
+                             )
+    else:
+        raise Exception(f"{inputs.agent} is not defined. Please try the valid agent (random, dqn, actor-critic)")
 
-    initial_collect_driver.run = common.function(initial_collect_driver.run)
-    collect_driver.run = common.function(collect_driver.run)
-    tf_agent.train = common.function(tf_agent.train)
+    return agent
 
-    initial_collect_driver.run()
 
-    time_step = None
-    policy_state = collect_policy.get_initial_state(tf_env.batch_size)
+# run experiment
+def run_experiment(inputs):
+    # create the environment
+    my_lab, size, seed = make_env(inputs)
+    # create the agent
+    my_agent = make_agent(inputs)
+    # create the transition
+    transition = namedtuple("transition", ["state", "action", "reward", "next_state", "done"]) if not inputs.use_goal \
+        else namedtuple("transition", ["state", "action", "reward", "next_state", "goal", "done"])
+    # create the experiment
+    my_experiment = Experiment(
+        env=my_lab,
+        agent=my_agent,
+        maze_list=size,
+        seed_list=seed,
+        decal_freq=inputs.decal_freq,
+        fix_maze=inputs.fix_maze,
+        fix_start=inputs.fix_start,
+        fix_goal=inputs.fix_goal,
+        use_goal=inputs.use_goal,
+        goal_dist=inputs.goal_dist,
+        use_true_state=inputs.use_true_state,
+        train_local_policy=inputs.train_local_policy,
+        sample_start_goal_num=inputs.sampled_goal_num,
+        train_episode_num=inputs.train_episode_num,
+        start_train_step=inputs.start_train_step,
+        max_time_steps=inputs.total_time_steps,
+        episode_time_steps=inputs.episode_time_steps,
+        eval_policy_freq=inputs.eval_policy_freq,
+        use_replay=inputs.use_memory,
+        use_her=inputs.use_her,
+        future_k=inputs.future_k,
+        buffer_size=inputs.memory_size,
+        transition=transition,
+        batch_size=inputs.batch_size,
+        gamma=inputs.gamma,
+        save_dir=inputs.save_dir,
+        model_name=inputs.model_idx,
+        use_imagine=inputs.use_imagine,
+        device=inputs.device
+    )
+    # run the experiments
+    if inputs.use_goal:
+        # train a global goal-conditioned policy
+        if not inputs.train_local_policy:
+            my_experiment.run_goal_dqn()
+        else:  # train a local goal-conditioned policy
+            if not inputs.use_her:
+                my_experiment.run_random_local_goal_dqn()
+            else:
+                my_experiment.run_random_local_goal_dqn_her()
+    else:
+        # train a vanilla policy
+        my_experiment.run_dqn()
+        # my_experiment.run_maze_complexity_comparison()
 
-    timed_at_step = global_step.numpy()
-    time_acc = 0
 
-    # Dataset generates trajectories with shape [Bx2x...]
-    dataset = replay_buffer.as_dataset(
-        num_parallel_calls=3,
-        sample_batch_size=batch_size,
-        num_steps=2).prefetch(3)
-    iterator = iter(dataset)
+def split_trn_tst_mazes(args):
+    trn_size_list = []
+    trn_seed_list = []
+    tst_size_list = []
+    tst_seed_list = []
+    # convert string to list
+    seed_list = args.maze_seed_list.split(',') if len(args.maze_seed_list) > 1 else [args.maze_seed_list[0]]
 
-    # for _ in tqdm.tnrange(num_iterations):
-    for _ in range(num_iterations):
-        start_time = time.time()
-        time_step, policy_state = collect_driver.run(
-            time_step=time_step,
-            policy_state=policy_state,
-        )
+    if not args.mix_maze:
+        assert(len(args.maze_size_list) == 1), f"Invalid maze size input, expect only 1 size type, but get {len(args.maze_size_list)}"
+        assert(len(seed_list) >= args.trn_num_each_maze), f"The number of total mazes is smaller than the number" \
+                                                          f"of necessary training mazes."
+        for run in range(args.run_num):
+            # sample training mazes
+            tmp_trn_list = random.sample(seed_list, args.trn_num_each_maze)
+            tmp_tst_list = list(set(seed_list) - set(tmp_trn_list))
+            # convert to string
+            tmp_trn_seed_str = ','.join(tmp_trn_list) if len(tmp_trn_list) > 1 else tmp_trn_list[0]
+            if len(tmp_tst_list):
+                tmp_tst_seed_str = ','.join(tmp_tst_list) if len(tmp_tst_list) > 1 else tmp_tst_list[0]
+            else:
+                tmp_tst_seed_str = "null"
+            # save the current split
+            trn_size_list.append(args.maze_size_list)
+            tst_size_list.append(args.maze_size_list)
+            trn_seed_list.append(tmp_trn_seed_str)
+            tst_seed_list.append(tmp_tst_seed_str)
+    else:
+        assert(len(args.maze_size_list) > 1), f"Invalid maze size input, expect more than 1 maze type, but get {len(args.maze_size_list)}"
+        assert (len(seed_list) >= args.trn_num_each_maze), f"The number of total mazes is smaller than the number" \
+                                                           f"of necessary training mazes."
 
-        experience, _ = next(iterator)
-        train_loss = tf_agent.train(experience)
-        time_acc += time.time() - start_time
+        # sample mazes
+        trn_maze_str = "5,7,9,11"
+        tst_maze_str = "13,15,17,19,21"
+        for run in range(args.run_num):
+            # sample training mazes
+            tmp_trn_list = random.sample(seed_list, args.trn_num_each_maze)
+            tmp_tst_list = list(set(seed_list) - set(tmp_trn_list))
+            # convert to string
+            tmp_trn_seed_str = ','.join(tmp_trn_list)
+            if len(tmp_tst_list):
+                tmp_tst_seed_str = ','.join(tmp_tst_list) if len(tmp_tst_list) > 1 else tmp_tst_list[0]
+            else:
+                tmp_tst_seed_str = "null"
+            # save the current split
+            trn_size_list.append(trn_maze_str)
+            trn_seed_list.append(tmp_trn_seed_str)
+            tst_size_list.append(tst_maze_str)
+            tst_seed_list.append(tmp_tst_seed_str)
 
-        if global_step.numpy() % log_interval == 0:
-            tf.compat.v1.logging.info('step = %d, loss = %f', global_step.numpy(),
-                                      train_loss.loss)
-            steps_per_sec = log_interval / time_acc
-            tf.compat.v1.logging.info('%.3f steps/sec', steps_per_sec)
-            time_acc = 0
-
-        if global_step.numpy() % eval_interval == 0:
-            start = time.time()
-            tf.compat.v1.logging.info('step = %d' % global_step.numpy())
-            for dist in [2, 5, 10]:
-                tf.compat.v1.logging.info('\t dist = %d' % dist)
-                eval_tf_env.pyenv.envs[0].gym.set_sample_goal_args(
-                    prob_constraint=1.0, min_dist=dist - 1, max_dist=dist + 1)
-
-                results = metric_utils.eager_compute(
-                    eval_metrics,
-                    eval_tf_env,
-                    eval_policy,
-                    num_episodes=num_eval_episodes,
-                    train_step=global_step,
-                    summary_prefix='Metrics',
-                )
-                for (key, value) in results.items():
-                    tf.compat.v1.logging.info('\t\t %s = %.2f', key, value.numpy())
-                # For debugging, it's helpful to check the predicted distances for
-                # goals of known distance.
-                pred_dist = []
-                for _ in range(num_eval_episodes):
-                    ts = eval_tf_env.reset()
-                    dist_to_goal = agent._get_dist_to_goal(ts)[0]
-                    pred_dist.append(dist_to_goal.numpy())
-                tf.compat.v1.logging.info('\t\t predicted_dist = %.1f (%.1f)' %
-                                          (np.mean(pred_dist), np.std(pred_dist)))
-            tf.compat.v1.logging.info('\t eval_time = %.2f' % (time.time() - start))
-
-    return train_loss
+    return trn_size_list, trn_seed_list, tst_size_list, tst_seed_list
 
 
 if __name__ == '__main__':
-    # Run this cell before training on a new environment!
-    tf.compat.v1.reset_default_graph()
+    # load the input parameters
+    user_inputs = parse_input()
+    user_inputs = strTobool(user_inputs)
 
-    # If you change the environment parameters below, make sure to run
-    # tf.reset_default_graph() in the cell above before training.
-    max_episode_steps = 20
-    env_name = 'FourRooms'  # Choose one of the environments shown above.
-    resize_factor = 5  # Inflate the environment to increase the difficulty.
+    # user input model index
+    input_model_idx = user_inputs.model_idx
 
-    tf_env = env_load_fn(env_name, max_episode_steps,
-                         resize_factor=resize_factor,
-                         terminate_on_timeout=False)
-    eval_tf_env = env_load_fn(env_name, max_episode_steps,
-                              resize_factor=resize_factor,
-                              terminate_on_timeout=True)
-    agent = UvfAgent(
-        tf_env.time_step_spec(),
-        tf_env.action_spec(),
-        max_episode_steps=max_episode_steps,
-        use_distributional_rl=True,
-        ensemble_size=3)
+    # split the data
+    assert(user_inputs.run_num >= user_inputs.fold_k), f"The number of run should be same as the fold number k."
+    random.seed(user_inputs.random_seed)
+    trn_size, trn_seed, tst_size, tst_seed = split_trn_tst_mazes(user_inputs)
 
-    train_eval(
-        agent,
-        tf_env,
-        eval_tf_env,
-        initial_collect_steps=1000,
-        eval_interval=1000,
-        num_eval_episodes=10,
-        num_iterations=30000,
-    )
+    # run the experiment for fix number of times
+    for r, size, seed, tst in zip(range(user_inputs.run_num), trn_size, trn_seed):
+        # set different random seed
+        user_inputs.random_seed = r
+
+        # set the random seed
+        random.seed(user_inputs.random_seed)
+        np.random.seed(user_inputs.random_seed)
+        torch.manual_seed(user_inputs.random_seed)
+
+        # reset the training mazes
+        user_inputs.maze_size_list = size
+        user_inputs.maze_seed_list = seed
+
+        # run the experiment
+        print(f"Run the {r + 1} experiment with random seed = {user_inputs.random_seed} using mazes size {size} and "
+              f"seed {seed}")
+        user_inputs.model_idx = input_model_idx + f'_seed_{r}'
+
+        run_experiment(user_inputs)
+
 

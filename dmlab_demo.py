@@ -21,14 +21,14 @@ def run_demo():
 
     # configurations
     configurations = {
-        'width': str(480),
-        'height': str(480),
+        'width': str(640),
+        'height': str(640),
         "fps": str(60)
     }
 
     # maze sizes and seeds
-    maze_size_list = [21]
-    maze_seed_list = [0]
+    maze_size_list = [13]
+    maze_seed_list = [1]
     use_true_state = False
 
     # maze

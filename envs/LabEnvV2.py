@@ -205,7 +205,11 @@ class RandomMazeTileRaw(object):
         # self._top_down_obs = self._current_state['RGB.LOOK_TOP_DOWN_VIEW'] if not self._use_state else None
         # plt.axis('off')
         # plt.imshow(ndimage.rotate(self._top_down_obs, -90))
-        # plt.savefig(f'{self.maze_size}_{self.maze_seed}_top_down.png', dpi=300)
+        # plt.savefig(f'{self.maze_size[0]}_{self.maze_size[1]}_top_down.png', dpi=300)
+        # for i in range(8):
+        #     plt.axis('off')
+        #     plt.imshow(self._last_observation[i])
+        #     plt.savefig(f'{self.maze_size[0]}_{self.maze_size[1]}_front_view_{i}.png', dpi=300)
         # plt.imshow()
         # initialize the goal observations
         self._goal_observation = self.get_random_observations_tile(self.goal_pos) if not self._use_state else self.goal_pos
@@ -367,7 +371,8 @@ class RandomMazeTileRaw(object):
             self.img_artists.append(self.arrays[1, 0].imshow(observations[2]))
             self.arrays[1, 1].set_title("Top-down view")
             self.arrays[1, 1].axis("off")
-            self.img_artists.append(self.arrays[1, 1].imshow(ndimage.rotate(self._top_down_obs, -90)))
+            # self.img_artists.append(self.arrays[1, 1].imshow(ndimage.rotate(self._top_down_obs, -90)))
+            self.img_artists.append(None)
             self.arrays[2, 0].set_title("Back-left view")
             self.arrays[2, 0].axis("off")
             self.img_artists.append(self.arrays[2, 0].imshow(observations[3]))
@@ -387,7 +392,7 @@ class RandomMazeTileRaw(object):
             self.img_artists[0].set_data(observations[0])
             self.img_artists[1].set_data(observations[1])
             self.img_artists[2].set_data(observations[2])
-            self.img_artists[3].set_data(ndimage.rotate(self._top_down_obs, -90))
+            # self.img_artists[3].set_data(ndimage.rotate(self._top_down_obs, -90))
             self.img_artists[4].set_data(observations[3])
             self.img_artists[5].set_data(observations[4])
             self.img_artists[6].set_data(observations[5])
