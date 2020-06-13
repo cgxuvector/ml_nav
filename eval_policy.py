@@ -60,7 +60,7 @@ class EvalPolicy(object):
                              torch.tensor([0, 0, 0, 0, 0, 0, 0, 1])]
         # load the vae model
         self.cvae = VAE.CVAE(64, use_small_obs=True)
-        self.cvae.load_state_dict(torch.load("./results/vae/model/small_obs_L64_B8.pt", map_location='cpu'))
+        self.cvae.load_state_dict(torch.load("/mnt/cheng_results/trained_model/VAE/small_obs_L64_B8.pt", map_location=torch.device(self.device)))
         self.cvae.eval()
 
         # save parameters
@@ -175,7 +175,7 @@ class EvalPolicy(object):
                             # randomly sample an action
                             action = self.agent.get_action(state, goal, 0)
                             # step in the environment
-                            next_state, reward, done, dist, trans, _, _ = my_lab.step(action) 
+                            next_state, reward, done, dist, trans, _, _ = my_lab.step(action)
                             state = next_state
                             # check terminal
                             if done:
@@ -237,7 +237,7 @@ class EvalPolicy(object):
                                 # save the sub goal observation if use observation
                                 if self.use_obs:
                                     # save the true observation if not use imagination
-                                    if not self.use_imagine: 
+                                    if not self.use_imagine:
                                         goal_obs = self.env.get_random_observations_tile(path[i])
                                     else:  # save imagined observation if use imagination
                                         goal_loc_map = self.env_map.cropper(self.env_map.map2d_roughPadded, path[i][0:2])
