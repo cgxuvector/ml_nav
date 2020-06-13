@@ -112,10 +112,10 @@ def load_data_from_runs(data_dir, size, use_random=False, use_goal=False, use_ob
                     file_name = f'random_goal_ddqn_{size}x{size}_true_state_double_seed_{r}_return.npy'
                 else:
                     # file_name = f'goal_imagine_ddqn_{size}x{size}_obs_double_soft_seed_{r}_return.npy'
-                    # file_name = f'goal_imagine_ddqn_{size}x{size}_obs_double_soft_return.npy'
+                    file_name = f'test_goal_ddqn_{size}x{size}_obs_double_soft_dist_1_full_imagine_seed_1_return.npy'
                     # file_name = f'random_imagine_goal_ddqn_{size}x{size}_obs_double_random_maze_env2_seed_{r}_return.npy'
                     # file_name = f'goal_ddqn_{size}x{size}_obs_double_soft_dist_2_seed_{r}_return.npy'
-                    file_name = f'baseline_2_random_goal_ddqn_{size}x{size}_obs_double_her_return.npy'
+                    # file_name = f'baseline_2_random_goal_ddqn_{size}x{size}_obs_double_her_seed_1_return.npy'
             else:
                 if not use_obs:
                     file_name = f'goal_ddqn_{size}x{size}_true_state_double_soft_seed_{r}_return.npy'
@@ -238,7 +238,8 @@ if __name__ == '__main__':
     root_dir = '../results/6-1/'
     maze_size = 7
     # plot_name = f'Local Goal-conditioned Double DQN with Mixed Panorama in Maze {maze_size}x{maze_size}'
-    plot_name = f'Baseline 1: Double DQN + HER with panorama view in multiple mazes'
+    # plot_name = f'Baseline 1: Double DQN + HER with panorama view in {maze_size}x{maze_size} mazes'
+    plot_name = '7x7 full imagine'
     # optimal value
     oracle_val = compute_oracle(maze_size, local_policy=True)
     run_num = 1

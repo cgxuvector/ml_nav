@@ -196,13 +196,13 @@ class RandomMazeTileRaw(object):
 
         """ initialize the 3D maze"""
         # initialize the current state
-        # self._current_state = self._lab.observations() if not self._use_state else self.start_pos
+        self._current_state = self._lab.observations() if not self._use_state else self.start_pos
         # initialize the current position
         self.current_pos = self.start_pos
         # initialize the current observations
         self._last_observation = self.get_random_observations_tile(self.current_pos) if not self._use_state else self.current_pos
         # initialize the top down view
-        # self._top_down_obs = self._current_state['RGB.LOOK_TOP_DOWN_VIEW'] if not self._use_state else None
+        self._top_down_obs = self._current_state['RGB.LOOK_TOP_DOWN_VIEW'] if not self._use_state else None
         # plt.axis('off')
         # plt.imshow(ndimage.rotate(self._top_down_obs, -90))
         # plt.savefig(f'{self.maze_size[0]}_{self.maze_size[1]}_top_down.png', dpi=300)
@@ -371,8 +371,8 @@ class RandomMazeTileRaw(object):
             self.img_artists.append(self.arrays[1, 0].imshow(observations[2]))
             self.arrays[1, 1].set_title("Top-down view")
             self.arrays[1, 1].axis("off")
-            # self.img_artists.append(self.arrays[1, 1].imshow(ndimage.rotate(self._top_down_obs, -90)))
-            self.img_artists.append(None)
+            self.img_artists.append(self.arrays[1, 1].imshow(ndimage.rotate(self._top_down_obs, -90)))
+            # self.img_artists.append(None)
             self.arrays[2, 0].set_title("Back-left view")
             self.arrays[2, 0].axis("off")
             self.img_artists.append(self.arrays[2, 0].imshow(observations[3]))
@@ -421,6 +421,7 @@ class RandomMazeTileRaw(object):
             self.arrays[1, 1].set_title("Top-down view")
             self.arrays[1, 1].axis("off")
             self.img_artists.append(self.arrays[1, 1].imshow(ndimage.rotate(self._top_down_obs, -90)))
+            self.img_artists.append([])
             self.arrays[2, 0].set_title("Back-left view")
             self.arrays[2, 0].axis("off")
             self.img_artists.append(self.arrays[2, 0].imshow(observations[3]))
