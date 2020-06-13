@@ -50,7 +50,7 @@ class Experiment(object):
                  eps_end=0.01,
                  save_dir=None,  # saving configurations
                  model_name=None,
-                 use_imagine=False,  # imagination flag
+                 use_imagine=0,  # imagination flag
                  device='cpu'
                  ):
         self.device = torch.device(device)
@@ -398,9 +398,10 @@ class Experiment(object):
             # store the replay buffer and convert the data to tensor
             if self.use_replay_buffer:
                 # change the goal to imagine with probability 0.5
-                if random.uniform(0, 1) < 0.5:
-                    loc_goal_map = self.env_map.cropper(self.env_map.map2d_roughPadded, goal_pos)
-                    goal = self.imagine_goal_observation(loc_goal_map)
+                if self.use_imagine:
+                    if random.uniform(0, 1) <= self.use_imagine:
+                        loc_goal_map = self.env_map.cropper(self.env_map.map2d_roughPadded, goal_pos)
+                        goal = self.imagine_goal_observation(loc_goal_map)
                 # construct the transition
                 trans = self.toTransition(state, action, next_state, reward, goal, done)
                 # add the transition into the buffer

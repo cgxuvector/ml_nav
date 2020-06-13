@@ -30,7 +30,7 @@ def parse_input():
     parser.add_argument("--use_small_obs", type=str, default='False', help="Using small observations flag")
     parser.add_argument("--use_goal", type=str, default="False", help="Using goal conditioned flag")
     parser.add_argument("--goal_dist", type=int, default=-1, help="Set distance between start and goal")
-    parser.add_argument("--use_imagine", type=str, default="False", help="Using imagination of goal")
+    parser.add_argument("--use_imagine", type=float, default=0, help="Proportion of relabeled imagination goal")
     # set the running mode
     parser.add_argument("--run_num", type=int, default=1, help="Number of run for each experiment.")
     parser.add_argument("--random_seed", type=int, default=0, help="Random seed")
@@ -49,7 +49,7 @@ def parse_input():
     parser.add_argument("--soft_target_update", type=str, default="False", help="Soft update flag")
     parser.add_argument("--dqn_gradient_clip", type=str, default="False", help="Clip the gradient flag")
     parser.add_argument("--mix_maze", type=str, default="False", help="If set true, then the training mazes are mixed size")
-    parser.add_argument("--fold_k", type=int, default="1", help="Cross validation")
+    parser.add_argument("--fold_k", type=int, default=-1, help="Cross validation, k = -1 means no k-fold")
     parser.add_argument("--trn_num_each_maze", type=int, default=1, help="Number of the training mazes for each size")
     # set the memory params
     parser.add_argument("--memory_size", type=int, default=20000, help="Memory size or replay buffer size")
@@ -74,8 +74,7 @@ def strTobool(inputs):
     inputs.fix_goal = True if inputs.fix_goal == "True" else False
     inputs.use_small_obs = True if inputs.use_small_obs == "True" else False
     inputs.use_true_state = True if inputs.use_true_state == "True" else False
-    inputs.use_goal = True if inputs.use_goal == "True" else False
-    inputs.use_imagine = True if inputs.use_imagine == "True" else False
+    inputs.use_goal = True if inputs.use_goal == "True" else False 
     # set params of training
     inputs.train_local_policy = True if inputs.train_local_policy == "True" else False
     inputs.use_memory = True if inputs.use_memory == "True" else False
@@ -205,6 +204,7 @@ def run_experiment(inputs):
         use_imagine=inputs.use_imagine,
         device=inputs.device
     )
+    
     # run the experiments
     if inputs.use_goal:
         # train a global goal-conditioned policy
@@ -282,31 +282,40 @@ if __name__ == '__main__':
 
     # user input model index
     input_model_idx = user_inputs.model_idx
-
-    # split the data
-    assert(user_inputs.run_num >= user_inputs.fold_k), f"The number of run should be same as the fold number k."
-    random.seed(user_inputs.random_seed)
-    trn_size, trn_seed, tst_size, tst_seed = split_trn_tst_mazes(user_inputs)
     
-    # run_experiment(user_inputs)
-    # run the experiment for fix number of times
-    for r, size, seed in zip(range(user_inputs.run_num), trn_size, trn_seed):
-        # set different random seed
-        user_inputs.random_seed = r
+    # split the data
+    if user_inputs.fold_k != -1:
+        assert(user_inputs.run_num >= user_inputs.fold_k), f"The number of run should be same as the fold number k."
+        random.seed(user_inputs.random_seed)
+        trn_size, trn_seed, tst_size, tst_seed = split_trn_tst_mazes(user_inputs)
+    
+        # run_experiment(user_inputs)
+        # run the experiment for fix number of times
+        for r, size, seed in zip(range(user_inputs.run_num), trn_size, trn_seed):
+            # set different random seed
+            user_inputs.random_seed = r
 
-        # set the random seed
+            # set the random seed
+            random.seed(user_inputs.random_seed)
+            np.random.seed(user_inputs.random_seed)
+            torch.manual_seed(user_inputs.random_seed)
+
+            # reset the training mazes
+            user_inputs.maze_size_list = size
+            user_inputs.maze_seed_list = seed
+
+            # run the experiment
+            print(f"Run the {r + 1} experiment with random seed = {user_inputs.random_seed} using mazes size {size} and "
+                  f"seed {seed}")
+            user_inputs.model_idx = input_model_idx + f'_seed_{r}'
+            run_experiment(user_inputs)
+    else:
         random.seed(user_inputs.random_seed)
         np.random.seed(user_inputs.random_seed)
         torch.manual_seed(user_inputs.random_seed)
 
-        # reset the training mazes
-        user_inputs.maze_size_list = size
-        user_inputs.maze_seed_list = seed
-
-        # run the experiment
-        print(f"Run the {r + 1} experiment with random seed = {user_inputs.random_seed} using mazes size {size} and "
-              f"seed {seed}")
-        user_inputs.model_idx = input_model_idx + f'_seed_{r}'
+        print(f"Run the {user_inputs.run_num} experiment with random seed = {user_inputs.random_seed} using mazes size {user_inputs.maze_size_list} and seed {user_inputs.maze_seed_list}")
+        user_inputs.model_idx = input_model_idx + f'_seed_{user_inputs.run_num}'
         run_experiment(user_inputs)
 
 
