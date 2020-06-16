@@ -61,8 +61,10 @@ def run_demo():
     maze_configs["update"] = True  # update flag
     # set the maze
     state, goal, _, _ = myEnv.reset(maze_configs)
+    Debug.set_trace()
     print(f"Start = {myEnv.start_trans}, Goal = {myEnv.goal_trans}")
-
+    
+    Debug.set_trace()
     if not use_true_state:
         myEnv.show_panorama_view_test(None, state)
 
