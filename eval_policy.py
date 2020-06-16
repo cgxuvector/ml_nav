@@ -689,7 +689,7 @@ if __name__ == '__main__':
     elif eval_mode == 'imagine-local-policy':
         my_agent = GoalDQNAgent(use_true_state=args.use_true_state, use_small_obs=True)
         my_agent.policy_net.load_state_dict(
-            torch.load(f"/mnt/cheng_results/results_RL/6-1/goal_ddqn_{21}x{21}_obs_double_soft_dist_1_seed_{1}.pt",
+            torch.load(f"/mnt/cheng_results/results_RL/6-13/goal_ddqn_{21}x{21}_true_state_double_soft_dist_1_seed_{1}.pt",
                        map_location=torch.device('cpu'))
         )
         my_agent.policy_net.eval()

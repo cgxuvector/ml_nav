@@ -439,7 +439,9 @@ class RoughMap(object):
             dist_matrix = -1 * np.ones((valid_pos_num, valid_pos_num))
             for i in range(valid_pos_num):
                 for j in range(i, valid_pos_num):
-                    path, _ = self.generate_path(self.valid_pos[i], self.valid_pos[j])
+                    path = searchAlg.A_star(self.map2d_grid, self.valid_pos[i], self.valid_pos[j])
+                    if path is None:
+                        continue 
                     dist_matrix[i, j] = len(path) - 1
             self.dist_matrix = dist_matrix
 
