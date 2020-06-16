@@ -22,6 +22,7 @@ from utils import mapper
 from collections import defaultdict
 from envs.LabEnvV2 import RandomMazeTileRaw
 import numpy as np
+import pickle
 import IPython.terminal.debugger as Debug
 
 ACTION_LIST = ['up', 'down', 'left', 'right']
@@ -60,7 +61,7 @@ class EvalPolicy(object):
                              torch.tensor([0, 0, 0, 0, 0, 0, 0, 1])]
         # load the vae model
         self.cvae = VAE.CVAE(64, use_small_obs=True)
-        self.cvae.load_state_dict(torch.load("/mnt/cheng_results/trained_model/VAE/small_obs_L64_B8.pt", map_location=torch.device(self.device)))
+        self.cvae.load_state_dict(torch.load("/mnt/cheng_results/trained_model/VAE/small_obs_L64_B8.pt", map_location=torch.device('cuda:0')))
         self.cvae.eval()
 
         # save parameters
@@ -304,6 +305,10 @@ class EvalPolicy(object):
                                 print(f"Failed actions = {act_list}")
                                 fail_count += 1
                                 break
+                        if done:
+                            print("Success navigation action list: ", act_list)
+                            print("Ground truth: ", self.env_map.map_act)
+                            print("------------------------------------------------------------------")
 
                     if run_count > 0:
                         print("Success rate = {}".format((run_count - fail_count) / run_count))
@@ -329,16 +334,19 @@ class EvalPolicy(object):
             for m_seed in self.maze_seed_list:
                 # loop all the distance
                 self.update_map2d_and_maze3d(set_new_maze=True, maze_size=m_size, maze_seed=m_seed, dist=1)
+                total_pairs_dict = self.load_pair_data(m_size, m_seed)
+                pairs_dict = {'start':None, 'goal':None}
                 for g_dist in self.goal_dist:
                     # obtain all the pairs
-                    pairs_dict = self.env_map.get_start_goal_pair_with_fix_distance(g_dist)
+                    pairs_dict['start'] = total_pairs_dict[str(g_dist)][0]
+                    pairs_dict['goal'] = total_pairs_dict[str(g_dist)][1]
                     # loop all possible pairs
                     fail_count = 0
                     run_count = len(pairs_dict['start']) * 2
-                    for start, goal in zip(pairs_dict['start'], pairs_dict['goal']):
+                    for s_pos, g_pos in zip(pairs_dict['start'], pairs_dict['goal']):
                         # forward test
                         act_list = []
-                        state, goal, start_pos, goal_pos = self.update_maze_from_pos(start, goal)
+                        state, goal, start_pos, goal_pos = self.update_maze_from_pos(s_pos, g_pos)
                         # get the planned path
                         path = [pos.tolist() + [0] for pos in self.env_map.path]
                         # get sub-goals
@@ -366,14 +374,7 @@ class EvalPolicy(object):
                             sub_goals_pos.append(path[-1])
                             # add the goal observation (True observation)
                             if not args.use_true_state:
-                                sub_goals_obs.append(goal)
-
-                        # print info for validation sampled start-goal position
-                        print("{}-{}: Start pos = {}, Goal pos = {}, Dist = {}".format(m_size,
-                                                                                       m_seed,
-                                                                                       start_pos,
-                                                                                       goal_pos,
-                                                                                       g_dist))
+                                sub_goals_obs.append(goal) 
 
                         # navigating between sub-goals
                         if not self.use_obs:
@@ -422,10 +423,10 @@ class EvalPolicy(object):
 
                         # reverse the start and goal position
                         act_list = []
-                        tmp = start
-                        start = goal
-                        goal = tmp
-                        state, goal, start_pos, goal_pos = self.update_maze_from_pos(start, goal)
+                        tmp = s_pos
+                        s_pos = g_pos
+                        g_pos = tmp
+                        state, goal, start_pos, goal_pos = self.update_maze_from_pos(s_pos, g_pos)
                         # get the planned path
                         path = [pos.tolist() + [0] for pos in self.env_map.path]
                         # get sub-goals
@@ -499,6 +500,7 @@ class EvalPolicy(object):
                                                                                                              done,
                                                                                                              act_list))
 
+                        print('------------------------------------------------------------------------------------')
                     print("Success rate = {}".format((run_count - fail_count) / run_count))
                     eval_results[f"{m_size}-{m_seed}-{g_dist}"] = (run_count - fail_count) / run_count
 
@@ -511,6 +513,11 @@ class EvalPolicy(object):
                 tmp_str = key + ' ' + str(val) + '\n'
                 f.write(tmp_str)
             f.close()
+
+    def load_pair_data(self, m_size, m_seed):
+        path = f'/mnt/cheng_results/map/maze_{m_size}_{m_seed}.pkl'
+        f = open(path, 'rb')
+        return pickle.load(f)
 
     def imagine_goal_obs(self, pos_loc_map):
         imagined_obs = []
@@ -572,7 +579,7 @@ class EvalPolicy(object):
         # return states and goals
         return state_obs, goal_obs, init_map_pos, goal_map_pos
 
-    def update_maze_from_pos(self, start_pos, goal_pos):
+    def update_maze_from_pos(self, start_pos, goal_pos): 
         maze_configs = defaultdict(lambda: None)
         self.env_map.update_mapper(start_pos, goal_pos)
         # set the maze configurations
@@ -682,7 +689,7 @@ if __name__ == '__main__':
     elif eval_mode == 'imagine-local-policy':
         my_agent = GoalDQNAgent(use_true_state=args.use_true_state, use_small_obs=True)
         my_agent.policy_net.load_state_dict(
-            torch.load(f"./results/6-1/goal_ddqn_{21}x{21}_obs_double_soft_dist_1_seed_{1}.pt",
+            torch.load(f"/mnt/cheng_results/results_RL/6-13/goal_ddqn_{21}x{21}_true_state_double_soft_dist_1_seed_{1}.pt",
                        map_location=torch.device('cpu'))
         )
         my_agent.policy_net.eval()
@@ -695,11 +702,12 @@ if __name__ == '__main__':
                            res_path=save_path,
                            res_name=file_name,
                            args=args)
-        myVis.eval_navigate_with_local_policy()
+        #myVis.eval_navigate_with_local_policy()
+        myVis.eval_navigate_with_local_policy_loop_entire()
     elif eval_mode == 'her-policy':
         my_agent = GoalDQNAgent(use_true_state=args.use_true_state, use_small_obs=True)
         my_agent.policy_net.load_state_dict(
-            torch.load(f"./results/6-1/baseline_2_random_goal_ddqn_{21}x{21}_obs_double_her_seed_1.pt",
+            torch.load(f"/mnt/cheng_results/results_RL/6-1/baseline_2_random_goal_ddqn_{21}x{21}_obs_double_her_seed_1.pt",
                        map_location=torch.device('cpu'))
         )
         my_agent.policy_net.eval()

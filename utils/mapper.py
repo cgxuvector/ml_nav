@@ -439,7 +439,9 @@ class RoughMap(object):
             dist_matrix = -1 * np.ones((valid_pos_num, valid_pos_num))
             for i in range(valid_pos_num):
                 for j in range(i, valid_pos_num):
-                    path, _ = self.generate_path(self.valid_pos[i], self.valid_pos[j])
+                    path = searchAlg.A_star(self.map2d_grid, self.valid_pos[i], self.valid_pos[j])
+                    if path is None:
+                        continue
                     dist_matrix[i, j] = len(path) - 1
             self.dist_matrix = dist_matrix
 
@@ -452,14 +454,21 @@ class RoughMap(object):
 #"""
 #    Plot rough map
 #"""
-#size_list = [5]
-#seed_list = [0, 1, 2, 3, 4, 5]
-#for size in size_list:
-#    for seed in seed_list:
-#        env_map = RoughMap(size, seed, 3)
-        # init_pos, goal_pos = env_map.sample_random_start_goal_pos(False, False, 12)
-#        plt.axis('off')
-#        plt.imshow(env_map.map2d_rough)
-        # plt.savefig(f'{size}x{seed}_map.png', dpi=300)
-#        plt.show()
+#env_map = RoughMap(5, 0, 3)
+
+#pos_pairs = env_map.get_start_goal_pair_with_fix_distance(7)
+
+#Debug.set_trace()
+# print(pos_pairs['start'])
+# print(pos_pairs['goal'])
+# size_list = [15]
+# seed_list = [4]
+# for size in size_list:
+#     for seed in seed_list:
+#         env_map = RoughMap(size, seed, 3)
+#         # init_pos, goal_pos = env_map.sample_random_start_goal_pos(False, False, 12)
+#         plt.axis('off')
+#         plt.imshow(env_map.map2d_rough)
+#         # plt.savefig(f'{size}x{seed}_map.png', dpi=300)
+#         plt.show()
 
