@@ -62,6 +62,8 @@ def parse_input():
     # set the saving params
     parser.add_argument("--model_idx", type=str, default=None, help="model index")
     parser.add_argument("--save_dir", type=str, default=None, help="saving folder")
+    # add new strategy
+    parser.add_argument("--use_cycle_relabel", type=str, default='False', help='whether use the cycle relabel strategy')
 
     return parser.parse_args()
 
@@ -84,6 +86,8 @@ def strTobool(inputs):
     inputs.use_her = True if inputs.use_her == "True" else False
     # use mixed mazes as training
     inputs.mix_maze = True if inputs.mix_maze == "True" else False
+    # use cycle relabeling during training
+    inputs.use_cycle_relabel = True if inputs.use_cycle_relabel == "True" else False
     return inputs
 
 
@@ -170,8 +174,12 @@ def run_experiment(inputs):
     # create the agent
     my_agent = make_agent(inputs)
     # create the transition
-    transition = namedtuple("transition", ["state", "action", "reward", "next_state", "done"]) if not inputs.use_goal \
-        else namedtuple("transition", ["state", "action", "reward", "next_state", "goal", "done"])
+    if not inputs.use_goal:
+        transition = namedtuple("transition", ["state", "action", "reward", "next_state", "done"])
+    elif not inputs.use_cycle_relabel:
+        transition = namedtuple("transition", ["state", "action", "reward", "next_state", "goal", "done"])
+    else:
+        transition = namedtuple("transition", ["state", "action", "reward", "next_state", "init", "goal", "done"])
     # create the experiment
     my_experiment = Experiment(
         env=my_lab,
@@ -202,7 +210,8 @@ def run_experiment(inputs):
         save_dir=inputs.save_dir,
         model_name=inputs.model_idx,
         use_imagine=inputs.use_imagine,
-        device=inputs.device
+        device=inputs.device,
+        use_cycle_relabel=inputs.use_cycle_relabel
     )
     
     # run the experiments

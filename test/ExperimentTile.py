@@ -51,7 +51,8 @@ class Experiment(object):
                  save_dir=None,  # saving configurations
                  model_name=None,
                  use_imagine=0,  # imagination flag
-                 device='cpu'
+                 device='cpu',
+                 use_cycle_relabel=False  # whether use cycle relabeling strategy
                  ):
         self.device = torch.device(device)
         # environment
@@ -74,6 +75,8 @@ class Experiment(object):
         self.use_goal = use_goal
         self.goal_dist = goal_dist
         self.use_imagine = use_imagine
+        # for cycle relabel
+        self.reverse_action = [1, 0, 3, 2]
         # generate imagined goals
         self.orientations = [torch.tensor([0, 0, 0, 0, 1, 0, 0, 0]),
                              torch.tensor([0, 0, 1, 0, 0, 0, 0, 0]),
@@ -85,7 +88,9 @@ class Experiment(object):
                              torch.tensor([0, 0, 0, 0, 0, 0, 0, 1])]
         if self.use_imagine:
             self.thinker = VAE.CVAE(64, use_small_obs=True)
-            self.thinker.load_state_dict(torch.load("/mnt/cheng_results/trained_model/VAE/small_obs_L64_B8.pt",
+            # self.thinker.load_state_dict(torch.load("/mnt/cheng_results/trained_model/VAE/small_obs_L64_B8.pt",
+            #                                         map_location=self.device))
+            self.thinker.load_state_dict(torch.load("./results/vae/model/small_obs_L64_B8.pt",
                                                     map_location=self.device))
             self.thinker.eval()
         # training configurations
@@ -96,6 +101,7 @@ class Experiment(object):
         self.max_time_steps = max_time_steps
         self.max_steps_per_episode = episode_time_steps
         self.eval_policy_freq = eval_policy_freq
+        self.use_cycle_relabel = use_cycle_relabel
         # replay buffer configurations
         if buffer_size:
             self.replay_buffer = memory.ReplayMemory(buffer_size, transition)
@@ -381,6 +387,7 @@ class Experiment(object):
 
         # initialize the state and goal
         state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=self.fix_maze)
+        init_state = state
 
         # start the training
         pbar = tqdm.trange(self.max_time_steps)
@@ -403,7 +410,7 @@ class Experiment(object):
                         loc_goal_map = self.env_map.cropper(self.env_map.map2d_roughPadded, goal_pos)
                         goal = self.imagine_goal_observation(loc_goal_map)
                 # construct the transition
-                trans = self.toTransition(state, action, next_state, reward, goal, done)
+                trans = self.toTransition(state, action, next_state, reward, init_state, goal, done)
                 # add the transition into the buffer
                 self.replay_buffer.add(trans)
 
@@ -442,12 +449,14 @@ class Experiment(object):
                         self.fix_start = True
                         self.fix_goal = True
                         state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=False)
+                        init_state = state
                         train_episode_num -= 1
                     else:
                         # sample a new pair of start and goal
                         self.fix_start = False
                         self.fix_goal = False
                         state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=False)
+                        init_state = state
                         train_episode_num = self.train_episode_num
                         sample_start_goal_num -= 1
                 else:
@@ -455,6 +464,7 @@ class Experiment(object):
                     self.fix_start = False
                     self.fix_goal = False
                     state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=True)
+                    init_state = state
                     # reset the training control
                     train_episode_num = self.train_episode_num
                     sample_start_goal_num = self.sample_start_goal_num
@@ -465,6 +475,8 @@ class Experiment(object):
             # train the agent
             if t > self.start_train_step:
                 sampled_batch = self.replay_buffer.sample(self.batch_size)
+                if self.use_cycle_relabel:
+                    sampled_batch = self.cycle_relabel(sampled_batch)
                 self.agent.train_one_batch(t, sampled_batch)
 
         # save results
@@ -581,6 +593,29 @@ class Experiment(object):
         # save results
         self.save_results()
 
+    def cycle_relabel(self, batch):
+        relabeled_batch = 1
+        reverse_action = [torch.tensor(self.reverse_action[act.item()], dtype=torch.int8).view(-1, 1) for act in batch.action]
+        reverse_reward = []
+        reverse_done = []
+        for s, i, a in zip(batch.state, batch.init, reverse_action):
+            if torch.all(torch.eq(s, i)):
+                reverse_reward.append(torch.tensor(0, dtype=torch.int8).view(-1, 1))
+                reverse_done.append(torch.tensor(1, dtype=torch.int8).view(-1, 1))
+            else:
+                reverse_reward.append(torch.tensor(-1, dtype=torch.int8).view(-1, 1))
+                reverse_done.append(torch.tensor(0, dtype=torch.int8).view(-1, 1))
+
+        relabeled_batch = self.TRANSITION(state=tuple(list(batch.state) + list(batch.next_state)),
+                                          action=tuple(list(batch.action) + reverse_action),
+                                          reward=tuple(list(batch.reward) + reverse_reward),
+                                          next_state=tuple(list(batch.next_state) + list(batch.state)),
+                                          init=tuple(list(batch.init) + list(batch.goal)),
+                                          goal=tuple(list(batch.goal) + list(batch.init)),
+                                          done=tuple(list(batch.done) + reverse_done)
+                                          )
+        return relabeled_batch
+
     # generate the goal imagination
     def imagine_goal_observation(self, pos_loc_map):
         imagined_obs = []
@@ -625,7 +660,7 @@ class Experiment(object):
                 transition = self.toTransition(state, action, next_state, new_reward, new_goal, new_done)
                 self.replay_buffer.add(transition)
 
-    def toTransition(self, state, action, next_state, reward, goal, done):
+    def toTransition(self, state, action, next_state, reward, init, goal, done):
         """
         Function is used to construct a transition using state, action, next_state, reward, goal, done.
         """
@@ -635,11 +670,19 @@ class Experiment(object):
                                    reward=torch.tensor(reward, dtype=torch.int8).view(-1, 1),
                                    next_state=self.toTensor(next_state),
                                    done=torch.tensor(done, dtype=torch.int8).view(-1, 1))
-        else:  # construct goal-conditioned transition
+        elif not self.use_cycle_relabel:  # construct goal-conditioned transition
             return self.TRANSITION(state=self.toTensor(state),
                                    action=torch.tensor(action, dtype=torch.int8).view(-1, 1),
                                    reward=torch.tensor(reward, dtype=torch.int8).view(-1, 1),
                                    next_state=self.toTensor(next_state),
+                                   goal=self.toTensor(goal),
+                                   done=torch.tensor(done, dtype=torch.int8).view(-1, 1))
+        else:
+            return self.TRANSITION(state=self.toTensor(state),
+                                   action=torch.tensor(action, dtype=torch.int8).view(-1, 1),
+                                   reward=torch.tensor(reward, dtype=torch.int8).view(-1, 1),
+                                   next_state=self.toTensor(next_state),
+                                   init=self.toTensor(init),
                                    goal=self.toTensor(goal),
                                    done=torch.tensor(done, dtype=torch.int8).view(-1, 1))
 

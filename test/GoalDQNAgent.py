@@ -277,7 +277,7 @@ class GoalDQNAgent(object):
                 next_state = torch.cat(batch.next_state, dim=0).float().to(self.device)
                 done = torch.cat(batch.done, dim=0).to(self.device)
                 return state, action, next_state, reward, done
-            elif len(batch._fields) == 6:
+            elif len(batch._fields) == 6 or len(batch._fields) == 7:
                 state = torch.cat(batch.state, dim=0).float().to(self.device)
                 action = torch.cat(batch.action, dim=0).long().to(self.device)
                 reward = torch.cat(batch.reward, dim=0).float().to(self.device)
@@ -293,7 +293,7 @@ class GoalDQNAgent(object):
                 next_state = torch.stack(batch.next_state).float().to(self.device)
                 done = torch.stack(batch.done).view(-1, 1).to(self.device)
                 return state, action, next_state, reward, done
-            elif len(batch._fields) == 6:
+            elif len(batch._fields) == 6 or len(batch._fields) == 7:
                 state = torch.stack(batch.state).float().to(self.device)
                 action = torch.stack(batch.action).long().view(-1, 1).to(self.device)
                 reward = torch.stack(batch.reward).float().view(-1, 1).to(self.device)
