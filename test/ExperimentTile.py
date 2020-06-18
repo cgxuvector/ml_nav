@@ -88,10 +88,10 @@ class Experiment(object):
                              torch.tensor([0, 0, 0, 0, 0, 0, 0, 1])]
         if self.use_imagine:
             self.thinker = VAE.CVAE(64, use_small_obs=True)
-            # self.thinker.load_state_dict(torch.load("/mnt/cheng_results/trained_model/VAE/small_obs_L64_B8.pt",
-            #                                         map_location=self.device))
-            self.thinker.load_state_dict(torch.load("./results/vae/model/small_obs_L64_B8.pt",
-                                                    map_location=self.device))
+            self.thinker.load_state_dict(torch.load("/mnt/cheng_results/trained_model/VAE/small_obs_L64_B8.pt",
+                                                     map_location=self.device))
+            #self.thinker.load_state_dict(torch.load("./results/vae/model/small_obs_L64_B8.pt",
+            #                                        map_location=self.device))
             self.thinker.eval()
         # training configurations
         self.train_local_policy = train_local_policy
@@ -409,6 +409,8 @@ class Experiment(object):
                     if random.uniform(0, 1) <= self.use_imagine:
                         loc_goal_map = self.env_map.cropper(self.env_map.map2d_roughPadded, goal_pos)
                         goal = self.imagine_goal_observation(loc_goal_map)
+                        loc_init_map = self.env_map.cropper(self.env_map.map2d_roughPadded, start_pos)
+                        init_state = self.imagine_goal_observation(loc_init_map)
                 # construct the transition
                 trans = self.toTransition(state, action, next_state, reward, init_state, goal, done)
                 # add the transition into the buffer
@@ -477,6 +479,7 @@ class Experiment(object):
                 sampled_batch = self.replay_buffer.sample(self.batch_size)
                 if self.use_cycle_relabel:
                     sampled_batch = self.cycle_relabel(sampled_batch)
+                                
                 self.agent.train_one_batch(t, sampled_batch)
 
         # save results
