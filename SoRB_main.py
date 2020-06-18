@@ -214,10 +214,12 @@ def run_experiment(inputs):
         my_experiment.train_local_goal_conditioned_dqn()
     elif inputs.run_mode == 'trn-her':
         my_experiment.train_local_goal_conditioned_dqn_with_her()
-    elif inputs.run_mode == 'eval':
-        my_experiment.eval_policy()
+    elif inputs.run_mode == 'tst-dist':
+        my_experiment.test_distance_prediction()
+    elif inputs.run_mode == 'sorb':
+        my_experiment.run_SoRB()
     else:
-        raise Exception(f"Invalid experiment running mode. Expect one from (trn, trn-her, or eval), but get"
+        raise Exception(f"Invalid experiment running mode. Expect one from (trn, trn-her, tst-dist, or sorb), but get"
                         f"{inputs.run_mode}")
 
 

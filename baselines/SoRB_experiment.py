@@ -173,7 +173,7 @@ class Experiment(object):
                         self.fix_start = False
                         self.fix_goal = False
                         # constrain the distance <= max dist
-                        self.goal_dist = random.sample(self.valid_dist_list, 1)[0]
+                        # self.goal_dist = random.sample(self.valid_dist_list, 1)[0]
                         state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=False)
                         train_episode_num = self.train_episode_num
                         sample_start_goal_num -= 1
@@ -182,7 +182,7 @@ class Experiment(object):
                     self.fix_start = False
                     self.fix_goal = False
                     # constrain the distance <= max dist
-                    self.goal_dist = random.sample(self.valid_dist_list, 1)[0]
+                    # self.goal_dist = random.sample(self.valid_dist_list, 1)[0]
                     state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=True)
                     # reset the training control
                     train_episode_num = self.train_episode_num
@@ -304,8 +304,54 @@ class Experiment(object):
         # save results
         self.save_results()
 
-    def eval_policy(self):
-        pass
+    def test_distance_prediction(self):
+        # load the saved data
+        self.agent.policy_net.load_state_dict(torch.load('./test_7.pt'))
+        self.agent.policy_net.eval()
+
+        # sample a start-goal pair
+        state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=self.fix_maze)
+        run_num = 10
+        for r in range(run_num):
+            gt_dist = len(self.env_map.path)
+            with torch.no_grad():
+                state = self.toTensor(state)
+                goal = self.toTensor(goal)
+                pred_dist = self.agent.policy_net(state, goal)
+            print(f'State={state}, goal={goal}, GT={gt_dist} Pred={pred_dist.max()}')
+            state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=self.fix_maze)
+
+    def run_SoRB(self):
+        # load the policy
+        self.agent.policy_net.load_state_dict(torch.load(torch.load('./test_7.pt')))
+        self.agent.policy_net.eval()
+        # load the replay buffer
+        self.replay_buffer = torch.load('./results/buffer/state_buffer.pt')
+
+        # init the environment
+        state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=True)
+        run_num = 10
+        success_count = 0
+        for r in range(10):
+            # sample a start-goal pair
+            state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=False)
+            # time steps
+            max_time_steps = 20
+            for t in range(max_time_steps):
+                # get an action
+                action = self.search_policy(state)
+                # take one step
+                next_state, reward, done, dist, trans, _, _ = self.env.step(action)
+                # check terminal
+                if done:
+                    success_count += 1
+                    break
+                else:
+                    state = next_state
+
+    def search_policy(self, state):
+        
+        return 0
 
     # adding transition to the buffer using HER
     def hindsight_experience_replay(self, states, actions, rewards, trans_poses, goal, dones):
@@ -422,6 +468,7 @@ class Experiment(object):
         lengths_save_path = os.path.join(self.save_dir, self.model_name + "_length.npy")
         # save the memory buffer
         buffer_path = os.path.join(self.save_dir, self.model_name + "_buffer.pt")
+        self.replay_buffer.save_buffer()
         # save the results
         torch.save(self.agent.policy_net.state_dict(), model_save_path)
         # torch.save(self.replay_buffer, buffer_path)

@@ -497,7 +497,6 @@ class Experiment(object):
         sample_start_goal_num = self.sample_start_goal_num  # sampled start and goal pair
         train_episode_num = self.train_episode_num  # training number for each start-goal pair
 
-
         # initialize the state and goal
         state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=self.fix_maze)
         states.append(state)
