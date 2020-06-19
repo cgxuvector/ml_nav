@@ -350,7 +350,7 @@ class Experiment(object):
                     state = next_state
 
     def search_policy(self, state):
-        
+
         return 0
 
     # adding transition to the buffer using HER

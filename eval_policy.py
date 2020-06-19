@@ -61,7 +61,8 @@ class EvalPolicy(object):
                              torch.tensor([0, 0, 0, 0, 0, 0, 0, 1])]
         # load the vae model
         self.cvae = VAE.CVAE(64, use_small_obs=True)
-        self.cvae.load_state_dict(torch.load("/mnt/cheng_results/trained_model/VAE/small_obs_L64_B8.pt", map_location=torch.device('cuda:0')))
+        # self.cvae.load_state_dict(torch.load("/mnt/cheng_results/trained_model/VAE/small_obs_L64_B8.pt", map_location=torch.device('cuda:0')))
+        self.cvae.load_state_dict(torch.load("./results/vae/model/small_obs_L64_B8.pt", map_location=torch.device('cpu')))
         self.cvae.eval()
 
         # save parameters
@@ -344,12 +345,18 @@ class EvalPolicy(object):
                     fail_count = 0
                     run_count = len(pairs_dict['start']) * 1
                     count = 1
+                    last_state = None
+                    last_goal = None
                     for s_pos, g_pos in zip(pairs_dict['goal'], pairs_dict['start']):
-                        s_pos = [6,4]
-                        g_pos = [7,4]
+                        s_pos = [6, 4]
+                        g_pos = [7, 4]
                         # forward test
                         act_list = []
                         state, goal, start_pos, goal_pos = self.update_maze_from_pos(s_pos, g_pos)
+                        if count == 1:
+                            last_state = state
+                            last_goal = goal
+                            count += 1
                         # get the planned path
                         path = [pos.tolist() + [0] for pos in self.env_map.path]
                         # get sub-goals
@@ -367,7 +374,7 @@ class EvalPolicy(object):
                                     else:  # save imagined observation if use imagination
                                         goal_loc_map = self.env_map.cropper(self.env_map.map2d_roughPadded,
                                                                             path[i][0:2])
-                                        print('imagine')
+                                        # print('imagine')
                                         goal_obs = self.imagine_goal_obs(goal_loc_map)
                                     # save the observation
                                     sub_goals_obs.append(goal_obs)
@@ -385,7 +392,7 @@ class EvalPolicy(object):
                             nav_sub_goals = sub_goals_pos
                         else:
                             nav_sub_goals = sub_goals_obs
-                        print(sub_goals_pos)
+                        # print(sub_goals_pos)
                         current_trans = self.env.position_map2maze(path[0], [m_size, m_size])
                         for idx, g in enumerate(nav_sub_goals):
                             # flag for sub-goal navigation
@@ -396,7 +403,8 @@ class EvalPolicy(object):
                             maze_goal_pos = self.env.position_map2maze(sub_goals_pos[idx], [m_size, m_size])
                             for t in range(max_time_step):
                                 # get the action
-                                action = self.agent.get_action(state, g, 0)
+                                with torch.no_grad():
+                                    action = self.agent.get_action(state, g, 0)
                                 # save the action
                                 act_list.append(ACTION_LIST[action])
                                 # step the environment and print info
@@ -406,10 +414,10 @@ class EvalPolicy(object):
                                     tmp_sub_goal = maze_goal_pos
                                 else:
                                     tmp_sub_goal = g
-                                print(f'state={current_trans}, action={ACTION_LIST[action]}, next_state={next_trans}, done={done}, maze_goal_pos={tmp_sub_goal}, dist={abs(np.sum(next_trans - np.array(tmp_sub_goal)))}')
+                                # print(f'state={current_trans}, action={ACTION_LIST[action]}, next_state={next_trans}, done={done}, maze_goal_pos={tmp_sub_goal}, dist={abs(np.sum(next_trans - np.array(tmp_sub_goal)))}')
                                 # update
-                                state = next_state
-                                current_trans = next_trans
+                                # state = next_state
+                                # current_trans = next_trans
 
                                 if np.sum(abs(next_trans - np.array(tmp_sub_goal))) == 0:
                                     sub_goal_done = True
@@ -418,8 +426,10 @@ class EvalPolicy(object):
                                 print("Fail to reach sub-goal {}".format(sub_goals_pos[idx]))
                                 print(f"Failed actions = {act_list}")
                                 fail_count += 1
-                                Debug.set_trace()
                                 break
+                            print((state - last_state).sum(), (goal - last_goal).sum())
+                            last_state = state
+                            last_goal = goal
                                 # print info for validation sampled start-goal position
                         print("{}-{}: Start pos = {}, Goal pos = {}, Dist = {}, Done = {}, Acts = {}".format(
                                     m_size,
@@ -527,7 +537,8 @@ class EvalPolicy(object):
             f.close()
 
     def load_pair_data(self, m_size, m_seed):
-        path = f'/mnt/cheng_results/map/maze_{m_size}_{m_seed}.pkl'
+        # path = f'/mnt/cheng_results/map/maze_{m_size}_{m_seed}.pkl'
+        path = f'./results/6-16/maze_{m_size}_{m_seed}.pkl'
         f = open(path, 'rb')
         return pickle.load(f)
 
@@ -703,8 +714,12 @@ if __name__ == '__main__':
         myVis.eval_random_policy()
     elif eval_mode == 'imagine-local-policy':
         my_agent = GoalDQNAgent(use_true_state=args.use_true_state, use_small_obs=True)
+        # my_agent.policy_net.load_state_dict(
+        #     torch.load(f"/mnt/cheng_results/results_RL/6-16/goal_imagine_ddqn_{15}x{15}_obs_dist_1_seed_{1}.pt",
+        #                map_location=torch.device('cpu'))
+        # )
         my_agent.policy_net.load_state_dict(
-            torch.load(f"/mnt/cheng_results/results_RL/6-16/goal_imagine_ddqn_{15}x{15}_obs_dist_1_seed_{1}.pt",
+            torch.load(f"./results/6-16/goal_imagine_ddqn_{15}x{15}_obs_dist_1_seed_{1}.pt",
                        map_location=torch.device('cpu'))
         )
         my_agent.policy_net.eval()
