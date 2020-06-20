@@ -153,6 +153,7 @@ class GoalDQNAgent(object):
                  use_true_state=False,
                  use_target_soft_update=False,
                  use_gradient_clip=False,
+                 use_rescale=False,
                  gamma=0.99,
                  learning_rate=1e-3,
                  device="cpu"
@@ -185,6 +186,7 @@ class GoalDQNAgent(object):
         self.gamma = gamma
         self.tau = 0.05  # parameters for soft target update
         self.use_true_state = use_true_state
+        self.use_rescale = use_rescale
         self.soft_update = use_target_soft_update
         self.clip_gradient = use_gradient_clip
         self.freq_update_target = target_update_frequency
@@ -276,7 +278,10 @@ class GoalDQNAgent(object):
                 reward = torch.cat(batch.reward, dim=0).float().to(self.device)
                 next_state = torch.cat(batch.next_state, dim=0).float().to(self.device)
                 done = torch.cat(batch.done, dim=0).to(self.device)
-                return state/255, action, next_state/255, reward, done
+                if self.use_rescale:
+                    return state/255, action, next_state/255, reward, done
+                else:
+                    return state, action, next_state, reward, done
             elif len(batch._fields) == 6 or len(batch._fields) == 7:
                 state = torch.cat(batch.state, dim=0).float().to(self.device)
                 action = torch.cat(batch.action, dim=0).long().to(self.device)
@@ -284,7 +289,10 @@ class GoalDQNAgent(object):
                 next_state = torch.cat(batch.next_state, dim=0).float().to(self.device)
                 goal = torch.cat(batch.goal, dim=0).float().to(self.device)
                 done = torch.cat(batch.done, dim=0).to(self.device)
-                return state/255, action, next_state/255, reward, goal/255, done
+                if self.use_rescale:
+                    return state/255, action, next_state/255, reward, goal/255, done
+                else:
+                    return state, action, next_state, reward, goal, done
         else:
             if len(batch._fields) == 5:
                 state = torch.stack(batch.state).float().to(self.device)
