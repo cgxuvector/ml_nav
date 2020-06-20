@@ -342,11 +342,9 @@ class EvalPolicy(object):
                     pairs_dict['goal'] = total_pairs_dict[str(g_dist)][1]
                     # loop all possible pairs
                     fail_count = 0
-                    run_count = len(pairs_dict['start']) * 1
+                    run_count = len(pairs_dict['start']) * 2
                     count = 1
-                    for s_pos, g_pos in zip(pairs_dict['goal'], pairs_dict['start']):
-                        s_pos = [6,4]
-                        g_pos = [7,4]
+                    for s_pos, g_pos in zip(pairs_dict['start'], pairs_dict['goal']):
                         # forward test
                         act_list = []
                         state, goal, start_pos, goal_pos = self.update_maze_from_pos(s_pos, g_pos)
@@ -367,7 +365,7 @@ class EvalPolicy(object):
                                     else:  # save imagined observation if use imagination
                                         goal_loc_map = self.env_map.cropper(self.env_map.map2d_roughPadded,
                                                                             path[i][0:2])
-                                        print('imagine')
+                                        
                                         goal_obs = self.imagine_goal_obs(goal_loc_map)
                                     # save the observation
                                     sub_goals_obs.append(goal_obs)
@@ -385,7 +383,7 @@ class EvalPolicy(object):
                             nav_sub_goals = sub_goals_pos
                         else:
                             nav_sub_goals = sub_goals_obs
-                        print(sub_goals_pos)
+                        
                         current_trans = self.env.position_map2maze(path[0], [m_size, m_size])
                         for idx, g in enumerate(nav_sub_goals):
                             # flag for sub-goal navigation
@@ -406,7 +404,7 @@ class EvalPolicy(object):
                                     tmp_sub_goal = maze_goal_pos
                                 else:
                                     tmp_sub_goal = g
-                                print(f'state={current_trans}, action={ACTION_LIST[action]}, next_state={next_trans}, done={done}, maze_goal_pos={tmp_sub_goal}, dist={abs(np.sum(next_trans - np.array(tmp_sub_goal)))}')
+                                #print(f'state={current_trans}, action={ACTION_LIST[action]}, next_state={next_trans}, done={done}, maze_goal_pos={tmp_sub_goal}, dist={abs(np.sum(next_trans - np.array(tmp_sub_goal)))}')
                                 # update
                                 state = next_state
                                 current_trans = next_trans
@@ -418,7 +416,6 @@ class EvalPolicy(object):
                                 print("Fail to reach sub-goal {}".format(sub_goals_pos[idx]))
                                 print(f"Failed actions = {act_list}")
                                 fail_count += 1
-                                Debug.set_trace()
                                 break
                                 # print info for validation sampled start-goal position
                         print("{}-{}: Start pos = {}, Goal pos = {}, Dist = {}, Done = {}, Acts = {}".format(
@@ -429,7 +426,7 @@ class EvalPolicy(object):
                                     g_dist,
                                     done,
                                     act_list))
-                        """
+                        
                         # reverse the start and goal position
                         act_list = []
                         tmp = s_pos
@@ -499,7 +496,7 @@ class EvalPolicy(object):
                                 print("Fail to reach sub-goal {}".format(sub_goals_pos[idx]))
                                 print(f"Failed actions = {act_list}")
                                 fail_count += 1
-                                Debug.set_trace()
+                                #Debug.set_trace()
                                 break
                         # print info for validation sampled start-goal position
                         print("{}-{}: Start pos = {}, Goal pos = {}, Dist = {}, Done = {}, Acts = {}".format(m_size,
@@ -510,7 +507,7 @@ class EvalPolicy(object):
                                                                                                              done,
                                                                                                              act_list))
 
-                        """
+                        
                         print('------------------------------------------------------------------------------------')
                     
                     print("Success rate = {}".format((run_count - fail_count) / run_count))
@@ -593,7 +590,7 @@ class EvalPolicy(object):
 
     def update_maze_from_pos(self, start_pos, goal_pos): 
         maze_configs = defaultdict(lambda: None)
-        print(f"Set start = {start_pos}, goal = {goal_pos}")
+        #print(f"Set start = {start_pos}, goal = {goal_pos}")
         self.env_map.update_mapper(start_pos, goal_pos)
         # set the maze configurations
         maze_configs['start_pos'] = self.env_map.init_pos + [0]
@@ -704,7 +701,7 @@ if __name__ == '__main__':
     elif eval_mode == 'imagine-local-policy':
         my_agent = GoalDQNAgent(use_true_state=args.use_true_state, use_small_obs=True)
         my_agent.policy_net.load_state_dict(
-            torch.load(f"/mnt/cheng_results/results_RL/6-16/goal_imagine_ddqn_{15}x{15}_obs_dist_1_seed_{1}.pt",
+            torch.load(f"/mnt/cheng_results/results_RL/6-1/goal_ddqn_{15}x{15}_obs_double_soft_dist_1_seed_{1}.pt",
                        map_location=torch.device('cpu'))
         )
         my_agent.policy_net.eval()
