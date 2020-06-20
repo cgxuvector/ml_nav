@@ -64,6 +64,7 @@ def parse_input():
     parser.add_argument("--save_dir", type=str, default=None, help="saving folder")
     # add new strategy
     parser.add_argument("--use_cycle_relabel", type=str, default='False', help='whether use the cycle relabel strategy')
+    parser.add_argument("--use_rescale", type=str, default='False', help='whether rescale the value to [0,1]')
 
     return parser.parse_args()
 
@@ -88,6 +89,7 @@ def strTobool(inputs):
     inputs.mix_maze = True if inputs.mix_maze == "True" else False
     # use cycle relabeling during training
     inputs.use_cycle_relabel = True if inputs.use_cycle_relabel == "True" else False
+    inputs.use_rescale = True if inputs.use_rescale == "True" else False
     return inputs
 
 
@@ -160,6 +162,7 @@ def make_agent(inputs):
                              use_gradient_clip=inputs.dqn_gradient_clip,
                              gamma=inputs.gamma,
                              device=inputs.device,
+                             use_rescale=inputs.use_rescale
                              )
     else:
         raise Exception(f"{inputs.agent} is not defined. Please try the valid agent (random, dqn, actor-critic)")

@@ -9,6 +9,7 @@ import torch
 import random
 import os
 import numpy as np
+import pickle
 import time
 import IPython.terminal.debugger as Debug
 
@@ -124,6 +125,8 @@ class Experiment(object):
         self.returns = []
         self.lengths = []
         self.policy_returns = []
+        self.eval_results = []
+        self.eval_dist_pairs = self.load_pair_data(self.maze_size, self.maze_seed)
         # saving settings
         self.model_name = model_name
         self.save_dir = save_dir
@@ -409,8 +412,6 @@ class Experiment(object):
                     if random.uniform(0, 1) <= self.use_imagine:
                         loc_goal_map = self.env_map.cropper(self.env_map.map2d_roughPadded, goal_pos)
                         goal = self.imagine_goal_observation(loc_goal_map)
-                        loc_init_map = self.env_map.cropper(self.env_map.map2d_roughPadded, start_pos)
-                        init_state = self.imagine_goal_observation(loc_init_map)
                 # construct the transition
                 trans = self.toTransition(state, action, next_state, reward, init_state, goal, done)
                 # add the transition into the buffer
@@ -437,9 +438,11 @@ class Experiment(object):
                 )
 
                 # evaluate the current policy
-                #if (episode_idx - 1) % self.eval_policy_freq == 0:
+                if (episode_idx - 1) % self.eval_policy_freq == 0:
                     # evaluate the current policy by interaction
-                #    self.policy_evaluate()
+                    model_save_path = os.path.join(self.save_dir, self.model_name) + f"_{episode_idx}.pt"
+                    torch.save(self.agent.policy_net.state_dict(), model_save_path)
+                    self.eval_policy()
 
                 # reset the environments
                 rewards = []
@@ -500,7 +503,6 @@ class Experiment(object):
         sample_start_goal_num = self.sample_start_goal_num  # sampled start and goal pair
         train_episode_num = self.train_episode_num  # training number for each start-goal pair
 
-
         # initialize the state and goal
         state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=self.fix_maze)
         states.append(state)
@@ -549,8 +551,8 @@ class Experiment(object):
                 )
 
                 # evaluate the current policy
-                # if (episode_idx - 1) % self.eval_policy_freq == 0:
-                # evaluate the current policy by interaction
+                #if (episode_idx - 1) % self.eval_policy_freq == 0:
+                    # evaluate the current policy by interaction
                 #    self.policy_evaluate()
 
                 # reset the environments
@@ -597,7 +599,6 @@ class Experiment(object):
         self.save_results()
 
     def cycle_relabel(self, batch):
-        relabeled_batch = 1
         reverse_action = [torch.tensor(self.reverse_action[act.item()], dtype=torch.int8).view(-1, 1) for act in batch.action]
         reverse_reward = []
         reverse_done = []
@@ -621,17 +622,18 @@ class Experiment(object):
 
     # generate the goal imagination
     def imagine_goal_observation(self, pos_loc_map):
-        imagined_obs = []
-        loc_map = torch.from_numpy(pos_loc_map).flatten().view(1, -1).float()
-        for ori in self.orientations:
-            z = torch.randn(1, 64)
-            tmp_map = torch.cat(2 * [loc_map], dim=1)
-            tmp_ori = torch.cat(2 * [ori.view(-1, 1 * 1 * 8).float()], dim=1)
-            conditioned_z = torch.cat((z, tmp_map, tmp_ori), dim=1)
-            obs_reconstructed, _ = self.thinker.decoder(conditioned_z)
-            obs_reconstructed = obs_reconstructed.detach().squeeze(0).numpy().transpose(1, 2, 0) * 255
-            imagined_obs.append(obs_reconstructed)
-        return np.array(imagined_obs, dtype=np.uint8)
+        with torch.no_grad():
+            imagined_obs = []
+            loc_map = torch.from_numpy(pos_loc_map).flatten().view(1, -1).float()
+            for ori in self.orientations:
+                z = torch.randn(1, 64)
+                tmp_map = torch.cat(2 * [loc_map], dim=1)
+                tmp_ori = torch.cat(2 * [ori.view(-1, 1 * 1 * 8).float()], dim=1)
+                conditioned_z = torch.cat((z, tmp_map, tmp_ori), dim=1)
+                obs_reconstructed, _ = self.thinker.decoder(conditioned_z)
+                obs_reconstructed = obs_reconstructed.detach().squeeze(0).numpy().transpose(1, 2, 0) * 255
+                imagined_obs.append(obs_reconstructed)
+            return np.array(imagined_obs, dtype=np.uint8)
 
     # adding transition to the buffer using HER
     def hindsight_experience_replay(self, states, actions, rewards, trans_poses, goal, dones):
@@ -749,6 +751,36 @@ class Experiment(object):
         # return states and goals
         return state_obs, goal_obs, init_pos, goal_pos
 
+    def eval_policy(self):
+        # loop all the distance
+        pairs_dict = {'start': self.eval_dist_pairs['1'][0], 'goal': self.eval_dist_pairs['1'][1]}
+        # sample number
+        eval_total_num = 50 if len(pairs_dict['start']) > 50 else len(pairs_dict['start'])
+        eval_success_num = 0
+        # obtain all the pairs
+        pairs_idx = random.sample(range(len(pairs_dict['start'])), eval_total_num)
+        # loop all the pairs
+        for idx in pairs_idx:
+            # obtain the start-goal pair
+            s_pos, g_pos = pairs_dict['start'][idx], pairs_dict['goal'][idx]
+            # update the maze
+            state, goal, start_pos, goal_pos = self.update_maze_from_pos(s_pos, g_pos)
+            # obtain the fake observation
+            goal_loc_map = self.env_map.cropper(self.env_map.map2d_roughPadded, self.env_map.path[-1])
+            goal_obs = self.imagine_goal_observation(goal_loc_map)
+            max_time_steps = 5
+            for t in range(max_time_steps):
+                # get action
+                action = self.agent.get_action(state, goal_obs, 0)
+                # step in the environment
+                next_state, reward, done, dist, next_trans, _, _ = self.env.step(action)
+                if done:
+                    eval_success_num += 1
+                    break
+                else:
+                    state = next_state
+        self.eval_results.append(eval_success_num / eval_total_num)
+
     # evaluate the policy during training
     def policy_evaluate(self):
         # reset the environment
@@ -801,3 +833,24 @@ class Experiment(object):
         np.save(returns_save_path, self.returns)
         np.save(lengths_save_path, self.lengths)
         np.save(policy_returns_save_path, self.policy_returns)
+
+    # load the pre-extract pairs
+    @staticmethod
+    def load_pair_data(m_size, m_seed):
+        path = f'/mnt/cheng_results/map/maze_{m_size}_{m_seed}.pkl'
+        f = open(path, 'rb')
+        return pickle.load(f)
+
+    def update_maze_from_pos(self, start_pos, goal_pos):
+        maze_configs = defaultdict(lambda: None)
+        print(f"Set start = {start_pos}, goal = {goal_pos}")
+        self.env_map.update_mapper(start_pos, goal_pos)
+        # set the maze configurations
+        maze_configs['start_pos'] = self.env_map.init_pos + [0]
+        maze_configs['goal_pos'] = self.env_map.goal_pos + [0]
+        maze_configs['maze_valid_pos'] = self.env_map.valid_pos
+        maze_configs['update'] = False
+        # obtain the state and goal observation
+        state_obs, goal_obs, _, _ = self.env.reset(maze_configs)
+        # return states and goals
+        return state_obs, goal_obs, start_pos, goal_pos
