@@ -61,8 +61,8 @@ class EvalPolicy(object):
                              torch.tensor([0, 0, 0, 0, 0, 0, 0, 1])]
         # load the vae model
         self.cvae = VAE.CVAE(64, use_small_obs=True)
-        # self.cvae.load_state_dict(torch.load("/mnt/cheng_results/trained_model/VAE/small_obs_L64_B8.pt", map_location=torch.device('cuda:0')))
-        self.cvae.load_state_dict(torch.load("./results/vae/model/small_obs_L64_B8.pt", map_location=torch.device('cpu')))
+        self.cvae.load_state_dict(torch.load("/mnt/cheng_results/trained_model/VAE/small_obs_L64_B8.pt", map_location=torch.device('cuda:0')))
+        #self.cvae.load_state_dict(torch.load("./results/vae/model/small_obs_L64_B8.pt", map_location=torch.device('cpu')))
         self.cvae.eval()
 
         # save parameters
@@ -332,6 +332,7 @@ class EvalPolicy(object):
         eval_results = defaultdict()
         # loop all the mazes
         for m_size in self.maze_size_list:
+            mean_success = []
             for m_seed in self.maze_seed_list:
                 # loop all the distance
                 self.update_map2d_and_maze3d(set_new_maze=True, maze_size=m_size, maze_seed=m_seed, dist=1)
@@ -343,13 +344,9 @@ class EvalPolicy(object):
                     pairs_dict['goal'] = total_pairs_dict[str(g_dist)][1]
                     # loop all possible pairs
                     fail_count = 0
-                    run_count = len(pairs_dict['start']) * 1
+                    run_count = len(pairs_dict['start']) * 2
                     count = 1
-                    last_state = None
-                    last_goal = None
-                    for s_pos, g_pos in zip(pairs_dict['goal'], pairs_dict['start']):
-                        s_pos = [6, 4]
-                        g_pos = [7, 4]
+                    for s_pos, g_pos in zip(pairs_dict['start'], pairs_dict['goal']):
                         # forward test
                         act_list = []
                         state, goal, start_pos, goal_pos = self.update_maze_from_pos(s_pos, g_pos)
@@ -414,6 +411,7 @@ class EvalPolicy(object):
                                     tmp_sub_goal = maze_goal_pos
                                 else:
                                     tmp_sub_goal = g
+                                #print(f'state={current_trans}, action={ACTION_LIST[action]}, next_state={next_trans}, done={done}, maze_goal_pos={tmp_sub_goal}, dist={abs(np.sum(next_trans - np.array(tmp_sub_goal)))}')
                                 # print(f'state={current_trans}, action={ACTION_LIST[action]}, next_state={next_trans}, done={done}, maze_goal_pos={tmp_sub_goal}, dist={abs(np.sum(next_trans - np.array(tmp_sub_goal)))}')
                                 # update
                                 # state = next_state
@@ -427,9 +425,6 @@ class EvalPolicy(object):
                                 print(f"Failed actions = {act_list}")
                                 fail_count += 1
                                 break
-                            print((state - last_state).sum(), (goal - last_goal).sum())
-                            last_state = state
-                            last_goal = goal
                                 # print info for validation sampled start-goal position
                         print("{}-{}: Start pos = {}, Goal pos = {}, Dist = {}, Done = {}, Acts = {}".format(
                                     m_size,
@@ -439,7 +434,7 @@ class EvalPolicy(object):
                                     g_dist,
                                     done,
                                     act_list))
-                        """
+                        
                         # reverse the start and goal position
                         act_list = []
                         tmp = s_pos
@@ -509,7 +504,7 @@ class EvalPolicy(object):
                                 print("Fail to reach sub-goal {}".format(sub_goals_pos[idx]))
                                 print(f"Failed actions = {act_list}")
                                 fail_count += 1
-                                Debug.set_trace()
+                                #Debug.set_trace()
                                 break
                         # print info for validation sampled start-goal position
                         print("{}-{}: Start pos = {}, Goal pos = {}, Dist = {}, Done = {}, Acts = {}".format(m_size,
@@ -520,12 +515,13 @@ class EvalPolicy(object):
                                                                                                              done,
                                                                                                              act_list))
 
-                        """
+                        
                         print('------------------------------------------------------------------------------------')
                     
                     print("Success rate = {}".format((run_count - fail_count) / run_count))
+                    mean_success.append((run_count - fail_count) / run_count)
                     eval_results[f"{m_size}-{m_seed}-{g_dist}"] = (run_count - fail_count) / run_count
-
+            print(np.mean(mean_success))
         # print info
         print("Evaluation finished")
         # save the dictionary as txt file
@@ -537,8 +533,8 @@ class EvalPolicy(object):
             f.close()
 
     def load_pair_data(self, m_size, m_seed):
-        # path = f'/mnt/cheng_results/map/maze_{m_size}_{m_seed}.pkl'
-        path = f'./results/6-16/maze_{m_size}_{m_seed}.pkl'
+        path = f'/mnt/cheng_results/map/maze_{m_size}_{m_seed}.pkl'
+        # path = f'./results/6-16/maze_{m_size}_{m_seed}.pkl'
         f = open(path, 'rb')
         return pickle.load(f)
 
@@ -604,7 +600,7 @@ class EvalPolicy(object):
 
     def update_maze_from_pos(self, start_pos, goal_pos): 
         maze_configs = defaultdict(lambda: None)
-        print(f"Set start = {start_pos}, goal = {goal_pos}")
+        #print(f"Set start = {start_pos}, goal = {goal_pos}")
         self.env_map.update_mapper(start_pos, goal_pos)
         # set the maze configurations
         maze_configs['start_pos'] = self.env_map.init_pos + [0]
@@ -630,6 +626,7 @@ def parse_input():
     parser.add_argument("--use_true_state", type=str, default="True", help="Whether use the true state")
     parser.add_argument("--use_goal", type=str, default="True", help="Whether use the goal conditioned policy")
     parser.add_argument("--use_imagine", type=str, default="True", help="Whether use the imagined observation")
+    parser.add_argument("--use_rescale", type=str, default="True", help="Whether use the rescaled observation")
     return parser.parse_args()
 
 
@@ -638,6 +635,7 @@ def strTobool(inputs):
     inputs.use_true_state = True if inputs.use_true_state == "True" else False
     inputs.use_goal = True if inputs.use_goal == "True" else False
     inputs.use_imagine = True if inputs.use_imagine == "True" else False
+    inputs.use_rescale = True if inputs.use_rescale == "True" else False
     return inputs
 
 
@@ -713,15 +711,12 @@ if __name__ == '__main__':
                            args=args)
         myVis.eval_random_policy()
     elif eval_mode == 'imagine-local-policy':
-        my_agent = GoalDQNAgent(use_true_state=args.use_true_state, use_small_obs=True)
-        # my_agent.policy_net.load_state_dict(
-        #     torch.load(f"/mnt/cheng_results/results_RL/6-16/goal_imagine_ddqn_{15}x{15}_obs_dist_1_seed_{1}.pt",
-        #                map_location=torch.device('cpu'))
-        # )
+        my_agent = GoalDQNAgent(use_true_state=args.use_true_state, use_small_obs=True, use_rescale=args.use_rescale)
         my_agent.policy_net.load_state_dict(
-            torch.load(f"./results/6-16/goal_imagine_ddqn_{15}x{15}_obs_dist_1_seed_{1}.pt",
+            torch.load(f"/mnt/cheng_results/results_RL/6-20/15-100-imagine/goal_ddqn_{15}x{15}_obs_100_imagine_seed_{1}.pt",
                        map_location=torch.device('cpu'))
         )
+        
         my_agent.policy_net.eval()
         # run the agent
         myVis = EvalPolicy(env=my_lab,
@@ -737,7 +732,7 @@ if __name__ == '__main__':
     elif eval_mode == 'her-policy':
         my_agent = GoalDQNAgent(use_true_state=args.use_true_state, use_small_obs=True)
         my_agent.policy_net.load_state_dict(
-            torch.load(f"/mnt/cheng_results/results_RL/6-1/baseline_2_random_goal_ddqn_{21}x{21}_obs_double_her_seed_1.pt",
+            torch.load(f"/mnt/cheng_results/results_RL/6-20/baseline_2_random_goal_ddqn_{21}x{21}_obs_double_her_seed_1.pt",
                        map_location=torch.device('cpu'))
         )
         my_agent.policy_net.eval()

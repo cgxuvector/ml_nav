@@ -224,6 +224,7 @@ class GoalDQNAgent(object):
     def update_policy_net(self, batch_data):
         # convert the batch from numpy to tensor
         state, action, next_state, reward, goal, done = self.convert2tensor(batch_data)
+        
         # compute the Q_policy(s, a)
         sa_goal_values = self.policy_net(state, goal).gather(dim=1, index=action)
         # compute the TD target r + gamma * max_a' Q_target(s', a')
@@ -301,7 +302,7 @@ class GoalDQNAgent(object):
                 next_state = torch.stack(batch.next_state).float().to(self.device)
                 done = torch.stack(batch.done).view(-1, 1).to(self.device)
                 return state, action, next_state, reward, done
-            elif len(batch._fields) == 6 or len(batch._fields) == 7:
+            elif len(batch._fields) == 6:
                 state = torch.stack(batch.state).float().to(self.device)
                 action = torch.stack(batch.action).long().view(-1, 1).to(self.device)
                 reward = torch.stack(batch.reward).float().view(-1, 1).to(self.device)
