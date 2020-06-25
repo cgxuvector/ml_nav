@@ -451,16 +451,18 @@ class RoughMap(object):
         return {'start': start_pos_list, 'goal': goal_pos_list}
 
 
-#"""
+# """
 #    Plot rough map
-#"""
-#env_map = RoughMap(5, 0, 3)
-
-#pos_pairs = env_map.get_start_goal_pair_with_fix_distance(7)
-
-#Debug.set_trace()
+# """
+# env_map = RoughMap(15, 0, 3)
+# print(len(env_map.valid_pos))
+# env_map = RoughMap(5, 0, 3)
+#
+# pos_pairs = env_map.get_start_goal_pair_with_fix_distance(7)
+#
+# Debug.set_trace()
 # print(pos_pairs['start'])
-# print(pos_pairs['goal'])
+# # print(pos_pairs['goal'])
 # size_list = [15]
 # seed_list = [4]
 # for size in size_list:

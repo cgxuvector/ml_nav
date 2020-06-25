@@ -10,6 +10,7 @@ import random
 import os
 import numpy as np
 import time
+import scipy.sparse
 import IPython.terminal.debugger as Debug
 
 # define the global default parameters
@@ -48,7 +49,7 @@ class Experiment(object):
                  eps_end=0.01,
                  save_dir=None,  # saving configurations
                  model_name=None,
-                 device='cpu'
+                 device='cpu',
                  ):
         self.device = torch.device(device)
         # environment
@@ -102,6 +103,10 @@ class Experiment(object):
         # saving settings
         self.model_name = model_name
         self.save_dir = save_dir
+
+        # maximal distance
+        self.max_dist = 2
+        self.b2b_pdist = None
 
     def train_local_goal_conditioned_dqn(self):
         """
@@ -318,40 +323,129 @@ class Experiment(object):
                 state = self.toTensor(state)
                 goal = self.toTensor(goal)
                 pred_dist = self.agent.policy_net(state, goal)
-            print(f'State={state}, goal={goal}, GT={gt_dist} Pred={pred_dist.max()}')
+            print(f'State={state}, goal={goal}, GT={gt_dist} Pred={pred_dist.max() + 1}')
             state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=self.fix_maze)
 
     def run_SoRB(self):
         # load the policy
-        self.agent.policy_net.load_state_dict(torch.load(torch.load('./test_7.pt')))
+        self.agent.policy_net.load_state_dict(torch.load('./test_7.pt'))
         self.agent.policy_net.eval()
         # load the replay buffer
         self.replay_buffer = torch.load('./results/buffer/state_buffer.pt')
-
         # init the environment
-        state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=True)
+        self.update_map2d_and_maze3d(set_new_maze=True)
         run_num = 10
         success_count = 0
+        self.b2b_pdist = self.compute_pairwise_dist(mode='buffer-buffer')
         for r in range(10):
             # sample a start-goal pair
             state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=False)
+            print(f"Start pos = {start_pos}, Goal pos = {goal_pos}")
             # time steps
             max_time_steps = 20
             for t in range(max_time_steps):
                 # get an action
-                action = self.search_policy(state)
+                action = self.search_policy(state, goal)
                 # take one step
                 next_state, reward, done, dist, trans, _, _ = self.env.step(action)
+                print(f"Step = {t}: state={state}, action={DEFAULT_ACTION_LIST[action]}, next_state={next_state}, done={done}")
                 # check terminal
                 if done:
                     success_count += 1
                     break
                 else:
                     state = next_state
+            Debug.set_trace()
+        print(f"Success rate = {success_count / run_num}")
 
-    def search_policy(self, state):
+    def search_policy(self, state, goal):
+        # compute the next way point
+        print('Search next way point')
+        state_wp = self.shortest_path(state, goal)
+        print("Next way point = ", state_wp)
+        # compute the distance between state and way point
+        dist_s2wp = self.compute_distance(self.toTensor(state), state_wp) + 1
+        # compute the distance between state and goal
+        dist_s2g = self.compute_distance(self.toTensor(state), self.toTensor(goal)) + 1
+        # compute the action to take
+        if dist_s2wp < dist_s2g or dist_s2g > self.max_dist:
+            print("Use way point")
+            action = self.agent.get_action(state, state_wp, 0)
+        else:
+            print("Use raw goal")
+            action = self.agent.get_action(state, goal, 0)
+        return action
 
-        return 0
+    def shortest_path(self, state, goal):
+        # compute the distance matrices
+        print("compute buffer to buffer")
+        pdist_b2b = self.b2b_pdist
+        print("compute state to buffer")
+        pdist_s2b = self.compute_pairwise_dist(state=self.toTensor(state), mode='state-buffer')
+        print("compute buffer to goal")
+        pdist_b2g = self.compute_pairwise_dist(goal=self.toTensor(goal), mode='buffer-goal')
+        pdist_s2g = pdist_s2b + pdist_b2b + np.transpose(pdist_b2g)
+
+        # find the index of the next way point
+        min_index = np.argwhere(pdist_s2g == np.min(pdist_s2g))
+        # get the next way point from the memory buffere
+        next_way_point = self.replay_buffer[min_index[0][0]]
+        return next_way_point
+
+    def compute_pairwise_dist(self, state=None, goal=None, mode=None):
+        state_num = self.replay_buffer.size(0)
+        # set different source tensor based on different mode
+        if mode == 'state-buffer':
+            pdist = np.zeros((1, state_num))
+            tmp_start = [int(s) for s in state[0:2]]
+            for i in range(state_num):
+                with torch.no_grad():
+                    # dist = -1 * self.agent.policy_net(state_repeat[i, :], self.replay_buffer[j]).max(dim=1)[0] + 1
+                    tmp_goal = [int(t_g) for t_g in self.replay_buffer[i][0:2].numpy().tolist()]
+                    path, _ = self.env_map.generate_path(tmp_start, tmp_goal)
+                    dist = len(path) - 1
+                    pdist[0, i] = dist
+            if not dist:
+                dist = -9999
+            pdist = np.transpose(np.ones_like(pdist)) * pdist
+        elif mode == 'buffer-goal':
+            pdist = np.zeros((1, state_num))
+            tmp_goal = [int(g) for g in goal[0:2]]
+            for i in range(state_num):
+                with torch.no_grad():
+                    # dist = -1 * self.agent.policy_net(state_repeat[i, :], self.replay_buffer[j]).max(dim=1)[0] + 1
+                    tmp_start = [int(t_s) for t_s in self.replay_buffer[i][0:2].numpy().tolist()]
+                    path, _ = self.env_map.generate_path(tmp_start, tmp_goal)
+                    dist = len(path) - 1
+                    pdist[0, i] = dist
+            if not dist:
+                dist = -9999
+            pdist = np.transpose(np.ones_like(pdist)) * pdist
+        elif mode == 'buffer-buffer':
+            # estimate the distance using the learned goal-conditioned value function
+            pdist = torch.zeros((state_num, state_num))
+            for i in range(state_num):
+                tmp_start = [int(t_s) for t_s in self.replay_buffer[i][0:2].numpy().tolist()]
+                for j in range(i+1, state_num):
+                    with torch.no_grad():
+                        # dist = -1 * self.agent.policy_net(state_repeat[i, :], self.replay_buffer[j]).max(dim=1)[0] + 1
+                        tmp_goal = [int(t_g) for t_g in self.replay_buffer[j][0:2].numpy().tolist()]
+                        path, _ = self.env_map.generate_path(tmp_start, tmp_goal)
+                        dist = len(path) - 1
+                        pdist[i, j] = dist
+            pdist = pdist + pdist.t()
+            pdist = scipy.sparse.csgraph.floyd_warshall(pdist, directed=True)
+        else:
+            raise Exception(f"Invalid mode input. Expected on in state-buffer, buffer-goal, or buffer-buffer,"
+                            f"but get {mode}")
+        return pdist
+
+    def compute_distance(self, state, goal):
+        with torch.no_grad():
+            q_values = self.agent.policy_net(state, goal)
+            # because our policy is a greedy policy
+            v_value = q_values.max(dim=1)[0]
+        return v_value
 
     # adding transition to the buffer using HER
     def hindsight_experience_replay(self, states, actions, rewards, trans_poses, goal, dones):
