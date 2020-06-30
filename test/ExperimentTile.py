@@ -648,8 +648,7 @@ class Experiment(object):
             next_state_pos = trans_poses[t]  # position of the current next state
             done = dones[t]  # done_t
             # normal replay buffer
-            transition = self.toTransition(state, action, next_state, reward, goal,
-                                           done)  # add the current transition
+            transition = self.toTransition(state, action, next_state, reward, goal, goal, done)  # add the current transition
             self.replay_buffer.add(transition)
             # Hindsight Experience Replay
             future_indices = list(range(t+1, len(states)))
@@ -663,7 +662,7 @@ class Experiment(object):
                 distance = self.env.compute_distance(next_state_pos, new_goal_pos)
                 new_reward = self.env.compute_reward(distance)
                 new_done = 0 if new_reward == -1 else 1
-                transition = self.toTransition(state, action, next_state, new_reward, new_goal, new_done)
+                transition = self.toTransition(state, action, next_state, new_reward, new_goal, new_goal, new_done)
                 self.replay_buffer.add(transition)
 
     def toTransition(self, state, action, next_state, reward, init, goal, done):
