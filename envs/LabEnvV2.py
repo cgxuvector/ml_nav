@@ -479,3 +479,9 @@ class RandomMazeTileRaw(object):
         #      2D map: row, col
         #      3D maze: (y + 1 - 1) * 100 + 50, (maze_size - x) * 100 + 50
         return [pos[1] * 100 + 50, (size[1] - pos[0] - 1) * 100 + 50, pos[2]]
+
+    @staticmethod
+    def position_maze2map(pos, size):
+        map_row = size[1] - (pos[1] // 100) - 1
+        map_col = pos[0] // 100
+        return [map_row, map_col, 0]

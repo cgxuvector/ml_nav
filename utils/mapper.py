@@ -454,8 +454,9 @@ class RoughMap(object):
 # """
 #    Plot rough map
 # """
-# env_map = RoughMap(15, 0, 3)
-# print(len(env_map.valid_pos))
+# env_map = RoughMap(15, 4, 3)
+# print(env_map.valid_pos)
+# np.save('./valid_pos.npy', env_map.valid_pos)
 # env_map = RoughMap(5, 0, 3)
 #
 # pos_pairs = env_map.get_start_goal_pair_with_fix_distance(7)
