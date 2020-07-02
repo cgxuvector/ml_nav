@@ -1,6 +1,9 @@
-from test.ExperimentTile import Experiment
-from test.GoalDQNAgent import GoalDQNAgent
-from test.DQNAgent import DQNAgent
+"""
+    Implementation of training SoRB. Actually, the training only contains train a goal-conditioned DQN agent.
+    Currently, I don't use distributional RL. Just use the same model but without discounted factor
+"""
+from baselines.SoRB_agent import GoalDQNAgent
+from baselines.SoRB_experiment import Experiment
 from envs.LabEnvV2 import RandomMazeTileRaw
 from collections import namedtuple
 import argparse
@@ -30,7 +33,7 @@ def parse_input():
     parser.add_argument("--use_small_obs", type=str, default='False', help="Using small observations flag")
     parser.add_argument("--use_goal", type=str, default="False", help="Using goal conditioned flag")
     parser.add_argument("--goal_dist", type=int, default=-1, help="Set distance between start and goal")
-    parser.add_argument("--use_imagine", type=float, default=0, help="Proportion of relabeled imagination goal")
+    parser.add_argument("--use_imagine", type=str, default="False", help="Using imagination of goal")
     # set the running mode
     parser.add_argument("--run_num", type=int, default=1, help="Number of run for each experiment.")
     parser.add_argument("--random_seed", type=int, default=0, help="Random seed")
@@ -48,23 +51,26 @@ def parse_input():
     parser.add_argument("--dqn_update_policy_freq", type=int, default=4, help="Frequency of updating the policy")
     parser.add_argument("--soft_target_update", type=str, default="False", help="Soft update flag")
     parser.add_argument("--dqn_gradient_clip", type=str, default="False", help="Clip the gradient flag")
-    parser.add_argument("--mix_maze", type=str, default="False", help="If set true, then the training mazes are mixed size")
-    parser.add_argument("--fold_k", type=int, default=-1, help="Cross validation, k = -1 means no k-fold")
+    parser.add_argument("--mix_maze", type=str, default="False", help="If set true, "
+                                                                      "then the training mazes are mixed size")
+    parser.add_argument("--fold_k", type=int, default=-1, help="Cross validation")
     parser.add_argument("--trn_num_each_maze", type=int, default=1, help="Number of the training mazes for each size")
     # set the memory params
-    parser.add_argument("--memory_size", type=int, default=20000, help="Memory size or replay buffer size")
+    parser.add_argument("--memory_size", type=int, default=1000, help="Memory size or replay buffer size")
     parser.add_argument("--batch_size", type=int, default=64, help="Size of the mini-batch")
     parser.add_argument("--use_memory", type=str, default="True", help="If true, use the memory")
     parser.add_argument("--use_her", type=str, default="False", help="If true, use the Hindsight Experience Replay")
     parser.add_argument("--future_k", type=int, default=4, help="Number of sampling future states")
     # set RL params
-    parser.add_argument("--gamma", type=float, default=0.99, help="Gamma")
+    parser.add_argument("--gamma", type=float, default=1.0, help="Gamma")
     # set the saving params
     parser.add_argument("--model_idx", type=str, default=None, help="model index")
     parser.add_argument("--save_dir", type=str, default=None, help="saving folder")
-    # add new strategy
-    parser.add_argument("--use_cycle_relabel", type=str, default='False', help='whether use the cycle relabel strategy')
-    parser.add_argument("--use_rescale", type=str, default='False', help='whether rescale the value to [0,1]')
+
+    # flag for SoRB
+    parser.add_argument("--distributional_rl", type=str, default='False', help="Whether use distributional RL or not")
+    parser.add_argument("--run_mode", type=str, default='trn', help="Whether train or evaluate the SoRB")
+    parser.add_argument("--max_dist", type=int, default=1, help="Max distance")
 
     return parser.parse_args()
 
@@ -77,7 +83,8 @@ def strTobool(inputs):
     inputs.fix_goal = True if inputs.fix_goal == "True" else False
     inputs.use_small_obs = True if inputs.use_small_obs == "True" else False
     inputs.use_true_state = True if inputs.use_true_state == "True" else False
-    inputs.use_goal = True if inputs.use_goal == "True" else False 
+    inputs.use_goal = True if inputs.use_goal == "True" else False
+    inputs.use_imagine = True if inputs.use_imagine == "True" else False
     # set params of training
     inputs.train_local_policy = True if inputs.train_local_policy == "True" else False
     inputs.use_memory = True if inputs.use_memory == "True" else False
@@ -87,9 +94,6 @@ def strTobool(inputs):
     inputs.use_her = True if inputs.use_her == "True" else False
     # use mixed mazes as training
     inputs.mix_maze = True if inputs.mix_maze == "True" else False
-    # use cycle relabeling during training
-    inputs.use_cycle_relabel = True if inputs.use_cycle_relabel == "True" else False
-    inputs.use_rescale = True if inputs.use_rescale == "True" else False
     return inputs
 
 
@@ -135,24 +139,13 @@ def make_env(inputs):
                             use_true_state=inputs.use_true_state,
                             reward_type="sparse-1",
                             dist_epsilon=1e-3)
-    
     return lab, maze_size, maze_seed
 
 
 # make the agent
 def make_agent(inputs):
-    if inputs.agent == 'dqn':
-        agent = DQNAgent(dqn_mode=inputs.dqn_mode,
-                         target_update_frequency=inputs.dqn_update_target_freq,
-                         policy_update_frequency=inputs.dqn_update_policy_freq,
-                         use_small_obs=inputs.use_small_obs,
-                         use_true_state=inputs.use_true_state,
-                         use_target_soft_update=inputs.soft_target_update,
-                         use_gradient_clip=inputs.dqn_gradient_clip,
-                         gamma=inputs.gamma,
-                         device=inputs.device,
-                         )
-    elif inputs.agent == 'goal-dqn':
+    # two mode: vanilla goal-conditioned DQN and goal-conditioned DQN with distributional RL
+    if inputs.distributional_rl:
         agent = GoalDQNAgent(dqn_mode=inputs.dqn_mode,
                              target_update_frequency=inputs.dqn_update_target_freq,
                              policy_update_frequency=inputs.dqn_update_policy_freq,
@@ -162,11 +155,18 @@ def make_agent(inputs):
                              use_gradient_clip=inputs.dqn_gradient_clip,
                              gamma=inputs.gamma,
                              device=inputs.device,
-                             use_rescale=inputs.use_rescale
                              )
     else:
-        raise Exception(f"{inputs.agent} is not defined. Please try the valid agent (random, dqn, actor-critic)")
-
+        agent = GoalDQNAgent(dqn_mode=inputs.dqn_mode,
+                             target_update_frequency=inputs.dqn_update_target_freq,
+                             policy_update_frequency=inputs.dqn_update_policy_freq,
+                             use_small_obs=inputs.use_small_obs,
+                             use_true_state=inputs.use_true_state,
+                             use_target_soft_update=inputs.soft_target_update,
+                             use_gradient_clip=inputs.dqn_gradient_clip,
+                             gamma=inputs.gamma,
+                             device=inputs.device,
+                             )
     return agent
 
 
@@ -177,12 +177,8 @@ def run_experiment(inputs):
     # create the agent
     my_agent = make_agent(inputs)
     # create the transition
-    if not inputs.use_goal:
-        transition = namedtuple("transition", ["state", "action", "reward", "next_state", "done"])
-    elif not inputs.use_cycle_relabel:
-        transition = namedtuple("transition", ["state", "action", "reward", "next_state", "goal", "done"])
-    else:
-        transition = namedtuple("transition", ["state", "action", "reward", "next_state", "init", "goal", "done"])
+    transition = namedtuple("transition", ["state", "action", "reward", "next_state", "done"]) if not inputs.use_goal \
+        else namedtuple("transition", ["state", "action", "reward", "next_state", "goal", "done"])
     # create the experiment
     my_experiment = Experiment(
         env=my_lab,
@@ -195,14 +191,13 @@ def run_experiment(inputs):
         fix_goal=inputs.fix_goal,
         use_goal=inputs.use_goal,
         goal_dist=inputs.goal_dist,
+        max_dist=inputs.max_dist,
         use_true_state=inputs.use_true_state,
-        train_local_policy=inputs.train_local_policy,
         sample_start_goal_num=inputs.sampled_goal_num,
         train_episode_num=inputs.train_episode_num,
         start_train_step=inputs.start_train_step,
         max_time_steps=inputs.total_time_steps,
         episode_time_steps=inputs.episode_time_steps,
-        eval_policy_freq=inputs.eval_policy_freq,
         use_replay=inputs.use_memory,
         use_her=inputs.use_her,
         future_k=inputs.future_k,
@@ -212,25 +207,20 @@ def run_experiment(inputs):
         gamma=inputs.gamma,
         save_dir=inputs.save_dir,
         model_name=inputs.model_idx,
-        use_imagine=inputs.use_imagine,
-        device=inputs.device,
-        use_cycle_relabel=inputs.use_cycle_relabel
+        device=inputs.device
     )
-    
     # run the experiments
-    if inputs.use_goal:
-        # train a global goal-conditioned policy
-        if not inputs.train_local_policy:
-            my_experiment.run_goal_dqn()
-        else:  # train a local goal-conditioned policy
-            if not inputs.use_her:
-                my_experiment.run_random_local_goal_dqn()
-            else:
-                my_experiment.run_random_local_goal_dqn_her()
+    if inputs.run_mode == 'trn':
+        my_experiment.train_local_goal_conditioned_dqn()
+    elif inputs.run_mode == 'trn-her':
+        my_experiment.train_local_goal_conditioned_dqn_with_her()
+    elif inputs.run_mode == 'tst-dist':
+        my_experiment.test_distance_prediction()
+    elif inputs.run_mode == 'sorb':
+        my_experiment.run_SoRB()
     else:
-        # train a vanilla policy
-        # my_experiment.run_dqn()
-        my_experiment.run_maze_complexity_comparison()
+        raise Exception(f"Invalid experiment running mode. Expect one from (trn, trn-her, tst-dist, or sorb), but get"
+                        f"{inputs.run_mode}")
 
 
 def split_trn_tst_mazes(args):
@@ -242,7 +232,7 @@ def split_trn_tst_mazes(args):
     seed_list = args.maze_seed_list.split(',') if len(args.maze_seed_list) > 1 else [args.maze_seed_list[0]]
 
     if not args.mix_maze:
-        assert(len([int(args.maze_size_list)]) == 1), f"Invalid maze size input, expect only 1 size type, but get {len(args.maze_size_list)}"
+        assert(len(args.maze_size_list) == 1), f"Invalid maze size input, expect only 1 size type, but get {len(args.maze_size_list)}"
         assert(len(seed_list) >= args.trn_num_each_maze), f"The number of total mazes is smaller than the number" \
                                                           f"of necessary training mazes."
         for run in range(args.run_num):
@@ -294,16 +284,15 @@ if __name__ == '__main__':
 
     # user input model index
     input_model_idx = user_inputs.model_idx
-    
+
     # split the data
+    assert(user_inputs.run_num >= user_inputs.fold_k), f"The number of run should be same as the fold number k."
+    random.seed(user_inputs.random_seed)
+    trn_size, trn_seed, tst_size, tst_seed = split_trn_tst_mazes(user_inputs)
+
+    # run the experiment for fix number of times
     if user_inputs.fold_k != -1:
-        assert(user_inputs.run_num >= user_inputs.fold_k), f"The number of run should be same as the fold number k."
-        random.seed(user_inputs.random_seed)
-        trn_size, trn_seed, tst_size, tst_seed = split_trn_tst_mazes(user_inputs)
-    
-        # run_experiment(user_inputs)
-        # run the experiment for fix number of times
-        for r, size, seed in zip(range(user_inputs.run_num), trn_size, trn_seed):
+        for r, size, seed, tst in zip(range(user_inputs.run_num), trn_size, trn_seed):
             # set different random seed
             user_inputs.random_seed = r
 
@@ -320,14 +309,19 @@ if __name__ == '__main__':
             print(f"Run the {r + 1} experiment with random seed = {user_inputs.random_seed} using mazes size {size} and "
                   f"seed {seed}")
             user_inputs.model_idx = input_model_idx + f'_seed_{r}'
+
             run_experiment(user_inputs)
     else:
+        # set random seed
         random.seed(user_inputs.random_seed)
         np.random.seed(user_inputs.random_seed)
         torch.manual_seed(user_inputs.random_seed)
 
-        print(f"Run the {user_inputs.run_num} experiment with random seed = {user_inputs.random_seed} using mazes size {user_inputs.maze_size_list} and seed {user_inputs.maze_seed_list}")
-        user_inputs.model_idx = input_model_idx + f'_seed_{user_inputs.run_num}'
+        # print information
+        print("Run experiment without k-fold cross validation")
+
+        # run the experiment
         run_experiment(user_inputs)
+
 
 

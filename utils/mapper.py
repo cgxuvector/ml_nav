@@ -51,6 +51,7 @@ class RoughMap(object):
         # obtain the grid world map to do the planning
         self.map2d_grid = self.load_map('grid')
         self.path, self.map2d_path = self.generate_path(self.init_pos, self.goal_pos)
+        self.dist_matrix = None
         # egocentric actionsd
         self.map_act, self.ego_act = self.path2egoaction(self.path)
         # egocentric local maps (size adjustable)
@@ -430,18 +431,47 @@ class RoughMap(object):
         # update the action
         self.map_act, self.ego_act = self.path2egoaction(self.path)
 
+    def get_start_goal_pair_with_fix_distance(self, dist):
+        # if distance matrix is empty, build the distance matrix
+        if self.dist_matrix is None:
+            # build a graph
+            valid_pos_num = len(self.valid_pos)
+            dist_matrix = -1 * np.ones((valid_pos_num, valid_pos_num))
+            for i in range(valid_pos_num):
+                for j in range(i, valid_pos_num):
+                    path = searchAlg.A_star(self.map2d_grid, self.valid_pos[i], self.valid_pos[j])
+                    if path is None:
+                        continue
+                    dist_matrix[i, j] = len(path) - 1
+            self.dist_matrix = dist_matrix
+
+        pairs = np.where(self.dist_matrix == dist)
+        start_pos_list = [self.valid_pos[idx] for idx in pairs[0].tolist()] if len(pairs[0]) > 0 else None
+        goal_pos_list = [self.valid_pos[idx] for idx in pairs[1].tolist()] if len(pairs[1]) > 0 else None
+        return {'start': start_pos_list, 'goal': goal_pos_list}
+
 
 # """
-#     Plot rough map
+#    Plot rough map
 # """
-# size_list = [17, 19]
-# seed_list = [0, 1, 2, 3, 4, 5]
+# env_map = RoughMap(15, 4, 3)
+# print(env_map.valid_pos)
+# np.save('./valid_pos.npy', env_map.valid_pos)
+# env_map = RoughMap(5, 0, 3)
+#
+# pos_pairs = env_map.get_start_goal_pair_with_fix_distance(7)
+#
+# Debug.set_trace()
+# print(pos_pairs['start'])
+# # print(pos_pairs['goal'])
+# size_list = [15]
+# seed_list = [4]
 # for size in size_list:
 #     for seed in seed_list:
 #         env_map = RoughMap(size, seed, 3)
-#         # init_pos, goal_pos = env_map.sample_random_start_goal_pos(False, False, 35)
+#         # init_pos, goal_pos = env_map.sample_random_start_goal_pos(False, False, 12)
 #         plt.axis('off')
 #         plt.imshow(env_map.map2d_rough)
-#         plt.savefig(f'{size}x{seed}_map.png', dpi=300)
+#         # plt.savefig(f'{size}x{seed}_map.png', dpi=300)
 #         plt.show()
 

@@ -2,8 +2,11 @@
     Goal-conditioned double DQN agent implementation notes:
         - The estimation of the terminal state from the policy network should be mask 0.
         - For double DQN, we have to detach both the target network and the policy network.
-        - For hard update target network, we have to update it every fix number of steps. (defaul 2000)
+        - For hard update target network, we have to update it every fix number of steps. (default 2000)
         - For soft update target network, we have to update it every step.
+
+    Note: We use the same Double DQN model both in our model and the baseline SoRB (not discounted returnhengguang
+    )
 """
 import torch
 from torch import nn
@@ -153,7 +156,6 @@ class GoalDQNAgent(object):
                  use_true_state=False,
                  use_target_soft_update=False,
                  use_gradient_clip=False,
-                 use_rescale=False,
                  gamma=0.99,
                  learning_rate=1e-3,
                  device="cpu"
@@ -186,7 +188,6 @@ class GoalDQNAgent(object):
         self.gamma = gamma
         self.tau = 0.05  # parameters for soft target update
         self.use_true_state = use_true_state
-        self.use_rescale = use_rescale
         self.soft_update = use_target_soft_update
         self.clip_gradient = use_gradient_clip
         self.freq_update_target = target_update_frequency
@@ -224,7 +225,6 @@ class GoalDQNAgent(object):
     def update_policy_net(self, batch_data):
         # convert the batch from numpy to tensor
         state, action, next_state, reward, goal, done = self.convert2tensor(batch_data)
-        
         # compute the Q_policy(s, a)
         sa_goal_values = self.policy_net(state, goal).gather(dim=1, index=action)
         # compute the TD target r + gamma * max_a' Q_target(s', a')
@@ -279,21 +279,15 @@ class GoalDQNAgent(object):
                 reward = torch.cat(batch.reward, dim=0).float().to(self.device)
                 next_state = torch.cat(batch.next_state, dim=0).float().to(self.device)
                 done = torch.cat(batch.done, dim=0).to(self.device)
-                if self.use_rescale:
-                    return state/255, action, next_state/255, reward, done
-                else:
-                    return state, action, next_state, reward, done
-            elif len(batch._fields) == 6 or len(batch._fields) == 7:
+                return state, action, next_state, reward, done
+            elif len(batch._fields) == 6:
                 state = torch.cat(batch.state, dim=0).float().to(self.device)
                 action = torch.cat(batch.action, dim=0).long().to(self.device)
                 reward = torch.cat(batch.reward, dim=0).float().to(self.device)
                 next_state = torch.cat(batch.next_state, dim=0).float().to(self.device)
                 goal = torch.cat(batch.goal, dim=0).float().to(self.device)
                 done = torch.cat(batch.done, dim=0).to(self.device)
-                if self.use_rescale:
-                    return state/255, action, next_state/255, reward, goal/255, done
-                else:
-                    return state, action, next_state, reward, goal, done
+                return state, action, next_state, reward, goal, done
         else:
             if len(batch._fields) == 5:
                 state = torch.stack(batch.state).float().to(self.device)
@@ -314,8 +308,6 @@ class GoalDQNAgent(object):
     def toTensor(self, state):
         if not self.use_true_state:
             state_obs = torch.tensor(np.array(state).transpose(0, 3, 1, 2), dtype=torch.float32, device=self.device)
-            if self.use_rescale:
-                state_obs = state_obs / 255
         else:
             state_obs = torch.tensor(np.array(state), dtype=torch.float32, device=self.device)
         return state_obs
