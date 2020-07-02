@@ -314,6 +314,8 @@ class GoalDQNAgent(object):
     def toTensor(self, state):
         if not self.use_true_state:
             state_obs = torch.tensor(np.array(state).transpose(0, 3, 1, 2), dtype=torch.float32, device=self.device)
+            if self.use_rescale:
+                state_obs = state_obs / 255
         else:
             state_obs = torch.tensor(np.array(state), dtype=torch.float32, device=self.device)
         return state_obs

@@ -125,7 +125,7 @@ class Experiment(object):
         self.returns = []
         self.lengths = []
         self.policy_returns = []
-        self.eval_dist_pairs = self.load_pair_data(self.maze_size, self.maze_seed)
+        #self.eval_dist_pairs = self.load_pair_data(self.maze_size, self.maze_seed)
         # saving settings
         self.model_name = model_name
         self.save_dir = save_dir
@@ -441,7 +441,7 @@ class Experiment(object):
                     # evaluate the current policy by interaction
                     model_save_path = os.path.join(self.save_dir, self.model_name) + f"_{episode_idx}.pt"
                     torch.save(self.agent.policy_net.state_dict(), model_save_path)
-                    self.eval_policy()
+                    self.eval_policy_novel()
 
                 #print("episode = ", episode_idx)
 
@@ -793,16 +793,16 @@ class Experiment(object):
         for m_size in self.maze_size_list:
             for m_seed in self.maze_seed_list:
                 # print the current maze info
-                print(f'Evaluating maze - {m_size} - {m_seed}')
+                # print(f'Evaluating maze - {m_size} - {m_seed}')
                 self.eval_dist_pairs = self.load_pair_data(m_size, m_seed)
                 self.maze_size = m_size
                 self.maze_seed = m_seed
-                self.update_map2d_and_maze3d(set_maze=True)
+                self.update_map2d_and_maze3d(set_new_maze=True)
                 # load the model
                 # loop all the distance
                 pairs_dict = {'start': self.eval_dist_pairs['1'][0], 'goal': self.eval_dist_pairs['1'][1]}
                 # sample number
-                eval_total_num = 50 if len(pairs_dict['start']) > 50 else len(pairs_dict['start'])
+                eval_total_num = 10 if len(pairs_dict['start']) > 10 else len(pairs_dict['start'])
                 eval_success_num = 0
                 # obtain all the pairs
                 pairs_idx = random.sample(range(len(pairs_dict['start'])), eval_total_num)

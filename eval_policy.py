@@ -64,13 +64,16 @@ class EvalPolicy(object):
                              torch.tensor([0, 0, 0, 0, 0, 0, 0, 1])]
         # load the vae model
         self.cvae = VAE.CVAE(64, use_small_obs=True)
-        # self.cvae.load_state_dict(torch.load("/mnt/cheng_results/trained_model/VAE/small_obs_L64_B8.pt", map_location=torch.device('cuda:0')))
-        self.cvae.load_state_dict(torch.load("./results/vae/model/small_obs_L64_B8.pt", map_location=torch.device('cpu')))
+        self.cvae.load_state_dict(torch.load("/mnt/cheng_results/trained_model/VAE/small_obs_L64_B8.pt", map_location=torch.device('cuda:0')))
+        # self.cvae.load_state_dict(torch.load("./results/vae/model/small_obs_L64_B8.pt", map_location=torch.device('cpu')))
         self.cvae.eval()
 
         # save parameters
         self.save_path = res_path
         self.file_name = res_name
+
+        # maximal episode length
+        self.max_episode_len = args.max_episode_len
 
     def eval_random_policy(self):
         # save the data
@@ -78,11 +81,21 @@ class EvalPolicy(object):
         # loop all the mazes
         for m_size in self.maze_size_list:
             for m_seed in self.maze_seed_list:
+                # load all possible pairs
+                total_pairs_dict = self.load_pair_data(m_size, m_seed)
+                pairs_dict = {'start': None, 'goal': None}
                 # loop all distances
                 for g_dist in self.goal_dist:
+                    # check the distance validation
+                    if not str(g_dist) in total_pairs_dict.keys():
+                        print(f"Maze {m_size}-{m_seed} has no pair with distance {g_dist}")
+                        break
+                    # get the start and goal pairs
+                    pairs_dict['start'] = total_pairs_dict[str(g_dist)][0]
+                    pairs_dict['goal'] = total_pairs_dict[str(g_dist)][1]
+                    total_sub_pair_num = len(pairs_dict['start'])
                     # init the 3D environment
                     self.update_map2d_and_maze3d(set_new_maze=True, maze_size=m_size, maze_seed=m_seed, dist=g_dist)
-
                     # store evaluation results
                     run_num = self.run_num
                     success_count = 0
@@ -90,27 +103,19 @@ class EvalPolicy(object):
                     # start testing
                     for r in range(run_num):
                         # sample a random pair of start and goal positions
-                        self.fix_start = False
-                        self.fix_goal = False
-                        state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=False,
-                                                                                        maze_size=m_size,
-                                                                                        maze_seed=m_seed,
-                                                                                        dist=g_dist)
-                        # check the sampled distance
-                        if len(self.env_map.path) < g_dist + 1:
-                            print("Sampled pair unsatisfied.")
-                            continue
+                        pair_idx = random.sample(range(total_sub_pair_num), 1)[0]
+                        if random.uniform(0, 1) < 0.5:
+                            s_pos = pairs_dict['start'][pair_idx]
+                            g_pos = pairs_dict['goal'][pair_idx]
+                        else:
+                            s_pos = pairs_dict['goal'][pair_idx]
+                            g_pos = pairs_dict['start'][pair_idx]
 
-                        # print the current evaluation
-                        run_count += 1
-                        print("{}-{}: Run idx = {}, Init = {}, Goal = {}, Dist = {}".format(m_size,
-                                                                                            m_seed,
-                                                                                            r,
-                                                                                            start_pos,
-                                                                                            goal_pos,
-                                                                                            len(self.env_map.path)))
-                        # set the maximal steps = 3 * optimal steps
-                        max_episode_len = (len(self.env_map.path) - 1) * 3
+                        # set the environment
+                        state, goal, start_pos, goal_pos = self.update_maze_from_pos(start_pos=s_pos, goal_pos=g_pos)
+                        
+                        # start random navigation
+                        max_episode_len = self.max_episode_len
                         for t in range(max_episode_len):
                             # randomly sample an action
                             action = random.sample(range(4), 1)[0]
@@ -121,15 +126,13 @@ class EvalPolicy(object):
                             if done:
                                 success_count += 1
                                 break
+                        print(f"run {r}: {m_size}-{m_seed}: Start = {s_pos}, Goal = {g_pos}, Dist = {g_dist}, Done = {done}")
 
-                    # avoid 0 denominator
-                    if run_count > 0:
-                        # print the results
-                        print("Success rate = {}".format(success_count / run_count))
-                        # store the results
-                        eval_results[f"{m_size}-{m_seed}-{g_dist}"] = success_count / run_count
-                    else:
-                        eval_results[f"{m_size}-{m_seed}-{g_dist}"] = None
+                    
+                    # print the results
+                    print("Success rate = {}".format(success_count / run_num))
+                    # store the results
+                    eval_results[f"{m_size}-{m_seed}-{g_dist}"] = success_count / run_num
         # print info
         print("Evaluation finished")
         # save the dictionary as txt file
@@ -342,18 +345,31 @@ class EvalPolicy(object):
                 total_pairs_dict = self.load_pair_data(m_size, m_seed)
                 pairs_dict = {'start': None, 'goal': None}
                 for g_dist in self.goal_dist:
+                    if not str(g_dist) in total_pairs_dict.keys():
+                        print(f"No pair with distance {g_dist}")
+                        eval_results[f"{m_size}-{m_seed}-{g_dist}"] = None
+                        break
                     # obtain all the pairs
                     pairs_dict['start'] = total_pairs_dict[str(g_dist)][0]
-                    pairs_dict['goal'] = total_pairs_dict[str(g_dist)][1]
-                    # loop all possible pairs
+                    pairs_dict['goal'] = total_pairs_dict[str(g_dist)][1] 
+                    total_sub_pair_num = len(pairs_dict['start'])
+                    # evaluate counter
                     fail_count = 0
-                    run_count = len(pairs_dict['start']) * 1
-                    count = 1
-                    for s_pos, g_pos in zip(pairs_dict['start'], pairs_dict['goal']):
-                        # s_pos = [13, 4]
-                        # g_pos = [13, 3]
-                        # forward test
+                    total_runs = (total_sub_pair_num * 2) if (total_sub_pair_num * 2) <= 100 else 100
+                    # loop all possible pairs
+                    print(f"maze: {m_size}-{m_seed}-{g_dist}")
+                    for run in range(total_runs):
                         act_list = []
+                        # sample a start-goal pair
+                        pair_idx = random.sample(range(total_sub_pair_num), 1)[0]
+                        # with probability 0.5, reverse the order
+                        if random.uniform(0, 1) < 0.5:
+                            s_pos = pairs_dict['start'][pair_idx]
+                            g_pos = pairs_dict['goal'][pair_idx]
+                        else:
+                            s_pos = pairs_dict['goal'][pair_idx]
+                            g_pos = pairs_dict['start'][pair_idx]
+                        # update the environment based on sampled start and goal position
                         state, goal, start_pos, goal_pos = self.update_maze_from_pos(s_pos, g_pos)
                         # get the planned path
                         path = [pos.tolist() + [0] for pos in self.env_map.path]
@@ -436,7 +452,7 @@ class EvalPolicy(object):
                                     g_dist,
                                     done,
                                     act_list))
-                        
+                        """
                         # reverse the start and goal position
                         act_list = []
                         tmp = s_pos
@@ -520,11 +536,12 @@ class EvalPolicy(object):
                                                                                                              g_dist,
                                                                                                              done,
                                                                                                              act_list))
+                        """
                         print('------------------------------------------------------------------------------------')
                     
-                    print("Success rate = {}".format((run_count - fail_count) / run_count))
-                    mean_success.append((run_count - fail_count) / run_count)
-                    eval_results[f"{m_size}-{m_seed}-{g_dist}"] = (run_count - fail_count) / run_count
+                    print("Success rate = {}".format((total_runs - fail_count) / total_runs))
+                    mean_success.append((total_runs - fail_count) / total_runs)
+                    eval_results[f"{m_size}-{m_seed}-{g_dist}"] = (total_runs - fail_count) / total_runs
             print(np.mean(mean_success))
         # print info
         print("Evaluation finished")
@@ -547,15 +564,22 @@ class EvalPolicy(object):
                 self.update_map2d_and_maze3d(set_new_maze=True, maze_size=m_size, maze_seed=m_seed, dist=-1)
                 # build the initial dynamic behavior map
                 print(f"Init the dynamic behavior map")
-                mlb_map = self.build_mlb_from_2d_map(max_edge_len=1)
-                mlb_graph = csr_matrix(mlb_map)
+                # init_mlb_map = self.build_mlb_from_2d_map(max_edge_len=1)
+                # np.save(f'/mnt/cheng_results/mlb_map_{m_size}_{m_seed}.npy', init_mlb_map)
+                init_mlb_map = np.load(f'/mnt/cheng_results/mlb_map_{m_size}_{m_seed}.npy')
                 # obtain all the distance pairs
                 print(f"Load all pairs")
                 total_pairs_dict = self.load_pair_data(m_size, m_seed)
                 pairs_dict = {'start': None, 'goal': None}
                 # loop all possible distance
                 for g_dist in self.goal_dist:
+                    mlb_map = init_mlb_map.copy()
+                    mlb_graph = csr_matrix(mlb_map)
                     # get pairs with specific distance
+                    if not str(g_dist) in total_pairs_dict.keys():
+                        print(f"Maze {m_size}-{m_seed} has no pair with distance {g_dist}")
+                        eval_results[f"{m_size}-{m_seed}-{g_dist}"] = None
+                        break
                     pairs_dict['start'] = total_pairs_dict[str(g_dist)][0]
                     pairs_dict['goal'] = total_pairs_dict[str(g_dist)][1]
                     total_sub_pair_num = len(pairs_dict['start'])
@@ -579,7 +603,7 @@ class EvalPolicy(object):
                         state_obs, goal_obs, start_pos, goal_pos = self.update_maze_from_pos(start_pos=s_pos,
                                                                                              goal_pos=g_pos)
                         # set the budget for the navigation
-                        max_time_steps = 100
+                        max_time_steps = self.max_episode_len
                         # record the position on the map to terminate the sub-goal navigation
                         # currently, the signal is return from the environment
                         # sub-goal termination?
@@ -598,7 +622,7 @@ class EvalPolicy(object):
                             # compute the pos in the environment to decide the sub-goal termination
                             next_pos_maze = self.env.position_map2maze(next_pos_map + [0], [m_size, m_size])
                             # way point navigation budget
-                            max_steps_per_goal = 10
+                            max_steps_per_goal = 2
                             sub_nav_done = False
                             sub_action_list = []
                             while max_steps_per_goal > 0:
@@ -650,7 +674,7 @@ class EvalPolicy(object):
                             if nav_done:
                                 success_counter += 1
                                 break
-                        print(f"Run {run}: Start = {start_pos}, Goal = {goal_pos}, Dist = {len(self.env_map.path)}, Done = {nav_done}")
+                        print(f"Run {run}: Start = {start_pos}, Goal = {goal_pos}, Dist = {g_dist}, Done = {nav_done}")
                         print(f"--------------------------------------------------------------------")
                     # show results
                     print(f"Mean successful rate for distance = {g_dist} is {np.round(success_counter / total_runs, 2)}")
@@ -664,7 +688,7 @@ class EvalPolicy(object):
                         tmp_str = key + ' ' + str(val) + '\n'
                         f.write(tmp_str)
                     f.close()
-
+            
     # search for the action using mlb
     def mlb_search_next_waypoint(self, state_pos, goal_pos, mlb_graph):
         # get next way point
@@ -728,8 +752,8 @@ class EvalPolicy(object):
         return mlb_sparse_matrix
 
     def load_pair_data(self, m_size, m_seed):
-        # path = f'/mnt/cheng_results/map/maze_{m_size}_{m_seed}.pkl'
-        path = f'./results/6-16/maze_{m_size}_{m_seed}.pkl'
+        path = f'/mnt/cheng_results/map/maze_{m_size}_{m_seed}.pkl'
+        # path = f'./results/6-16/maze_{m_size}_{m_seed}.pkl'
         f = open(path, 'rb')
         return pickle.load(f)
 
@@ -824,6 +848,8 @@ def parse_input():
     parser.add_argument("--use_goal", type=str, default="True", help="Whether use the goal conditioned policy")
     parser.add_argument("--use_imagine", type=str, default="True", help="Whether use the imagined observation")
     parser.add_argument("--use_rescale", type=str, default="True", help="Whether use the rescaled observation")
+    parser.add_argument("--max_episode_len", type=int, default=100, help="Max time steps per episode")
+    
     return parser.parse_args()
 
 
@@ -909,14 +935,18 @@ if __name__ == '__main__':
         myVis.eval_random_policy()
     elif eval_mode == 'imagine-local-policy':
         my_agent = GoalDQNAgent(use_true_state=args.use_true_state, use_small_obs=True, use_rescale=args.use_rescale)
-        # my_agent.policy_net.load_state_dict(
-        #     torch.load(f"/mnt/cheng_results/results_RL/6-20/15-100-imagine/goal_ddqn_{15}x{15}_obs_100_imagine_seed_{1}.pt",
-        #                map_location=torch.device('cpu'))
-        # )
         my_agent.policy_net.load_state_dict(
-            torch.load(f"./results/6-20/goal_ddqn_{15}x{15}_obs_50_imagine_seed_{1}.pt",
-                       map_location=torch.device('cpu'))
+             torch.load(f"/mnt/cheng_results/results_RL/6-30/17-norm/goal_ddqn_{17}x{17}_obs_seed_{1}.pt",
+                        map_location=torch.device('cpu'))
         )
+        #my_agent.policy_net.load_state_dict(
+        #     torch.load(f"/mnt/cheng_results/results_RL/6-20/15-50-imagine/goal_ddqn_{15}x{15}_obs_50_imagine_seed_{1}.pt",
+        #                map_location=torch.device('cpu'))
+        #)
+        #my_agent.policy_net.load_state_dict(
+        #    torch.load(f"./results/6-20/goal_ddqn_{15}x{15}_obs_50_imagine_seed_{1}.pt",
+        #               map_location=torch.device('cpu'))
+        #)
         
         my_agent.policy_net.eval()
         # run the agent
