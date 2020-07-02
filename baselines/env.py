@@ -601,11 +601,11 @@ def plot_walls(walls):
     plt.yticks([])
 
 
-plt.figure(figsize=(12, 7))
-for index, (name, walls) in enumerate(WALLS.items()):
-    plt.subplot(3, 6, index + 1)
-    plt.title(name)
-    plot_walls(walls)
-plt.subplots_adjust(wspace=0.1, hspace=0.2)
-plt.suptitle('Navigation Environments', fontsize=20)
-plt.show()
+#plt.figure(figsize=(12, 7))
+#for index, (name, walls) in enumerate(WALLS.items()):
+#    plt.subplot(3, 6, index + 1)
+#    plt.title(name)
+#    plot_walls(walls)
+#plt.subplots_adjust(wspace=0.1, hspace=0.2)
+#plt.suptitle('Navigation Environments', fontsize=20)
+#plt.show()

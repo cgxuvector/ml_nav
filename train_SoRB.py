@@ -102,8 +102,8 @@ def train_eval(
         num_steps=2).prefetch(3)
     iterator = iter(dataset)
 
-    # for _ in tqdm.tnrange(num_iterations):
-    for _ in range(num_iterations):
+    for _ in tqdm.tnrange(num_iterations):
+    # for _ in range(num_iterations):
         start_time = time.time()
         time_step, policy_state = collect_driver.run(
             time_step=time_step,
