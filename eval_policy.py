@@ -588,7 +588,9 @@ class EvalPolicy(object):
                     total_runs = (total_sub_pair_num * 2) if (total_sub_pair_num * 2) <= 100 else 100
                     # loop all possible pairs
                     print(f"maze: {m_size}-{m_seed}-{g_dist}")
-                    # for s_pos, g_pos in zip(pairs_dict['start'], pairs_dict['goal']):
+                    #run = 0
+                    #total_runs = len(pairs_dict['start'])
+                    #for s_pos, g_pos in zip(pairs_dict['start'], pairs_dict['goal']):
                     for run in range(total_runs):
                         # sample a start-goal pair
                         pair_idx = random.sample(range(total_sub_pair_num), 1)[0]
@@ -602,6 +604,7 @@ class EvalPolicy(object):
                         # set the environment based on the sampled start and goal positions
                         state_obs, goal_obs, start_pos, goal_pos = self.update_maze_from_pos(start_pos=s_pos,
                                                                                              goal_pos=g_pos)
+                        run += 1
                         # set the budget for the navigation
                         max_time_steps = self.max_episode_len
                         # record the position on the map to terminate the sub-goal navigation
@@ -674,7 +677,7 @@ class EvalPolicy(object):
                             if nav_done:
                                 success_counter += 1
                                 break
-                        print(f"Run {run}: Start = {start_pos}, Goal = {goal_pos}, Dist = {g_dist}, Done = {nav_done}")
+                        print(f"Run {run}: Start = {start_pos}, Goal = {goal_pos}, Dist = {len(self.env_map.path)}, Done = {nav_done}")
                         print(f"--------------------------------------------------------------------")
                     # show results
                     print(f"Mean successful rate for distance = {g_dist} is {np.round(success_counter / total_runs, 2)}")
@@ -840,6 +843,7 @@ def parse_input():
                                                                                "her-policy, or imagine-local-policy")
     parser.add_argument("--maze_size_list", type=str, default='5', help="Maze size list")
     parser.add_argument("--maze_seed_list", type=str, default='0', help="Maze seed list")
+    parser.add_argument("--model_maze_size", type=int, default=5, help="Model maze size")
     parser.add_argument("--distance_list", type=str, default="1", help="Distance list")
     parser.add_argument("--save_path", type=str, default='./', help="Save path")
     parser.add_argument("--file_name", type=str, default="random", help="File name")
@@ -936,7 +940,7 @@ if __name__ == '__main__':
     elif eval_mode == 'imagine-local-policy':
         my_agent = GoalDQNAgent(use_true_state=args.use_true_state, use_small_obs=True, use_rescale=args.use_rescale)
         my_agent.policy_net.load_state_dict(
-             torch.load(f"/mnt/cheng_results/results_RL/6-30/17-norm/goal_ddqn_{17}x{17}_obs_seed_{1}.pt",
+             torch.load(f"/mnt/cheng_results/results_RL/6-30/{args.model_maze_size}-norm/goal_ddqn_{args.model_maze_size}x{args.model_maze_size}_obs_seed_{1}.pt",
                         map_location=torch.device('cpu'))
         )
         #my_agent.policy_net.load_state_dict(

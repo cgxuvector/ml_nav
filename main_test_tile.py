@@ -6,6 +6,7 @@ from collections import namedtuple
 import argparse
 import torch
 import random
+import os
 import numpy as np
 import IPython.terminal.debugger as Debug
 
@@ -49,8 +50,8 @@ def parse_input():
     parser.add_argument("--soft_target_update", type=str, default="False", help="Soft update flag")
     parser.add_argument("--dqn_gradient_clip", type=str, default="False", help="Clip the gradient flag")
     parser.add_argument("--mix_maze", type=str, default="False", help="If set true, then the training mazes are mixed size")
-    parser.add_argument("--fold_k", type=int, default=-1, help="Cross validation, k = -1 means no k-fold")
-    parser.add_argument("--trn_num_each_maze", type=int, default=1, help="Number of the training mazes for each size")
+    # parser.add_argument("--fold_k", type=int, default=-1, help="Cross validation, k = -1 means no k-fold")
+    parser.add_argument("--train_maze_num", type=int, default=1, help="Number of the training mazes")
     # set the memory params
     parser.add_argument("--memory_size", type=int, default=20000, help="Memory size or replay buffer size")
     parser.add_argument("--batch_size", type=int, default=64, help="Size of the mini-batch")
@@ -231,62 +232,7 @@ def run_experiment(inputs):
         # train a vanilla policy
         # my_experiment.run_dqn()
         my_experiment.run_maze_complexity_comparison()
-
-
-def split_trn_tst_mazes(args):
-    trn_size_list = []
-    trn_seed_list = []
-    tst_size_list = []
-    tst_seed_list = []
-    # convert string to list
-    seed_list = args.maze_seed_list.split(',') if len(args.maze_seed_list) > 1 else [args.maze_seed_list[0]]
-
-    if not args.mix_maze:
-        assert(len([int(args.maze_size_list)]) == 1), f"Invalid maze size input, expect only 1 size type, but get {len(args.maze_size_list)}"
-        assert(len(seed_list) >= args.trn_num_each_maze), f"The number of total mazes is smaller than the number" \
-                                                          f"of necessary training mazes."
-        for run in range(args.run_num):
-            # sample training mazes
-            tmp_trn_list = random.sample(seed_list, args.trn_num_each_maze)
-            tmp_tst_list = list(set(seed_list) - set(tmp_trn_list))
-            # convert to string
-            tmp_trn_seed_str = ','.join(tmp_trn_list) if len(tmp_trn_list) > 1 else tmp_trn_list[0]
-            if len(tmp_tst_list):
-                tmp_tst_seed_str = ','.join(tmp_tst_list) if len(tmp_tst_list) > 1 else tmp_tst_list[0]
-            else:
-                tmp_tst_seed_str = "null"
-            # save the current split
-            trn_size_list.append(args.maze_size_list)
-            tst_size_list.append(args.maze_size_list)
-            trn_seed_list.append(tmp_trn_seed_str)
-            tst_seed_list.append(tmp_tst_seed_str)
-    else:
-        assert(len(args.maze_size_list) > 1), f"Invalid maze size input, expect more than 1 maze type, but get {len(args.maze_size_list)}"
-        assert (len(seed_list) >= args.trn_num_each_maze), f"The number of total mazes is smaller than the number" \
-                                                           f"of necessary training mazes."
-
-        # sample mazes
-        trn_maze_str = "5,7,9,11"
-        tst_maze_str = "13,15,17,19,21"
-        for run in range(args.run_num):
-            # sample training mazes
-            tmp_trn_list = random.sample(seed_list, args.trn_num_each_maze)
-            tmp_tst_list = list(set(seed_list) - set(tmp_trn_list))
-            # convert to string
-            tmp_trn_seed_str = ','.join(tmp_trn_list)
-            if len(tmp_tst_list):
-                tmp_tst_seed_str = ','.join(tmp_tst_list) if len(tmp_tst_list) > 1 else tmp_tst_list[0]
-            else:
-                tmp_tst_seed_str = "null"
-            # save the current split
-            trn_size_list.append(trn_maze_str)
-            trn_seed_list.append(tmp_trn_seed_str)
-            tst_size_list.append(tst_maze_str)
-            tst_seed_list.append(tmp_tst_seed_str)
-
-    return trn_size_list, trn_seed_list, tst_size_list, tst_seed_list
-
-
+ 
 if __name__ == '__main__':
     # load the input parameters
     user_inputs = parse_input()
@@ -294,40 +240,36 @@ if __name__ == '__main__':
 
     # user input model index
     input_model_idx = user_inputs.model_idx
-    
-    # split the data
-    if user_inputs.fold_k != -1:
-        assert(user_inputs.run_num >= user_inputs.fold_k), f"The number of run should be same as the fold number k."
-        random.seed(user_inputs.random_seed)
-        trn_size, trn_seed, tst_size, tst_seed = split_trn_tst_mazes(user_inputs)
-    
-        # run_experiment(user_inputs)
-        # run the experiment for fix number of times
-        for r, size, seed in zip(range(user_inputs.run_num), trn_size, trn_seed):
-            # set different random seed
-            user_inputs.random_seed = r
+    input_save_dir = user_inputs.save_dir
 
-            # set the random seed
-            random.seed(user_inputs.random_seed)
-            np.random.seed(user_inputs.random_seed)
-            torch.manual_seed(user_inputs.random_seed)
+    # total seed list
+    total_seed_list = user_inputs.maze_seed_list.split(',')
 
-            # reset the training mazes
-            user_inputs.maze_size_list = size
-            user_inputs.maze_seed_list = seed
-
-            # run the experiment
-            print(f"Run the {r + 1} experiment with random seed = {user_inputs.random_seed} using mazes size {size} and "
-                  f"seed {seed}")
-            user_inputs.model_idx = input_model_idx + f'_seed_{r}'
-            run_experiment(user_inputs)
-    else:
+    # run experiments
+    print(user_inputs.random_seed)
+    for r in range(user_inputs.run_num):
+        # set random seed for reproduce
+        user_inputs.random_seed += 10 * r
+        print(user_inputs.random_seed)
         random.seed(user_inputs.random_seed)
         np.random.seed(user_inputs.random_seed)
         torch.manual_seed(user_inputs.random_seed)
+        
+        # sample the training and testing mazes
+        sampled_seed_list = random.sample(total_seed_list, user_inputs.train_maze_num)
+        user_inputs.maze_seed_list = ','.join(sampled_seed_list)
 
-        print(f"Run the {user_inputs.run_num} experiment with random seed = {user_inputs.random_seed} using mazes size {user_inputs.maze_size_list} and seed {user_inputs.maze_seed_list}")
-        user_inputs.model_idx = input_model_idx + f'_seed_{user_inputs.run_num}'
+        print(sampled_seed_list)
+        # print info
+        print(f"Run the {r} experiment with random seed = {user_inputs.random_seed} using mazes size {user_inputs.maze_size_list} and seed {user_inputs.maze_seed_list}")
+       
+        # check the directory to store the results
+        if not os.path.exists(input_save_dir + '/' + str(r)):
+            os.makedirs(input_save_dir + '/' + str(r))
+
+        # update the directory
+        user_inputs.save_dir = input_save_dir + '/' + str(r)
+        user_inputs.model_idx = input_model_idx + f'_run_{r}'
+        # run experiments
         run_experiment(user_inputs)
-
 

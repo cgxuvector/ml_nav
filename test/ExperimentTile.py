@@ -437,11 +437,11 @@ class Experiment(object):
                 )
 
                 # evaluate the current policy
-                if (episode_idx - 1) % self.eval_policy_freq == 0:
+                #if (episode_idx - 1) % self.eval_policy_freq == 0:
                     # evaluate the current policy by interaction
-                    model_save_path = os.path.join(self.save_dir, self.model_name) + f"_{episode_idx}.pt"
-                    torch.save(self.agent.policy_net.state_dict(), model_save_path)
-                    self.eval_policy_novel()
+                #    model_save_path = os.path.join(self.save_dir, self.model_name) + f"_{episode_idx}.pt"
+                #    torch.save(self.agent.policy_net.state_dict(), model_save_path)
+                #    self.eval_policy_novel()
 
                 #print("episode = ", episode_idx)
 
