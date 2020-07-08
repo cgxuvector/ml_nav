@@ -7,11 +7,14 @@
 
     Note: We use the same Double DQN model both in our model and the baseline SoRB (not discounted returnhengguang
     )
+
+    We add distributional DQN
 """
 import torch
 from torch import nn
 import numpy as np
 import random
+import torch.nn.functional as F
 import IPython.terminal.debugger as Debug
 
 
@@ -37,12 +40,16 @@ class GoalDeepQNet(nn.Module):
             - No image / image feature input: fully-connected (3 layer implemented)
             - Image input: convolutional (not implemented)
     """
-    def __init__(self, small_obs=False, true_state=False):
+    def __init__(self, small_obs=False, true_state=False, distributional_rl=False, atoms=51):
         super(GoalDeepQNet, self).__init__()
         # set the small observation
         self.small_obs = small_obs
         # set the state to be true
         self.true_state = true_state
+        # use distributional RL
+        self.use_distributional = distributional_rl
+        # num of atoms
+        self.atoms = atoms
         # if the convolutional flag is enabled.
         if not self.true_state:
             if not self.small_obs:
@@ -78,11 +85,18 @@ class GoalDeepQNet(nn.Module):
                 )
 
                 # define the q network
-                self.fcNet = nn.Sequential(
-                    nn.Linear(2048 * 2, 1024),
-                    nn.ReLU(),
-                    nn.Linear(1024, 4)
-                )
+                if not self.use_distributional:
+                    self.fcNet = nn.Sequential(
+                        nn.Linear(2048 * 2, 1024),
+                        nn.ReLU(),
+                        nn.Linear(1024, 4)
+                    )
+                else:  # for distributional DQN
+                    self.fcNet = nn.Sequential(
+                        nn.Linear(2048 * 2, 1024),
+                        nn.ReLU(),
+                        nn.Linear(1024, 4 * self.atoms)
+                    )
             else:
                 # if the convolutional flag is enabled.
                 self.conv_qNet = nn.Sequential(
@@ -106,20 +120,38 @@ class GoalDeepQNet(nn.Module):
                 )
 
                 # define the q network
-                self.fcNet = nn.Sequential(
-                    nn.Linear(1024 * 2 * 4, 1024),
-                    nn.ReLU(),
-                    nn.Linear(1024, 4)
-                )
+                if not self.use_distributional:
+                    self.fcNet = nn.Sequential(
+                        nn.Linear(1024 * 2 * 4, 1024),
+                        nn.ReLU(),
+                        nn.Linear(1024, 4)
+                    )
+                else:  # for distributional DQN
+                    self.fcNet = nn.Sequential(
+                        nn.Linear(1024 * 2 * 4, 1024),
+                        nn.ReLU(),
+                        nn.Linear(1024, 4 * self.atoms)
+                    )
         else:
-            self.fcNet = nn.Sequential(
-                nn.Linear(6, 256),
-                nn.ReLU(),
-                nn.Linear(256, 256),
-                nn.ReLU(),
-                nn.Linear(256, 4),
-                nn.Identity()
-            )
+            # for normal DQN
+            if not self.use_distributional:
+                self.fcNet = nn.Sequential(
+                    nn.Linear(6, 256),
+                    nn.ReLU(),
+                    nn.Linear(256, 256),
+                    nn.ReLU(),
+                    nn.Linear(256, 4),
+                    nn.Identity()
+                )
+            else:  # for distributional DQN
+                self.fcNet = nn.Sequential(
+                    nn.Linear(6, 256),
+                    nn.ReLU(),
+                    nn.Linear(256, 256),
+                    nn.ReLU(),
+                    nn.Linear(256, 4 * self.atoms),
+                    nn.Identity()
+                )
 
     def forward(self, state, goal):
         if not self.true_state:
@@ -135,16 +167,19 @@ class GoalDeepQNet(nn.Module):
             state_goal_fea = torch.cat((state_fea, goal_fea), dim=1)
             # concatenate the goal with state
             x = self.fcNet(state_goal_fea)
+            # compute the SoftMax for distributional RL
+            if self.use_distributional:
+                x = F.softmax(x.view(-1, self.atoms), dim=1).view(-1, 4, self.atoms)
         else:
             # convert the dimension
             state = state.view(-1, 3)
             goal = goal.view(-1, 3)
             state_goal_fea = torch.cat([state, goal], dim=1)
             x = self.fcNet(state_goal_fea)
+            # compute the SoftMax for distributional RL
+            if self.use_distributional:
+                x = F.softmax(x.view(-1, self.atoms), dim=1).view(-1, 4, self.atoms)
         return x
-
-
-testModel = GoalDeepQNet()
 
 
 class GoalDQNAgent(object):
@@ -158,7 +193,10 @@ class GoalDQNAgent(object):
                  use_gradient_clip=False,
                  gamma=0.99,
                  learning_rate=1e-3,
-                 device="cpu"
+                 device="cpu",
+                 use_distributional=False,
+                 support_atoms=2,
+                 batch_size=8
                  ):
         """
         Init the DQN agent
@@ -173,9 +211,19 @@ class GoalDQNAgent(object):
         """
         self.device = torch.device(device)
         """ DQN configurations"""
+        # parameters for distributional DQN
+        self.use_distributional = use_distributional
+        # number of atoms
+        self.support_atoms = support_atoms
+        # min and max possible values
+        self.min_val, self.max_val = -1 * (self.support_atoms - 1), 0
+        # generate the possible values
+        self.support_atoms_values = torch.linspace(self.min_val, self.max_val, self.support_atoms).view(-1, 1)
+        self.delta_z = (self.max_val - self.min_val) / self.support_atoms
+        self.batch_size = batch_size
         # create the policy network and target network
-        self.policy_net = GoalDeepQNet(use_small_obs, use_true_state)
-        self.target_net = GoalDeepQNet(use_small_obs, use_true_state)
+        self.policy_net = GoalDeepQNet(use_small_obs, use_true_state, use_distributional, support_atoms)
+        self.target_net = GoalDeepQNet(use_small_obs, use_true_state, use_distributional, support_atoms)
         # init the weights of policy network and target network
         self.policy_net.apply(customized_weights_init)
         self.target_net.load_state_dict(self.policy_net.state_dict())
@@ -195,7 +243,10 @@ class GoalDQNAgent(object):
         self.optimizer = torch.optim.Adam(self.policy_net.parameters(),
                                           lr=learning_rate,
                                           weight_decay=5e-4)
-        self.criterion = torch.nn.MSELoss()
+        if not self.use_distributional:  # use MSE loss when using normal DQN
+            self.criterion = torch.nn.MSELoss()
+        else:  # use cross entropy loss when using distributional DQN
+            self.criterion = torch.nn.CrossEntropyLoss()
         """ Saving and plotting configurations"""
         self.returns = []
         self.lengths = []
@@ -203,14 +254,20 @@ class GoalDQNAgent(object):
     # select an action based on the policy network
     def get_action(self, input_state, goal, eps):
         if random.uniform(0, 1) < eps:  # with probability epsilon, the agent selects a random action
-            action = random.sample(range(4), 1)[0]
+            max_action = random.sample(range(4), 1)[0]
         else:  # with probability 1 - epsilon, the agent selects the greedy action
             input_state = self.toTensor(input_state)
             goal = self.toTensor(goal)
             with torch.no_grad():
-                goal_q_values = self.policy_net(input_state, goal).view(1, -1)
-                action = goal_q_values.max(dim=1)[1].item()
-        return action
+                if not self.use_distributional:  # for normal DQN
+                    goal_q_values = self.policy_net(input_state, goal).view(1, -1)
+                    max_action = goal_q_values.max(dim=1)[1].item()
+                else:  # for distributional DQN
+                    goal_q_distributions = self.policy_net(input_state, goal)
+                    goal_q_distributions = goal_q_distributions.squeeze(0)
+                    goal_q_values = torch.mm(goal_q_distributions, self.support_atoms_values)
+                    max_action = goal_q_values.max(dim=0)[1].item()
+        return max_action
 
     # update the target network
     def update_target_net(self):
@@ -223,43 +280,101 @@ class GoalDQNAgent(object):
 
     # update the policy network
     def update_policy_net(self, batch_data):
-        # convert the batch from numpy to tensor
-        state, action, next_state, reward, goal, done = self.convert2tensor(batch_data)
-        # compute the Q_policy(s, a)
-        sa_goal_values = self.policy_net(state, goal).gather(dim=1, index=action)
-        # compute the TD target r + gamma * max_a' Q_target(s', a')
-        if self.dqn_mode == "vanilla":  # update the policy network using vanilla DQN
-            # compute the : max_a' Q_target(s', a')
-            max_next_sa_goal_values = self.target_net(next_state, goal).max(1)[0].view(-1, 1).detach()
-            # if s' is terminal, then change Q(s', a') = 0
-            terminal_mask = (torch.ones(done.size(), device=self.device) - done)
-            max_next_sa_goal_values = max_next_sa_goal_values * terminal_mask
-            # compute the r + gamma * max_a' Q_target(s', a')
-            td_target = reward + self.gamma * max_next_sa_goal_values
-        else:  # update the policy network using double DQN
-            # select the maximal actions using greedy policy network: argmax_a Q_policy(S_t+1)
-            estimated_next_goal_action = self.policy_net(next_state, goal).max(dim=1)[1].view(-1, 1).detach()
-            # compute the Q_target(s', argmax_a)
-            next_sa_goal_values = self.target_net(next_state, goal).gather(dim=1, index=estimated_next_goal_action).detach().view(-1, 1)
-            # convert the value of the terminal states to be zero
-            terminal_mask = (torch.ones(done.size(), device=self.device) - done)
-            max_next_state_goal_q_values = next_sa_goal_values * terminal_mask
-            # compute the TD target
-            td_target = reward + self.gamma * max_next_state_goal_q_values
+        if not self.use_distributional:
+            # convert the batch from numpy to tensor
+            state, action, next_state, reward, goal, done = self.convert2tensor(batch_data)
+            # compute the Q_policy(s, a)
+            sa_goal_values = self.policy_net(state, goal).gather(dim=1, index=action)
+            # compute the TD target r + gamma * max_a' Q_target(s', a')
+            if self.dqn_mode == "vanilla":  # update the policy network using vanilla DQN
+                # compute the : max_a' Q_target(s', a')
+                max_next_sa_goal_values = self.target_net(next_state, goal).max(1)[0].view(-1, 1).detach()
+                # if s' is terminal, then change Q(s', a') = 0
+                terminal_mask = (torch.ones(done.size(), device=self.device) - done)
+                max_next_sa_goal_values = max_next_sa_goal_values * terminal_mask
+                # compute the r + gamma * max_a' Q_target(s', a')
+                td_target = reward + self.gamma * max_next_sa_goal_values
+            else:  # update the policy network using double DQN
+                # select the maximal actions using greedy policy network: argmax_a Q_policy(S_t+1)
+                estimated_next_goal_action = self.policy_net(next_state, goal).max(dim=1)[1].view(-1, 1).detach()
+                # compute the Q_target(s', argmax_a)
+                next_sa_goal_values = self.target_net(next_state, goal).gather(dim=1, index=estimated_next_goal_action).detach().view(-1, 1)
+                # convert the value of the terminal states to be zero
+                terminal_mask = (torch.ones(done.size(), device=self.device) - done)
+                max_next_state_goal_q_values = next_sa_goal_values * terminal_mask
+                # compute the TD target
+                td_target = reward + self.gamma * max_next_state_goal_q_values
 
-        # compute the loss using MSE error: TD error
-        loss = self.criterion(sa_goal_values, td_target)
-        # back propagation
-        self.optimizer.zero_grad()
-        loss.backward()
-        # why clip the gradient
-        if self.clip_gradient:
-            for params in self.policy_net.parameters():
-                params.grad.data.clamp(-1, 1)
-        self.optimizer.step()
+            # compute the loss using MSE error: TD error
+            loss = self.criterion(sa_goal_values, td_target)
+            # back propagation
+            self.optimizer.zero_grad()
+            loss.backward()
+            # why clip the gradient
+            if self.clip_gradient:
+                for params in self.policy_net.parameters():
+                    params.grad.data.clamp(-1, 1)
+            self.optimizer.step()
+        else:
+            # sampled transitions
+            state, action, next_state, reward, goal, done = self.convert2tensor(batch_data)
+            # compute the current distributional
+            action = action.unsqueeze(-1).expand(self.batch_size, 1, self.support_atoms)
+            current_q_distributions = self.policy_net(state, goal).gather(dim=1, index=action)
+            # compute the target distribution
+            with torch.no_grad():
+                target_q_distributions = self.project_distributions(next_state, reward, done, goal, self.support_atoms_values)
+            # code the cross entropy loss
+            loss = (-1 * target_q_distributions.squeeze(dim=1) * current_q_distributions.log().squeeze(dim=1)).sum(-1).mean()
+
+            # update
+            self.optimizer.zero_grad()
+            loss.backward()
+            # why clip the gradient
+            if self.clip_gradient:
+                for params in self.policy_net.parameters():
+                    params.grad.data.clamp(-1, 1)
+            self.optimizer.step()
+
+    def project_distributions(self, next_state, reward, done, goal, support):
+        # compute the next distributions
+        next_q_distributions = self.target_net(next_state, goal).detach()
+        # compute the expected values
+        next_expected_q_values = torch.mm(next_q_distributions.view(-1, self.support_atoms), support).view(-1, 4)
+        # extract the maximal action
+        max_next_action = next_expected_q_values.max(dim=1)[1].unsqueeze(-1).unsqueeze(-1).expand(self.batch_size, 1, self.support_atoms)
+        # extract maximal distributions
+        max_next_q_distribution = next_q_distributions.gather(dim=1, index=max_next_action).squeeze(dim=1)
+
+        # expand reward, done, and support
+        reward = reward.expand_as(max_next_q_distribution)
+        done = done.expand_as(max_next_q_distribution)
+        support = support.squeeze(-1).unsqueeze(0).expand_as(max_next_q_distribution)
+
+        # compute the target
+        Tz = reward + (1 - done) * self.gamma * support
+        Tz = Tz.clamp(min=self.min_val, max=self.max_val)
+        b = (Tz - self.min_val) / self.delta_z
+        l = b.floor().clamp(min=0, max=self.support_atoms - 1).long()
+        u = b.ceil().clamp(min=0, max=self.support_atoms - 1).long()
+
+        # compute the same indices
+        row_indices, col_indices = torch.where(l == u)
+        u_new = u.clone()
+        for r, c in zip(row_indices.tolist(), col_indices.tolist()):
+            u_new[r, c] += 1
+
+        # distribute the probability
+        offset = torch.linspace(0, (self.batch_size - 1) * self.support_atoms, self.batch_size).long()\
+            .unsqueeze(1).expand(self.batch_size, self.support_atoms)
+        # initialize the projected distributions
+        project_distribution = torch.zeros(max_next_q_distribution.size())
+        project_distribution.view(-1).index_add_(0, (l + offset).view(-1), (max_next_q_distribution * (u_new.float() - b)).view(-1))
+        project_distribution.view(-1).index_add_(0, (u + offset).view(-1), (max_next_q_distribution * (b - l.float())).view(-1))
+        return project_distribution.unsqueeze(dim=1)
 
     def train_one_batch(self, t, batch):
-        # update the policy network
+        # update the policy networkse
         if not np.mod(t + 1, self.freq_update_policy):
             # sample a batch to train policy net
             self.update_policy_net(batch)
@@ -318,11 +433,3 @@ class GoalDQNAgent(object):
         kernel = np.ones(window_size)
         smooth_data = np.convolve(data, kernel) / np.convolve(np.ones_like(data), kernel)
         return smooth_data[: -window_size + 1]
-
-
-
-
-
-
-
-

@@ -48,8 +48,8 @@ def parse_input():
     parser.add_argument("--total_time_steps", type=int, default=50000, help="Total time steps")
     parser.add_argument("--episode_time_steps", type=int, default=100, help="Time steps per episode")
     parser.add_argument("--eval_policy_freq", type=int, default=10, help="Evaluate the current learned policy frequency")
-    parser.add_argument("--dqn_update_target_freq", type=int, default=1000, help="Frequency of updating the target")
-    parser.add_argument("--dqn_update_policy_freq", type=int, default=4, help="Frequency of updating the policy")
+    parser.add_argument("--dqn_update_target_freq", type=int, default=2000, help="Frequency of updating the target")
+    parser.add_argument("--dqn_update_policy_freq", type=int, default=10, help="Frequency of updating the policy")
     parser.add_argument("--soft_target_update", type=str, default="True", help="Soft update flag")
     parser.add_argument("--dqn_gradient_clip", type=str, default="True", help="Clip the gradient flag")
     parser.add_argument("--mix_maze", type=str, default="False", help="If set true, "
@@ -70,6 +70,7 @@ def parse_input():
 
     # flag for SoRB
     parser.add_argument("--distributional_rl", type=str, default='False', help="Whether use distributional RL or not")
+    parser.add_argument("--support_atoms", type=int, default='51', help="Number of the support atoms")
     parser.add_argument("--run_mode", type=str, default='trn', help="Whether train or evaluate the SoRB")
     parser.add_argument("--max_dist", type=int, default=1, help="Max distance")
 
@@ -95,6 +96,8 @@ def strTobool(inputs):
     inputs.use_her = True if inputs.use_her == "True" else False
     # use mixed mazes as training
     inputs.mix_maze = True if inputs.mix_maze == "True" else False
+    # use distributional rl
+    inputs.distributional_rl = True if inputs.distributional_rl == "True" else False
     return inputs
 
 
@@ -159,7 +162,10 @@ def make_agent(inputs):
                              use_target_soft_update=inputs.soft_target_update,
                              use_gradient_clip=inputs.dqn_gradient_clip,
                              gamma=inputs.gamma,
-                             device=inputs.device
+                             device=inputs.device,
+                             use_distributional=True,
+                             support_atoms=inputs.support_atoms,
+                             batch_size=inputs.batch_size
                              )
     else:
         agent = GoalDQNAgent(dqn_mode=inputs.dqn_mode,
@@ -170,7 +176,8 @@ def make_agent(inputs):
                              use_target_soft_update=inputs.soft_target_update,
                              use_gradient_clip=inputs.dqn_gradient_clip,
                              gamma=inputs.gamma,
-                             device=inputs.device
+                             device=inputs.device,
+                             use_distributional=False
                              )
     return agent
 

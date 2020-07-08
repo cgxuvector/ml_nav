@@ -189,19 +189,23 @@ class Experiment(object):
                         train_episode_num -= 1
                     else:
                         # sample a new pair of start and goal
-                        self.fix_start = False
-                        self.fix_goal = False
+                        # self.fix_start = False
+                        # self.fix_goal = False
                         # constrain the distance <= max dist
-                        self.goal_dist = random.sample(self.valid_dist_list, 1)[0]
+                        self.fix_start = True
+                        self.fix_goal = True
+                        # self.goal_dist = random.sample(self.valid_dist_list, 1)[0]
                         state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=False)
                         train_episode_num = self.train_episode_num
                         sample_start_goal_num -= 1
                 else:
-                    # sample a new maze
-                    self.fix_start = False
-                    self.fix_goal = False
+                    # # sample a new maze
+                    # self.fix_start = False
+                    # self.fix_goal = False
+                    self.fix_start = True
+                    self.fix_goal = True
                     # constrain the distance <= max dist
-                    self.goal_dist = random.sample(self.valid_dist_list, 1)[0]
+                    # self.goal_dist = random.sample(self.valid_dist_list, 1)[0]
                     state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=True)
                     # reset the training control
                     train_episode_num = self.train_episode_num
@@ -647,18 +651,18 @@ class Experiment(object):
     def save_results(self):
         # compute the path for the results
         model_save_path = os.path.join(self.save_dir, self.model_name) + ".pt"
-        distance_save_path = os.path.join(self.save_dir, self.model_name + "_distance.npy")
+        # distance_save_path = os.path.join(self.save_dir, self.model_name + "_distance.npy")
         returns_save_path = os.path.join(self.save_dir, self.model_name + "_return.npy")
-        policy_returns_save_path = os.path.join(self.save_dir, self.model_name + "_policy_return.npy")
-        lengths_save_path = os.path.join(self.save_dir, self.model_name + "_length.npy")
+        # policy_returns_save_path = os.path.join(self.save_dir, self.model_name + "_policy_return.npy")
+        # lengths_save_path = os.path.join(self.save_dir, self.model_name + "_length.npy")
         # save the memory buffer
-        buffer_path = os.path.join(self.save_dir, self.model_name + "_buffer.npy")
-        sampled_init_states = random.sample(self.graph_buffer, 1000)
-        np.save(buffer_path, sampled_init_states)
+        # buffer_path = os.path.join(self.save_dir, self.model_name + "_buffer.npy")
+        # sampled_init_states = random.sample(self.graph_buffer, 1000)
+        # np.save(buffer_path, sampled_init_states)
         # save the results
         torch.save(self.agent.policy_net.state_dict(), model_save_path)
         # torch.save(self.replay_buffer, buffer_path)
-        np.save(distance_save_path, self.distance)
+        # np.save(distance_save_path, self.distance)
         np.save(returns_save_path, self.returns)
-        np.save(lengths_save_path, self.lengths)
-        np.save(policy_returns_save_path, self.policy_returns)
+        # np.save(lengths_save_path, self.lengths)
+        # np.save(policy_returns_save_path, self.policy_returns)
