@@ -328,19 +328,21 @@ class Experiment(object):
 
     def test_distance_prediction(self):
         # load the saved data
-        self.agent.policy_net.load_state_dict(torch.load('./sorb_test/test_5.pt'))
+        self.agent.policy_net.load_state_dict(torch.load('./test_5_cat_dqn.pt'))
         self.agent.policy_net.eval()
 
         # sample a start-goal pair
         state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=self.fix_maze)
         run_num = 10
         for r in range(run_num):
-            gt_dist = len(self.env_map.path)
+            gt_dist = len(self.env_map.path) - 1
             with torch.no_grad():
                 state = self.toTensor(state)
                 goal = self.toTensor(goal)
                 pred_dist = self.agent.policy_net(state, goal)
-            print(f'State={state}, goal={goal}, GT={gt_dist} Pred={-1 * pred_dist.max()}')
+                # print(np.round(pred_dist, 2))
+            dist_pred = torch.mm(pred_dist.squeeze(0), self.agent.support_atoms_values).view(1, -1).max(dim=1)[0].item()
+            print(f'State={state}, goal={goal}, GT={gt_dist} Pred={dist_pred}')
             self.fix_start = False
             self.fix_goal = False
             state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=self.fix_maze)

@@ -464,14 +464,14 @@ class RoughMap(object):
 # Debug.set_trace()
 # print(pos_pairs['start'])
 # # print(pos_pairs['goal'])
-# size_list = [15]
-# seed_list = [4]
-# for size in size_list:
-#     for seed in seed_list:
-#         env_map = RoughMap(size, seed, 3)
-#         # init_pos, goal_pos = env_map.sample_random_start_goal_pos(False, False, 12)
-#         plt.axis('off')
-#         plt.imshow(env_map.map2d_rough)
-#         # plt.savefig(f'{size}x{seed}_map.png', dpi=300)
-#         plt.show()
+size_list = [15]
+seed_list = [12, 18, 19, 7, 2]
+for size in size_list:
+    for seed in seed_list:
+        env_map = RoughMap(size, seed, 3)
+        # init_pos, goal_pos = env_map.sample_random_start_goal_pos(False, False, 12)
+        plt.axis('off')
+        plt.imshow(env_map.map2d_rough)
+        # plt.savefig(f'{size}x{seed}_map.png', dpi=300)
+        plt.show()
 
