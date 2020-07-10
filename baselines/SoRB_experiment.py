@@ -128,7 +128,7 @@ class Experiment(object):
 
         # initialize the state and goal
         state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=self.fix_maze)
-        
+
         # store the first state
         self.graph_buffer.append(state)
 
@@ -144,6 +144,8 @@ class Experiment(object):
             # step in the environment
             next_state, reward, done, dist, trans, _, _ = self.env.step(action)
             episode_t += 1
+            
+            print(f"State={state}, Act={DEFAULT_ACTION_LIST[action]}, Next state={next_state}, Reward={reward}, Done={done}, Goal={goal}")
 
             # store the replay buffer and convert the data to tensor
             if self.use_replay_buffer:
@@ -185,33 +187,33 @@ class Experiment(object):
                         self.fix_start = True
                         self.fix_goal = True
                         # add sampling here
-                        state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=False)
+                        self.goal_dist = 1
+                        # state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=False)
                         train_episode_num -= 1
                     else:
                         # sample a new pair of start and goal
-                        # self.fix_start = False
-                        # self.fix_goal = False
+                        self.fix_start = False
+                        self.fix_goal = False
                         # constrain the distance <= max dist
-                        self.fix_start = True
-                        self.fix_goal = True
                         # self.goal_dist = random.sample(self.valid_dist_list, 1)[0]
+                        self.goal_dist = 1
                         state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=False)
                         train_episode_num = self.train_episode_num
                         sample_start_goal_num -= 1
                 else:
-                    # # sample a new maze
-                    # self.fix_start = False
-                    # self.fix_goal = False
-                    self.fix_start = True
-                    self.fix_goal = True
+                    # sample a new maze
+                    self.fix_start = False
+                    self.fix_goal = False
                     # constrain the distance <= max dist
                     # self.goal_dist = random.sample(self.valid_dist_list, 1)[0]
+                    self.goal_dist = 1
                     state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=True)
                     # reset the training control
                     train_episode_num = self.train_episode_num
                     sample_start_goal_num = self.sample_start_goal_num
                 # store the first state
                 self.graph_buffer.append(state)
+                print(f'New episode: State={state}, Goal={goal}')
 
             # train the agent
             if t > self.start_train_step:
@@ -328,19 +330,25 @@ class Experiment(object):
 
     def test_distance_prediction(self):
         # load the saved data
-        self.agent.policy_net.load_state_dict(torch.load('./sorb_test/test_5.pt'))
+        self.agent.policy_net.load_state_dict(torch.load(f'/mnt/sda/rl_results/7-7/sorb_cat_dqn_{self.maze_size}.pt'))
         self.agent.policy_net.eval()
 
         # sample a start-goal pair
         state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=self.fix_maze)
         run_num = 10
         for r in range(run_num):
-            gt_dist = len(self.env_map.path)
+            gt_dist = len(self.env_map.path) - 1
             with torch.no_grad():
                 state = self.toTensor(state)
                 goal = self.toTensor(goal)
                 pred_dist = self.agent.policy_net(state, goal)
-            print(f'State={state}, goal={goal}, GT={gt_dist} Pred={-1 * pred_dist.max()}')
+            
+            # for distributional RL
+            pred_dist = torch.mm(pred_dist.squeeze(0), self.agent.support_atoms_values).max().item()
+            # for normal DQN
+            #pred_dist = np.round(pred_dist.max())
+
+            print(f'State={state}, goal={goal}, GT={gt_dist} Pred={-1 * pred_dist}')
             self.fix_start = False
             self.fix_goal = False
             state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=self.fix_maze)
@@ -349,7 +357,7 @@ class Experiment(object):
         # evaluation results
         eval_results = defaultdict()
         # load the policy
-        self.agent.policy_net.load_state_dict(torch.load(f'./sorb_test/test_{self.maze_size}.pt'))
+        self.agent.policy_net.load_state_dict(torch.load(f'/mnt/sda/rl_results/7x7/sorb_dqn_{self.maze_size}.pt'))
         self.agent.policy_net.eval()
         # load the replay buffer
         self.replay_buffer = np.load(f'./sorb_test/test_{self.maze_size}_buffer.npy')
@@ -624,6 +632,8 @@ class Experiment(object):
             maze_configs["update"] = True  # update flag
         else:
             init_pos, goal_pos = self.env_map.sample_random_start_goal_pos(self.fix_start, self.fix_goal, self.goal_dist)
+            if init_pos == goal_pos:
+                Debug.set_trace()
             maze_configs['start_pos'] = init_pos + [0]
             maze_configs['goal_pos'] = goal_pos + [0]
             maze_configs['maze_valid_pos'] = self.env_map.valid_pos
@@ -656,12 +666,11 @@ class Experiment(object):
         # policy_returns_save_path = os.path.join(self.save_dir, self.model_name + "_policy_return.npy")
         # lengths_save_path = os.path.join(self.save_dir, self.model_name + "_length.npy")
         # save the memory buffer
-        # buffer_path = os.path.join(self.save_dir, self.model_name + "_buffer.npy")
-        # sampled_init_states = random.sample(self.graph_buffer, 1000)
-        # np.save(buffer_path, sampled_init_states)
+        buffer_path = os.path.join(self.save_dir, self.model_name + "_buffer.npy")
+        sampled_init_states = random.sample(self.graph_buffer, 1000)
+        np.save(buffer_path, sampled_init_states)
         # save the results
         torch.save(self.agent.policy_net.state_dict(), model_save_path)
-        # torch.save(self.replay_buffer, buffer_path)
         # np.save(distance_save_path, self.distance)
         np.save(returns_save_path, self.returns)
         # np.save(lengths_save_path, self.lengths)
