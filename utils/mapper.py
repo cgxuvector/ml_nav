@@ -371,7 +371,7 @@ class RoughMap(object):
         self.update_mapper(tmp_init_pos, tmp_goal_pos)
         return tmp_init_pos, tmp_goal_pos
 
-    def sample_fixed_distance(start_pos, valid_pos_list, dist):
+    def sample_fixed_distance(self, start_pos, valid_pos_list, dist):
         # set the temporal start and goal positions
         tmp_init_pos = start_pos
         tmp_goal_pos = random.sample(valid_pos_list, 1)[0]
@@ -382,8 +382,7 @@ class RoughMap(object):
             sample_clk = 0
             while len(pos_path) < dist + 1:
                 # sample a goal position
-                valid_pos_list.remove(tmp_goal_pos)
-                tmp_goal_pos = random.sample(valid_pos_list, 1)[0]
+                tmp_goal_pos = random.sample(valid_pos_list, 1)[0] if len(valid_pos_list) > 1 else valid_pos_list[0]
                 # plan a new path
                 pos_path = searchAlg.A_star(self.map2d_grid, tmp_init_pos, tmp_goal_pos)
                 # increase one step
@@ -398,7 +397,6 @@ class RoughMap(object):
         goal_pos = valid_path_pos[dist] if dist < len(valid_path_pos) else valid_path_pos[-1] 
         return goal_pos
 
-    
     def sample_random_start_goal_pos(self, fix_init, fix_goal, dist):
         """
         Function is used to sample a random pair init and goal positions from the valid positions.
@@ -408,27 +406,24 @@ class RoughMap(object):
         :return: new sampled init and goal positions.
         """
         # obtain valid initial positions
-        if fix_init == True and fix_goal == True:
+        if fix_init is True and fix_goal is True:
             new_init = self.init_pos
             new_goal = self.goal_pos
-        elif fix_init == True and fix_goal == False:
+        elif fix_init is True and fix_goal is False:
             new_init = self.init_pos
             valid_positions = self.valid_pos.copy()
             valid_positions.remove(new_init)
-            valid_positions.remove(self.goal_pos)
-            new_goal = sample_fixed_distance(new_init, valid_positions, dist)
-        elif fix_init = False and fix_goal == True:
+            new_goal = self.sample_fixed_distance(new_init, valid_positions, dist)
+        elif fix_init is False and fix_goal is True:
             new_goal = self.goal_pos
             valid_positions = self.valid_pos.copy()
             valid_positions.remove(new_goal)
-            valid_positions.remove(self.init_pos)
-            new_init = sample_fixed_distance(new_goal, valid_positions, dist)
+            new_init = self.sample_fixed_distance(new_goal, valid_positions, dist)
         else:
             valid_positions = self.valid_pos.copy()
-            valid_positions.remove(self.init_pos)
             new_init = random.sample(valid_positions, 1)[0]
             valid_positions.remove(new_init)
-            new_goal = sampled_fixed_distance(new_init, valid_positions, dist)
+            new_goal = self.sample_fixed_distance(new_init, valid_positions, dist)
 
         # update the mapper
         self.update_mapper(new_init, new_goal)
@@ -469,25 +464,20 @@ class RoughMap(object):
         return {'start': start_pos_list, 'goal': goal_pos_list}
 
 
-#"""
-#    Plot rough map
-#"""
-# env_map = RoughMap(15, 4, 3)
-
-#
-# pos_pairs = env_map.get_start_goal_pair_with_fix_distance(7)
-#
-# Debug.set_trace()
-# print(pos_pairs['start'])
-# # print(pos_pairs['goal'])
-size_list = [15]
-seed_list = [12, 18, 19, 7, 2]
-for size in size_list:
-    for seed in seed_list:
-        env_map = RoughMap(size, seed, 3)
-        # init_pos, goal_pos = env_map.sample_random_start_goal_pos(False, False, 12)
-        plt.axis('off')
-        plt.imshow(env_map.map2d_rough)
+# size_list = [21]
+# seed_list = [0]
+# dist = 1
+# for size in size_list:
+#     for seed in seed_list:
+#         for i in range(2000):
+#             env_map = RoughMap(size, seed, 3)
+#             init_pos, goal_pos = env_map.sample_random_start_goal_pos(False, False, dist)
+#             print(f"Run {i+1}: Start = {init_pos}, Goal = {goal_pos}, Target dist = {dist}, Dist = {len(env_map.path) - 1}")
+#             if (len(env_map.path) - 1) > dist or init_pos == goal_pos:
+#                 print("Fail case", init_pos, goal_pos)
+#                 break
+        # plt.axis('off')
+        # plt.imshow(env_map.map2d_rough)
         # plt.savefig(f'{size}x{seed}_map.png', dpi=300)
-        plt.show()
+        # plt.show()
 
