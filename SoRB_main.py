@@ -25,6 +25,7 @@ def parse_input():
     # set the env params
     parser.add_argument("--maze_size_list", type=str, default="5", help="Maze size list")
     parser.add_argument("--maze_seed_list", type=str, default="0", help="Maze seed list")
+    parser.add_argument("--distance_list", type=str, default="1", help="Maze distance list")
     parser.add_argument("--fix_maze", type=str, default="True", help="Fix the maze")
     parser.add_argument("--fix_start", type=str, default="True", help="Fix the start position")
     parser.add_argument("--fix_goal", type=str, default="True", help="Fix the goal position")
@@ -47,10 +48,10 @@ def parse_input():
     parser.add_argument("--total_time_steps", type=int, default=50000, help="Total time steps")
     parser.add_argument("--episode_time_steps", type=int, default=100, help="Time steps per episode")
     parser.add_argument("--eval_policy_freq", type=int, default=10, help="Evaluate the current learned policy frequency")
-    parser.add_argument("--dqn_update_target_freq", type=int, default=1000, help="Frequency of updating the target")
-    parser.add_argument("--dqn_update_policy_freq", type=int, default=4, help="Frequency of updating the policy")
-    parser.add_argument("--soft_target_update", type=str, default="False", help="Soft update flag")
-    parser.add_argument("--dqn_gradient_clip", type=str, default="False", help="Clip the gradient flag")
+    parser.add_argument("--dqn_update_target_freq", type=int, default=2000, help="Frequency of updating the target")
+    parser.add_argument("--dqn_update_policy_freq", type=int, default=10, help="Frequency of updating the policy")
+    parser.add_argument("--soft_target_update", type=str, default="True", help="Soft update flag")
+    parser.add_argument("--dqn_gradient_clip", type=str, default="True", help="Clip the gradient flag")
     parser.add_argument("--mix_maze", type=str, default="False", help="If set true, "
                                                                       "then the training mazes are mixed size")
     parser.add_argument("--fold_k", type=int, default=-1, help="Cross validation")
@@ -69,6 +70,7 @@ def parse_input():
 
     # flag for SoRB
     parser.add_argument("--distributional_rl", type=str, default='False', help="Whether use distributional RL or not")
+    parser.add_argument("--support_atoms", type=int, default='51', help="Number of the support atoms")
     parser.add_argument("--run_mode", type=str, default='trn', help="Whether train or evaluate the SoRB")
     parser.add_argument("--max_dist", type=int, default=1, help="Max distance")
 
@@ -94,6 +96,8 @@ def strTobool(inputs):
     inputs.use_her = True if inputs.use_her == "True" else False
     # use mixed mazes as training
     inputs.mix_maze = True if inputs.mix_maze == "True" else False
+    # use distributional rl
+    inputs.distributional_rl = True if inputs.distributional_rl == "True" else False
     return inputs
 
 
@@ -120,14 +124,18 @@ def make_env(inputs):
         'fps': str(observation_fps)
     }
     # set the mazes
-    if len(inputs.maze_size_list) == 1:
+    if len(inputs.maze_size_list) == 1 or len(inputs.maze_size_list) == 2:
         maze_size = [int(inputs.maze_size_list)]
     else:
         maze_size = [int(s) for s in inputs.maze_size_list.split(",")]
-    if len(inputs.maze_seed_list) == 1:
+    if len(inputs.maze_seed_list) == 1 or len(inputs.maze_seed_list) == 2:
         maze_seed = [int(inputs.maze_seed_list)]
     else:
         maze_seed = [int(s) for s in inputs.maze_seed_list.split(",")]
+    if len(inputs.distance_list) == 1 or len(inputs.distance_list) == 2:
+        maze_dist = [int(inputs.distance_list)]
+    else:
+        maze_dist = [int(d) for d in inputs.distance_list.split(",")] 
     assert set(maze_size) <= set(DEFAULT_SIZE), f"Input contains invalid maze size. Expect a subset of {DEFAULT_SIZE}, " \
                                                 f"but get {maze_size}."
     assert set(maze_seed) <= set(DEFAULT_SEED), f"Input contains invalid maze seed. Expect a subset of {DEFAULT_SEED}, " \
@@ -139,7 +147,7 @@ def make_env(inputs):
                             use_true_state=inputs.use_true_state,
                             reward_type="sparse-1",
                             dist_epsilon=1e-3)
-    return lab, maze_size, maze_seed
+    return lab, maze_size, maze_seed, maze_dist
 
 
 # make the agent
@@ -155,6 +163,9 @@ def make_agent(inputs):
                              use_gradient_clip=inputs.dqn_gradient_clip,
                              gamma=inputs.gamma,
                              device=inputs.device,
+                             use_distributional=True,
+                             support_atoms=inputs.support_atoms,
+                             batch_size=inputs.batch_size
                              )
     else:
         agent = GoalDQNAgent(dqn_mode=inputs.dqn_mode,
@@ -166,6 +177,7 @@ def make_agent(inputs):
                              use_gradient_clip=inputs.dqn_gradient_clip,
                              gamma=inputs.gamma,
                              device=inputs.device,
+                             use_distributional=False
                              )
     return agent
 
@@ -173,7 +185,7 @@ def make_agent(inputs):
 # run experiment
 def run_experiment(inputs):
     # create the environment
-    my_lab, size, seed = make_env(inputs)
+    my_lab, size, seed, dist= make_env(inputs)
     # create the agent
     my_agent = make_agent(inputs)
     # create the transition
@@ -185,6 +197,7 @@ def run_experiment(inputs):
         agent=my_agent,
         maze_list=size,
         seed_list=seed,
+        dist_list=dist,
         decal_freq=inputs.decal_freq,
         fix_maze=inputs.fix_maze,
         fix_start=inputs.fix_start,
@@ -232,7 +245,7 @@ def split_trn_tst_mazes(args):
     seed_list = args.maze_seed_list.split(',') if len(args.maze_seed_list) > 1 else [args.maze_seed_list[0]]
 
     if not args.mix_maze:
-        assert(len(args.maze_size_list) == 1), f"Invalid maze size input, expect only 1 size type, but get {len(args.maze_size_list)}"
+        assert(len(args.maze_size_list) == 1 or len(args.maze_size_list) == 2), f"Invalid maze size input, expect only 1 size type, but get {len(args.maze_size_list)}"
         assert(len(seed_list) >= args.trn_num_each_maze), f"The number of total mazes is smaller than the number" \
                                                           f"of necessary training mazes."
         for run in range(args.run_num):
