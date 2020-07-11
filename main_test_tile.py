@@ -245,12 +245,10 @@ if __name__ == '__main__':
     # total seed list
     total_seed_list = user_inputs.maze_seed_list.split(',')
 
-    # run experiments
-    print(user_inputs.random_seed)
+    # run experiments 
     for r in range(user_inputs.run_num):
         # set random seed for reproduce
-        user_inputs.random_seed += 10 * r
-        print(user_inputs.random_seed)
+        user_inputs.random_seed += 10 * r 
         random.seed(user_inputs.random_seed)
         np.random.seed(user_inputs.random_seed)
         torch.manual_seed(user_inputs.random_seed)
