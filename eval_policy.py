@@ -564,8 +564,9 @@ class EvalPolicy(object):
                 self.update_map2d_and_maze3d(set_new_maze=True, maze_size=m_size, maze_seed=m_seed, dist=-1)
                 # build the initial dynamic behavior map
                 print(f"Init the dynamic behavior map")
-                # init_mlb_map = self.build_mlb_from_2d_map(max_edge_len=1)
-                # np.save(f'/mnt/cheng_results/mlb_map_{m_size}_{m_seed}.npy', init_mlb_map)
+                #init_mlb_map = self.build_mlb_from_2d_map(max_edge_len=1)
+                #np.save(f'/mnt/cheng_results/mlb_map_{m_size}_{m_seed}.npy', init_mlb_map)
+                
                 init_mlb_map = np.load(f'/mnt/cheng_results/mlb_map_{m_size}_{m_seed}.npy')
                 # obtain all the distance pairs
                 print(f"Load all pairs")
@@ -634,6 +635,7 @@ class EvalPolicy(object):
                                 sub_action_list.append(action)
                                 # take the action
                                 next_state, reward, done, dist, next_trans, _, _ = my_lab.step(action)
+                                print('state : ', ((state_obs - next_obs)/255).sum())
                                 # update the
                                 nav_done = done
                                 state_obs = next_state
@@ -642,7 +644,10 @@ class EvalPolicy(object):
                                 max_steps_per_goal -= 1
                                 # check terminal
                                 if np.sum(abs(next_trans - np.array(next_pos_maze))) == 0:
+                                    print(((next_state - next_obs)/255).sum())
+                                #if abs((next_state - next_obs)/255).sum() < 18000:
                                     # print(f'Reach the way point {next_pos_map} from {state_pos} with action = {ACTION_LIST[action]}')
+                                    print(next_trans, np.array(next_pos_maze))
                                     sub_nav_done = True
                                     break
                             # if agent fail to reach the way point
@@ -691,7 +696,7 @@ class EvalPolicy(object):
                         tmp_str = key + ' ' + str(val) + '\n'
                         f.write(tmp_str)
                     f.close()
-            
+                
     # search for the action using mlb
     def mlb_search_next_waypoint(self, state_pos, goal_pos, mlb_graph):
         # get next way point
@@ -853,6 +858,7 @@ def parse_input():
     parser.add_argument("--use_imagine", type=str, default="True", help="Whether use the imagined observation")
     parser.add_argument("--use_rescale", type=str, default="True", help="Whether use the rescaled observation")
     parser.add_argument("--max_episode_len", type=int, default=100, help="Max time steps per episode")
+    parser.add_argument("--seed_idx", type=int, default=0)
     
     return parser.parse_args()
 
@@ -879,19 +885,19 @@ if __name__ == '__main__':
     eval_mode = args.eval_mode
     save_path = args.save_path
     file_name = args.file_name
-
+        
     """ Set evaluation envs
     """
     # set maze to be evaluated
-    if len(args.maze_size_list) == 1:
+    if len(args.maze_size_list) == 1 or len(args.maze_size_list) == 2:
         maze_size = [int(args.maze_size_list)]
     else:
         maze_size = [int(s) for s in args.maze_size_list.split(",")]
-    if len(args.maze_seed_list) == 1:
+    if len(args.maze_seed_list) == 1 or len(args.maze_seed_list) == 2:
         maze_seed = [int(args.maze_seed_list)]
     else:
         maze_seed = [int(s) for s in args.maze_seed_list.split(",")]
-    if len(args.distance_list) == 1:
+    if len(args.distance_list) == 1 or len(args.distance_list) == 2:
         distance_list = [int(args.distance_list)]
     else:
         distance_list = [int(s) for s in args.distance_list.split(",")]
@@ -940,7 +946,7 @@ if __name__ == '__main__':
     elif eval_mode == 'imagine-local-policy':
         my_agent = GoalDQNAgent(use_true_state=args.use_true_state, use_small_obs=True, use_rescale=args.use_rescale)
         my_agent.policy_net.load_state_dict(
-             torch.load(f"/mnt/cheng_results/results_RL/6-30/{args.model_maze_size}-norm/goal_ddqn_{args.model_maze_size}x{args.model_maze_size}_obs_seed_{1}.pt",
+             torch.load(f"/mnt/cheng_results/results_RL/7-5/{args.model_maze_size}-norm/{args.seed_idx}/goal_ddqn_{args.model_maze_size}x{args.model_maze_size}_obs_run_{args.seed_idx}.pt",
                         map_location=torch.device('cpu'))
         )
         #my_agent.policy_net.load_state_dict(
