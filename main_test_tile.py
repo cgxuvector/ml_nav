@@ -245,7 +245,11 @@ if __name__ == '__main__':
     # total seed list
     total_seed_list = user_inputs.maze_seed_list.split(',')
 
+<<<<<<< HEAD
     # run experiments 
+=======
+    # run experiments
+>>>>>>> origin
     for r in range(user_inputs.run_num):
         # set random seed for reproduce
         user_inputs.random_seed += 10 * r 
@@ -257,7 +261,6 @@ if __name__ == '__main__':
         sampled_seed_list = random.sample(total_seed_list, user_inputs.train_maze_num)
         user_inputs.maze_seed_list = ','.join(sampled_seed_list)
 
-        print(sampled_seed_list)
         # print info
         print(f"Run the {r} experiment with random seed = {user_inputs.random_seed} using mazes size {user_inputs.maze_size_list} and seed {user_inputs.maze_seed_list}")
        

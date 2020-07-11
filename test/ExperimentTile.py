@@ -75,6 +75,7 @@ class Experiment(object):
         # goal-conditioned configurations
         self.use_goal = use_goal
         self.goal_dist = goal_dist
+        self.valid_goal_dist = list(range(1, goal_dist+1, 1))
         self.use_imagine = use_imagine
         # for cycle relabel
         self.reverse_action = [1, 0, 3, 2]
@@ -415,6 +416,10 @@ class Experiment(object):
                 trans = self.toTransition(state, action, next_state, reward, init_state, goal, done)
                 # add the transition into the buffer
                 self.replay_buffer.add(trans)
+            
+            # update the state
+            state = next_state
+            rewards.append(reward)
 
             # check terminal
             if done or (episode_t == self.max_steps_per_episode):
@@ -437,11 +442,11 @@ class Experiment(object):
                 )
 
                 # evaluate the current policy
-                #if (episode_idx - 1) % self.eval_policy_freq == 0:
+                if (episode_idx - 1) % self.eval_policy_freq == 0:
                     # evaluate the current policy by interaction
-                #    model_save_path = os.path.join(self.save_dir, self.model_name) + f"_{episode_idx}.pt"
-                #    torch.save(self.agent.policy_net.state_dict(), model_save_path)
-                #    self.eval_policy_novel()
+                    model_save_path = os.path.join(self.save_dir, self.model_name) + f"_{episode_idx}.pt"
+                    torch.save(self.agent.policy_net.state_dict(), model_save_path)
+                    self.eval_policy_novel()
 
                 #print("episode = ", episode_idx)
 
@@ -461,6 +466,8 @@ class Experiment(object):
                         # sample a new pair of start and goal
                         self.fix_start = False
                         self.fix_goal = False
+                        # sample a valid distance
+                        self.goal_dist = random.sample(self.valid_goal_dist, 1)[0]
                         state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=False)
                         init_state = state
                         train_episode_num = self.train_episode_num
@@ -469,14 +476,13 @@ class Experiment(object):
                     # sample a new maze
                     self.fix_start = False
                     self.fix_goal = False
+                    # sample a valid distance
+                    self.goal_dist = random.sample(self.valid_goal_dist, 1)[0]
                     state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=True)
                     init_state = state
                     # reset the training control
                     train_episode_num = self.train_episode_num
                     sample_start_goal_num = self.sample_start_goal_num
-            else:
-                state = next_state
-                rewards.append(reward)
 
             # train the agent
             if t > self.start_train_step:
@@ -753,7 +759,8 @@ class Experiment(object):
 
     def eval_policy(self):
         # loop all the distance
-        pairs_dict = {'start': self.eval_dist_pairs['1'][0], 'goal': self.eval_dist_pairs['1'][1]}
+        tmp_dist = random.sample(self.valid_goal_dist, 1)[0]
+        pairs_dict = {'start': self.eval_dist_pairs[str(tmp_dist)][0], 'goal': self.eval_dist_pairs[str(tmp_dist)][1]}
         # sample number
         eval_total_num = 50 if len(pairs_dict['start']) > 50 else len(pairs_dict['start'])
         eval_success_num = 0

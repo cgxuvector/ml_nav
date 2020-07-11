@@ -56,7 +56,8 @@ class RandomMazeTileRaw(object):
         # create the lab maze environment with default settings
         self._lab = deepmind_lab.Lab(self._level_name,
                                      self._observation_names,
-                                     self._level_configs)
+                                     self._level_configs,
+                                     renderer='hardware')
 
         """ observations from the maze """
         # current observations: contains all the required observations, since we only use a subset of it
