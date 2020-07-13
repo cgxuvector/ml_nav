@@ -382,7 +382,7 @@ class RoughMap(object):
             sample_clk = 0
             while len(pos_path) < dist + 1:
                 # sample a goal position
-                tmp_goal_pos = random.sample(valid_pos_list, 1)[0] if len(valid_pos_list) > 1 else valid_pos_list[0]
+                tmp_goal_pos = random.sample(valid_pos_list, 1)[0]
                 # plan a new path
                 pos_path = searchAlg.A_star(self.map2d_grid, tmp_init_pos, tmp_goal_pos)
                 # increase one step

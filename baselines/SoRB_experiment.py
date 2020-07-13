@@ -147,6 +147,8 @@ class Experiment(object):
             reward = -1
             episode_t += 1
 
+            # print(f"State={state}, Act={DEFAULT_ACTION_LIST[action]}, Next state={next_state}, Reward={reward}, Done={done}, Goal={goal}")
+
             # store the replay buffer and convert the data to tensor
             if self.use_replay_buffer:
                 # construct the transition
@@ -163,7 +165,7 @@ class Experiment(object):
                 G = 0
                 for r in reversed(rewards):
                     G = r + self.gamma * G
-
+                
                 # store the return, episode length, and final distance for current episode
                 self.returns.append(G)
                 self.lengths.append(episode_t)
@@ -187,30 +189,34 @@ class Experiment(object):
                         self.fix_start = True
                         self.fix_goal = True
                         # add sampling here
-                        state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=False)
+                        state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=False) 
                         train_episode_num -= 1
                     else:
                         # sample a new pair of start and goal
                         self.fix_start = False
                         self.fix_goal = False
                         # constrain the distance <= max dist
-                        self.fix_start = True
-                        self.fix_goal = True
-                        # self.goal_dist = random.sample(self.valid_dist_list, 1)[0]
-                        self.goal_dist = 1
+                        self.goal_dist = random.sample(self.valid_dist_list, 1)[0]
                         state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=False)
                         train_episode_num = self.train_episode_num
                         sample_start_goal_num -= 1
+                        
+             #           if state == goal:
+              #              print(f"Fail case: ", state, goal)
+              #              Debug.set_trace()
                 else:
                     # sample a new maze
                     self.fix_start = False
                     self.fix_goal = False
                     # constrain the distance <= max dist
-                    # self.goal_dist = random.sample(self.valid_dist_list, 1)[0]
+                    self.goal_dist = random.sample(self.valid_dist_list, 1)[0]
                     state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=True)
                     # reset the training control
                     train_episode_num = self.train_episode_num
                     sample_start_goal_num = self.sample_start_goal_num
+              #      if state == goal:
+              #          print(f"Fail case: ", state, goal)
+              #          Debug.set_trace()
                 # store the first state
                 self.graph_buffer.append(state)
 
@@ -329,7 +335,7 @@ class Experiment(object):
 
     def test_distance_prediction(self):
         # load the saved data
-        self.agent.policy_net.load_state_dict(torch.load('./sorb_test/test_5.pt'))
+        self.agent.policy_net.load_state_dict(torch.load(f'/mnt/sda/rl_results/7-7/sorb_dqn_{self.maze_size}.pt'))
         self.agent.policy_net.eval()
 
         # sample a start-goal pair
@@ -341,13 +347,14 @@ class Experiment(object):
                 state = self.toTensor(state)
                 goal = self.toTensor(goal)
                 pred_dist = self.agent.policy_net(state, goal)
-
             # for distributional RL
-            pred_dist = torch.mm(pred_dist.squeeze(0), self.agent.support_atoms_values).max().item()
+            #action = torch.mm(pred_dist.squeeze(0), self.agent.support_atoms_values).view(1, -1).max(dim=1)[1].item()
+            #pred_dist = pred_dist.squeeze(0)[action, :]
+            #print(np.round(pred_dist, 2))
             # for normal DQN
-            #pred_dist = np.round(pred_dist.max())
-
-            print(f'State={state}, goal={goal}, GT={gt_dist} Pred={-1 * pred_dist}')
+            pred_dist = pred_dist.max() - 1
+            reach_goal = (pred_goal.max() - 1)
+            print(f'State={state}, goal={goal}, GT={gt_dist} Pred={-1 * pred_dist}, Done={reach_goal}')
             self.fix_start = False
             self.fix_goal = False
             state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=self.fix_maze)
