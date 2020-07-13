@@ -200,10 +200,6 @@ class Experiment(object):
                         state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=False)
                         train_episode_num = self.train_episode_num
                         sample_start_goal_num -= 1
-                        
-             #           if state == goal:
-              #              print(f"Fail case: ", state, goal)
-              #              Debug.set_trace()
                 else:
                     # sample a new maze
                     self.fix_start = False
@@ -214,9 +210,6 @@ class Experiment(object):
                     # reset the training control
                     train_episode_num = self.train_episode_num
                     sample_start_goal_num = self.sample_start_goal_num
-              #      if state == goal:
-              #          print(f"Fail case: ", state, goal)
-              #          Debug.set_trace()
                 # store the first state
                 self.graph_buffer.append(state)
 
