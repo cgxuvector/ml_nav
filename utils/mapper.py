@@ -464,20 +464,22 @@ class RoughMap(object):
         return {'start': start_pos_list, 'goal': goal_pos_list}
 
 
-# size_list = [21]
-# seed_list = [0]
+# size_list = [13]
+# seed_list = list(range(20))
 # dist = 1
 # for size in size_list:
 #     for seed in seed_list:
-#         for i in range(2000):
-#             env_map = RoughMap(size, seed, 3)
-#             init_pos, goal_pos = env_map.sample_random_start_goal_pos(False, False, dist)
-#             print(f"Run {i+1}: Start = {init_pos}, Goal = {goal_pos}, Target dist = {dist}, Dist = {len(env_map.path) - 1}")
-#             if (len(env_map.path) - 1) > dist or init_pos == goal_pos:
-#                 print("Fail case", init_pos, goal_pos)
-#                 break
-        # plt.axis('off')
-        # plt.imshow(env_map.map2d_rough)
-        # plt.savefig(f'{size}x{seed}_map.png', dpi=300)
-        # plt.show()
+#         print(seed)
+#         # for i in range(2000):
+#         env_map = RoughMap(size, seed, 3)
+#         #     init_pos, goal_pos = env_map.sample_random_start_goal_pos(False, False, dist)
+#         #     print(f"Run {i+1}: Start = {init_pos}, Goal = {goal_pos}, Target dist = {dist}, Dist = {len(env_map.path) - 1}")
+#         #     if (len(env_map.path) - 1) > dist or init_pos == goal_pos:
+#         #         print("Fail case", init_pos, goal_pos)
+#         #         break
+#         plt.title(f"{size}-{seed}-map")
+#         plt.axis('off')
+#         plt.imshow(env_map.map2d_rough)
+#         # plt.savefig(f'{size}x{seed}_map.png', dpi=300)
+#         plt.show()
 

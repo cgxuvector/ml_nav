@@ -323,9 +323,9 @@ class GoalDQNAgent(object):
             current_q_distributions = self.policy_net(state, goal).gather(dim=1, index=action)
             # compute the target distribution
             with torch.no_grad():
-                target_q_distributions = self.project_distributions(next_state, reward, done, goal, self.support_atoms_values)
+                target_q_distributions = self.project_distributions(next_state, reward, done, goal, self.support_atoms_values, 'shift')
             # code the cross entropy loss
-            loss = (-1 * target_q_distributions.squeeze(dim=1) * current_q_distributions.log().squeeze(dim=1)).sum(-1).mean()
+            loss = (-1 * target_q_distributions.squeeze(dim=1) * current_q_distributions.squeeze(dim=1).log()).sum(-1).mean()
 
             # update
             self.optimizer.zero_grad()
@@ -336,7 +336,7 @@ class GoalDQNAgent(object):
                     params.grad.data.clamp(-1, 1)
             self.optimizer.step()
 
-    def project_distributions(self, next_state, reward, done, goal, support):
+    def project_distributions(self, next_state, reward, done, goal, support, project_mode='raw'):
         # compute the next distributions
         next_q_distributions = self.target_net(next_state, goal).detach()
         # compute the expected values
@@ -346,31 +346,53 @@ class GoalDQNAgent(object):
         # extract maximal distributions
         max_next_q_distribution = next_q_distributions.gather(dim=1, index=max_next_action).squeeze(dim=1)
 
-        # expand reward, done, and support
-        reward = reward.expand_as(max_next_q_distribution)
-        done = done.expand_as(max_next_q_distribution)
-        support = support.squeeze(-1).unsqueeze(0).expand_as(max_next_q_distribution)
+        if project_mode == 'raw':
+            # expand reward, done, and support
+            reward = reward.expand_as(max_next_q_distribution)
+            done = done.expand_as(max_next_q_distribution)
+            support = support.squeeze(-1).unsqueeze(0).expand_as(max_next_q_distribution)
 
-        # compute the target
-        Tz = reward + (1 - done) * self.gamma * support
-        Tz = Tz.clamp(min=self.min_val, max=self.max_val)
-        b = (Tz - self.min_val) / self.delta_z
-        l = b.floor().clamp(min=0, max=self.support_atoms - 1).long()
-        u = b.ceil().clamp(min=0, max=self.support_atoms - 1).long()
+            # compute the target
+            Tz = reward + (1 - done) * self.gamma * support
+            Tz = Tz.clamp(min=self.min_val, max=self.max_val)
+            b = (Tz - self.min_val) / self.delta_z
+            l = b.floor().clamp(min=0, max=self.support_atoms - 1).long()
+            u = b.ceil().clamp(min=0, max=self.support_atoms - 1).long()
 
-        # compute the same indices
-        row_indices, col_indices = torch.where(l == u)
-        u_new = u.clone()
-        for r, c in zip(row_indices.tolist(), col_indices.tolist()):
-            u_new[r, c] += 1
+            # compute the same indices
+            row_indices, col_indices = torch.where(l == u)
+            u_new = u.clone()
+            for r, c in zip(row_indices.tolist(), col_indices.tolist()):
+                u_new[r, c] += 1
 
-        # distribute the probability
-        offset = torch.linspace(0, (self.batch_size - 1) * self.support_atoms, self.batch_size).long()\
-            .unsqueeze(1).expand(self.batch_size, self.support_atoms)
-        # initialize the projected distributions
-        project_distribution = torch.zeros(max_next_q_distribution.size())
-        project_distribution.view(-1).index_add_(0, (l + offset).view(-1), (max_next_q_distribution * (u_new.float() - b)).view(-1))
-        project_distribution.view(-1).index_add_(0, (u + offset).view(-1), (max_next_q_distribution * (b - l.float())).view(-1))
+            # distribute the probability
+            offset = torch.linspace(0, (self.batch_size - 1) * self.support_atoms, self.batch_size).long()\
+                .unsqueeze(1).expand(self.batch_size, self.support_atoms)
+            # initialize the projected distributions
+            project_distribution = torch.zeros(max_next_q_distribution.size())
+            project_distribution.view(-1).index_add_(0, (l + offset).view(-1), (max_next_q_distribution * (u_new.float() - b)).view(-1))
+            project_distribution.view(-1).index_add_(0, (u + offset).view(-1), (max_next_q_distribution * (b - l.float())).view(-1))
+        elif project_mode == 'shift':
+            # get the batch size
+            batch_size = next_state.size(0)
+            support_num = support.size(0)
+            # compute the terminal mask tensor
+            one_hot_mask = F.one_hot(torch.ones(batch_size, dtype=torch.int64) * (support_num - 1), support_num).float()
+            # generate the first column
+            col_1 = torch.zeros(batch_size, 1, dtype=torch.float32)
+            # generate the middle part
+            col_middle = max_next_q_distribution[:, 2:]
+            # sum the end part
+            col_last = torch.sum(max_next_q_distribution[:, 0:2], dim=1).view(-1, 1)
+            # combine the shifted q distribution
+            shifted_q_distribution_target = torch.cat([col_last, col_middle, col_1], dim=1)
+            # mask the target q distribution
+            mask_condition = done.bool().expand(batch_size, support_num)
+            masked_shifted_q_distribution_target = torch.where(mask_condition, one_hot_mask, shifted_q_distribution_target)
+            project_distribution = masked_shifted_q_distribution_target
+        else:
+            raise Exception(f"Unexpected projection mode. Expected raw or shift, but get {project_mode} ")
+
         return project_distribution.unsqueeze(dim=1)
 
     def train_one_batch(self, t, batch):

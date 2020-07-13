@@ -143,6 +143,8 @@ class Experiment(object):
 
             # step in the environment
             next_state, reward, done, dist, trans, _, _ = self.env.step(action)
+            # re-define the reward function to be -1 for every time step
+            reward = -1
             episode_t += 1
 
             # store the replay buffer and convert the data to tensor
