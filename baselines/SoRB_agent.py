@@ -291,9 +291,9 @@ class GoalDQNAgent(object):
                 max_next_q_sa_values = self.target_net(next_state, goal).max(1)[0].view(-1, 1).detach()
                 # if s' is terminal, then change Q(s', a') = 0
                 terminal_mask = (torch.ones(done.size(), device=self.device) - done)
-                masked_max_next_q_sa_values = max_next_q_sa_values * terminal_mask
+                max_next_q_sa_values = max_next_q_sa_values * terminal_mask
                 # compute the r + gamma * max_a' Q_target(s', a')
-                td_target = reward + self.gamma * masked_max_next_q_sa_values
+                td_target = reward + self.gamma * max_next_q_sa_values
             else:  # update the policy network using double DQN
                 # select the maximal actions using greedy policy network: argmax_a Q_policy(S_t+1)
                 estimated_next_action = self.policy_net(next_state, goal).max(dim=1)[1].view(-1, 1).detach()
@@ -301,12 +301,9 @@ class GoalDQNAgent(object):
                 next_q_sa_values = self.target_net(next_state, goal).gather(dim=1, index=estimated_next_action).detach().view(-1, 1)
                 # convert the value of the terminal states to be zero
                 terminal_mask = (torch.ones(done.size(), device=self.device) - done)
-                masked_next_q_sa_values = next_q_sa_values * terminal_mask
+                max_next_q_sa_values = (next_q_sa_values * terminal_mask).clamp(max=0)
                 # compute the TD target
-                td_target = reward + self.gamma * masked_next_q_sa_values
-
-            # clamp the values to avoid ill-Q targets
-            td_target = td_target.clamp(max=0)
+                td_target = reward + self.gamma * max_next_q_sa_values
 
             # compute the loss using MSE error: TD error
             loss = self.criterion(q_sa_values, td_target)
@@ -375,7 +372,7 @@ class GoalDQNAgent(object):
         project_distribution.view(-1).index_add_(0, (l + offset).view(-1), (max_next_q_distribution * (u_new.float() - b)).view(-1))
         project_distribution.view(-1).index_add_(0, (u + offset).view(-1), (max_next_q_distribution * (b - l.float())).view(-1))
         return project_distribution.unsqueeze(dim=1)
-    
+
     def train_one_batch(self, t, batch):
         # update the policy networkse
         if not np.mod(t + 1, self.freq_update_policy):

@@ -397,7 +397,6 @@ class RoughMap(object):
         goal_pos = valid_path_pos[dist] if dist < len(valid_path_pos) else valid_path_pos[-1] 
         return goal_pos
 
-    
     def sample_random_start_goal_pos(self, fix_init, fix_goal, dist):
         """
         Function is used to sample a random pair init and goal positions from the valid positions.
@@ -465,25 +464,20 @@ class RoughMap(object):
         return {'start': start_pos_list, 'goal': goal_pos_list}
 
 
-#"""
-#    Plot rough map
-#"""
-# env_map = RoughMap(15, 4, 3)
-
-#
-# pos_pairs = env_map.get_start_goal_pair_with_fix_distance(7)
-#
-# Debug.set_trace()
-# print(pos_pairs['start'])
-# # print(pos_pairs['goal'])
-# size_list = [15]
-# seed_list = [4]
+# size_list = [21]
+# seed_list = [0]
+# dist = 1
 # for size in size_list:
 #     for seed in seed_list:
-#         env_map = RoughMap(size, seed, 3)
-#         # init_pos, goal_pos = env_map.sample_random_start_goal_pos(False, False, 12)
-#         plt.axis('off')
-#         plt.imshow(env_map.map2d_rough)
-#         # plt.savefig(f'{size}x{seed}_map.png', dpi=300)
-#         plt.show()
+#         for i in range(2000):
+#             env_map = RoughMap(size, seed, 3)
+#             init_pos, goal_pos = env_map.sample_random_start_goal_pos(False, False, dist)
+#             print(f"Run {i+1}: Start = {init_pos}, Goal = {goal_pos}, Target dist = {dist}, Dist = {len(env_map.path) - 1}")
+#             if (len(env_map.path) - 1) > dist or init_pos == goal_pos:
+#                 print("Fail case", init_pos, goal_pos)
+#                 break
+        # plt.axis('off')
+        # plt.imshow(env_map.map2d_rough)
+        # plt.savefig(f'{size}x{seed}_map.png', dpi=300)
+        # plt.show()
 

@@ -144,7 +144,7 @@ class Experiment(object):
             # step in the environment
             next_state, reward, done, dist, trans, _, _ = self.env.step(action)
             episode_t += 1
-            
+
             # print(f"State={state}, Act={DEFAULT_ACTION_LIST[action]}, Next state={next_state}, Reward={reward}, Done={done}, Goal={goal}")
 
             # store the replay buffer and convert the data to tensor
@@ -345,8 +345,6 @@ class Experiment(object):
                 state = self.toTensor(state)
                 goal = self.toTensor(goal)
                 pred_dist = self.agent.policy_net(state, goal)
-                pred_goal = self.agent.policy_net(goal, goal)
-            
             # for distributional RL
             #action = torch.mm(pred_dist.squeeze(0), self.agent.support_atoms_values).view(1, -1).max(dim=1)[1].item()
             #pred_dist = pred_dist.squeeze(0)[action, :]
@@ -638,8 +636,6 @@ class Experiment(object):
             maze_configs["update"] = True  # update flag
         else:
             init_pos, goal_pos = self.env_map.sample_random_start_goal_pos(self.fix_start, self.fix_goal, self.goal_dist)
-            if init_pos == goal_pos:
-                Debug.set_trace()
             maze_configs['start_pos'] = init_pos + [0]
             maze_configs['goal_pos'] = goal_pos + [0]
             maze_configs['maze_valid_pos'] = self.env_map.valid_pos
