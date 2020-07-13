@@ -73,6 +73,7 @@ def parse_input():
     parser.add_argument("--support_atoms", type=int, default='51', help="Number of the support atoms")
     parser.add_argument("--run_mode", type=str, default='trn', help="Whether train or evaluate the SoRB")
     parser.add_argument("--max_dist", type=int, default=1, help="Max distance")
+    parser.add_argument("--gpu_acc", type=str, default='False', help="Whether use GPU to boost imagine rendering")
 
     return parser.parse_args()
 
@@ -98,6 +99,8 @@ def strTobool(inputs):
     inputs.mix_maze = True if inputs.mix_maze == "True" else False
     # use distributional rl
     inputs.distributional_rl = True if inputs.distributional_rl == "True" else False
+    # use GPU to accelerate
+    inputs.gpu_acc = True if inputs.gpu_acc == "True" else False
     return inputs
 
 
@@ -123,6 +126,10 @@ def make_env(inputs):
         'height': str(observation_height),
         'fps': str(observation_fps)
     }
+    if inputs.gpu_acc:
+        render = 'hardware'
+    else:
+        render = 'software'
     # set the mazes
     if len(inputs.maze_size_list) == 1 or len(inputs.maze_size_list) == 2:
         maze_size = [int(inputs.maze_size_list)]
@@ -144,6 +151,7 @@ def make_env(inputs):
     lab = RandomMazeTileRaw(level_name,
                             observation_list,
                             configurations,
+                            render=render,
                             use_true_state=inputs.use_true_state,
                             reward_type="sparse-1",
                             dist_epsilon=1e-3)

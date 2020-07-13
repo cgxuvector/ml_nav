@@ -371,7 +371,7 @@ class RoughMap(object):
         self.update_mapper(tmp_init_pos, tmp_goal_pos)
         return tmp_init_pos, tmp_goal_pos
 
-    def sample_fixed_distance(start_pos, valid_pos_list, dist):
+    def sample_fixed_distance(self, start_pos, valid_pos_list, dist):
         # set the temporal start and goal positions
         tmp_init_pos = start_pos
         tmp_goal_pos = random.sample(valid_pos_list, 1)[0]
@@ -382,7 +382,6 @@ class RoughMap(object):
             sample_clk = 0
             while len(pos_path) < dist + 1:
                 # sample a goal position
-                valid_pos_list.remove(tmp_goal_pos)
                 tmp_goal_pos = random.sample(valid_pos_list, 1)[0]
                 # plan a new path
                 pos_path = searchAlg.A_star(self.map2d_grid, tmp_init_pos, tmp_goal_pos)
@@ -408,27 +407,24 @@ class RoughMap(object):
         :return: new sampled init and goal positions.
         """
         # obtain valid initial positions
-        if fix_init == True and fix_goal == True:
+        if fix_init is True and fix_goal is True:
             new_init = self.init_pos
             new_goal = self.goal_pos
-        elif fix_init == True and fix_goal == False:
+        elif fix_init is True and fix_goal is False:
             new_init = self.init_pos
             valid_positions = self.valid_pos.copy()
             valid_positions.remove(new_init)
-            valid_positions.remove(self.goal_pos)
-            new_goal = sample_fixed_distance(new_init, valid_positions, dist)
-        elif fix_init = False and fix_goal == True:
+            new_goal = self.sample_fixed_distance(new_init, valid_positions, dist)
+        elif fix_init is False and fix_goal is True:
             new_goal = self.goal_pos
             valid_positions = self.valid_pos.copy()
             valid_positions.remove(new_goal)
-            valid_positions.remove(self.init_pos)
-            new_init = sample_fixed_distance(new_goal, valid_positions, dist)
+            new_init = self.sample_fixed_distance(new_goal, valid_positions, dist)
         else:
             valid_positions = self.valid_pos.copy()
-            valid_positions.remove(self.init_pos)
             new_init = random.sample(valid_positions, 1)[0]
             valid_positions.remove(new_init)
-            new_goal = sampled_fixed_distance(new_init, valid_positions, dist)
+            new_goal = self.sample_fixed_distance(new_init, valid_positions, dist)
 
         # update the mapper
         self.update_mapper(new_init, new_goal)

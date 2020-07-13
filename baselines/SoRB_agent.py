@@ -295,7 +295,6 @@ class GoalDQNAgent(object):
                 # compute the r + gamma * max_a' Q_target(s', a')
                 td_target = reward + self.gamma * masked_max_next_q_sa_values
             else:  # update the policy network using double DQN
-                Debug.set_trace()
                 # select the maximal actions using greedy policy network: argmax_a Q_policy(S_t+1)
                 estimated_next_action = self.policy_net(next_state, goal).max(dim=1)[1].view(-1, 1).detach()
                 # compute the Q_target(s', argmax_a)
