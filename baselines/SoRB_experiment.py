@@ -327,7 +327,7 @@ class Experiment(object):
 
     def test_distance_prediction(self):
         # load the saved data
-        self.agent.policy_net.load_state_dict(torch.load('./sorb_test/test_5.pt'))
+        self.agent.policy_net.load_state_dict(torch.load('/mnt/cheng_results/results_RL/7-7/13-norm-1/0/goal_ddqn_13x13_obs_maxdist_1_run_0.pt'))
         self.agent.policy_net.eval()
 
         # sample a start-goal pair
@@ -341,9 +341,9 @@ class Experiment(object):
                 pred_dist = self.agent.policy_net(state, goal)
 
             # for distributional RL
-            pred_dist = torch.mm(pred_dist.squeeze(0), self.agent.support_atoms_values).max().item()
+            # pred_dist = torch.mm(pred_dist.squeeze(0), self.agent.support_atoms_values).max().item()
             # for normal DQN
-            #pred_dist = np.round(pred_dist.max())
+            pred_dist = np.round(pred_dist.max())
 
             print(f'State={state}, goal={goal}, GT={gt_dist} Pred={-1 * pred_dist}')
             self.fix_start = False

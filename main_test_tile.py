@@ -38,7 +38,7 @@ def parse_input():
     # set the training mode
     parser.add_argument("--train_local_policy", type=str, default="False", help="Whether train a local policy.")
     parser.add_argument("--device", type=str, default="cpu", help="Device to use")
-    parser.add_argument("--lr", type=float, default=1e-3, help="Learning rate")
+    parser.add_argument("--lr", type=float, default=1e-4, help="Learning rate")
     parser.add_argument("--start_train_step", type=int, default=1000, help="Start training time step")
     parser.add_argument("--sampled_goal_num", type=int, default=10, help="Number of sampled start and goal positions.")
     parser.add_argument("--train_episode_num", type=int, default=10, help="Number of training epochs for each sample.")
@@ -246,6 +246,7 @@ if __name__ == '__main__':
     total_seed_list = user_inputs.maze_seed_list.split(',')
 
     # run experiments
+    """
     for r in range(user_inputs.run_num):
         # set random seed for reproduce
         user_inputs.random_seed += 10 * r 
@@ -269,4 +270,27 @@ if __name__ == '__main__':
         user_inputs.model_idx = input_model_idx + f'_run_{r}'
         # run experiments
         run_experiment(user_inputs)
+    """
+    input_maze_size_list = user_inputs.maze_size_list.split(',') 
+    for s in input_maze_size_list:
+        # set random seed for reproduce
+        random.seed(user_inputs.random_seed)
+        np.random.seed(user_inputs.random_seed)
+        torch.manual_seed(user_inputs.random_seed)
 
+        # set the maze size list
+        user_inputs.maze_size_list = s
+    
+        # print info
+        print(f"Run the experiment with random seed = {user_inputs.random_seed} using mazes size {s} and seed {user_inputs.maze_seed_list}")
+        
+        # update the save directory
+        user_inputs.save_dir = input_save_dir + '/' + f'{s}-norm-{user_inputs.goal_dist}' + f'/{user_inputs.random_seed}'
+        user_inputs.model_idx = input_model_idx + f'_{s}x{s}_obs_maxdist_{user_inputs.goal_dist}_add_terminal' 
+        
+        # check the directory to store the results
+        if not os.path.exists(user_inputs.save_dir):
+            os.makedirs(user_inputs.save_dir)
+    
+        # run experiments
+        run_experiment(user_inputs)

@@ -398,24 +398,32 @@ class Experiment(object):
             # compute the epsilon
             eps = self.schedule.get_value(t)
 
+            # relabel the true goal observation with the fake goal with a fixed percentage
+            if self.use_imagine:
+                if random.uniform(0, 1) <= self.use_imagine:
+                    loc_goal_map = self.env_map.cropper(self.env_map.map2d_roughPadded, goal_pos)
+                    goal = self.imagine_goal_observation(loc_goal_map)
+  
             # get action
             action = self.agent.get_action(state, goal, eps)
 
             # step in the environment
             next_state, reward, done, dist, trans, _, _ = self.env.step(action)
+            # modify the reward to be 
+            # r(s_t, a_t, g) = -1 if s_t != g
+            # r(s_t, a_t, g) = 0 if s_t == g
+            reward = -1
             episode_t += 1
 
             # store the replay buffer and convert the data to tensor
             if self.use_replay_buffer:
-                # change the goal to imagine with probability 0.5
-                if self.use_imagine:
-                    if random.uniform(0, 1) <= self.use_imagine:
-                        loc_goal_map = self.env_map.cropper(self.env_map.map2d_roughPadded, goal_pos)
-                        goal = self.imagine_goal_observation(loc_goal_map)
                 # construct the transition
                 trans = self.toTransition(state, action, next_state, reward, init_state, goal, done)
                 # add the transition into the buffer
                 self.replay_buffer.add(trans)
+                if done:
+                    terminal_trans = self.toTransition(next_state, action, goal, 0, init_state, goal, done)
+                    self.replay_buffer.add(terminal_trans)
             
             # update the state
             state = next_state
@@ -525,9 +533,10 @@ class Experiment(object):
 
             # step in the environment
             next_state, reward, done, dist, trans, _, _ = self.env.step(action)
+            reward = -1
             
-            episode_t += 1
             # save the transitions
+            episode_t += 1
             states.append(next_state)
             actions.append(action)
             rewards.append(reward)
