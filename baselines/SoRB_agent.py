@@ -163,6 +163,7 @@ class GoalDeepQNet(nn.Module):
                 # compute state embedding
                 state_fea = self.conv_qNet(state).contiguous().view(-1, 1 * 8 * 128 * 4)
                 goal_fea = self.conv_qNet(goal).contiguous().view(-1, 1 * 8 * 128 * 4)
+            
             # concatenate the tensor
             state_goal_fea = torch.cat((state_fea, goal_fea), dim=1)
             # concatenate the goal with state
@@ -196,7 +197,8 @@ class GoalDQNAgent(object):
                  device="cpu",
                  use_distributional=False,
                  support_atoms=2,
-                 batch_size=8
+                 batch_size=8,
+                 use_rescale=False
                  ):
         """
         Init the DQN agent
@@ -211,6 +213,8 @@ class GoalDQNAgent(object):
         """
         self.device = torch.device(device)
         """ DQN configurations"""
+        # pixel values
+        self.use_rescale = use_rescale
         # parameters for distributional DQN
         self.use_distributional = use_distributional
         # number of atoms
@@ -218,7 +222,7 @@ class GoalDQNAgent(object):
         # min and max possible values
         self.min_val, self.max_val = -1 * (self.support_atoms - 1), 0
         # generate the possible values
-        self.support_atoms_values = torch.linspace(self.min_val, self.max_val, self.support_atoms).view(-1, 1)
+        self.support_atoms_values = torch.linspace(self.min_val, self.max_val, self.support_atoms, device=self.device).view(-1, 1)
         self.delta_z = (self.max_val - self.min_val) / self.support_atoms
         self.batch_size = batch_size
         # create the policy network and target network
@@ -257,7 +261,7 @@ class GoalDQNAgent(object):
             max_action = random.sample(range(4), 1)[0]
         else:  # with probability 1 - epsilon, the agent selects the greedy action
             input_state = self.toTensor(input_state)
-            goal = self.toTensor(goal)
+            goal = self.toTensor(goal) 
             with torch.no_grad():
                 if not self.use_distributional:  # for normal DQN
                     goal_q_values = self.policy_net(input_state, goal).view(1, -1)
@@ -324,6 +328,7 @@ class GoalDQNAgent(object):
             # compute the target distribution
             with torch.no_grad():
                 target_q_distributions = self.project_distributions(next_state, reward, done, goal, self.support_atoms_values, 'shift')
+            
             # code the cross entropy loss
             loss = (-1 * target_q_distributions.squeeze(dim=1) * current_q_distributions.squeeze(dim=1).log()).sum(-1).mean()
 
@@ -374,12 +379,12 @@ class GoalDQNAgent(object):
             project_distribution.view(-1).index_add_(0, (u + offset).view(-1), (max_next_q_distribution * (b - l.float())).view(-1))
         elif project_mode == 'shift':
             # get the batch size
-            batch_size = next_state.size(0)
+            batch_size = self.batch_size
             support_num = support.size(0)
             # compute the terminal mask tensor
-            one_hot_mask = F.one_hot(torch.ones(batch_size, dtype=torch.int64) * (support_num - 1), support_num).float()
+            one_hot_mask = F.one_hot(torch.ones(batch_size, dtype=torch.int64, device=self.device) * (support_num - 1), support_num).float()
             # generate the first column
-            col_1 = torch.zeros(batch_size, 1, dtype=torch.float32)
+            col_1 = torch.zeros(batch_size, 1, dtype=torch.float32, device=self.device)
             # generate the middle part
             col_middle = max_next_q_distribution[:, 2:]
             # sum the end part
@@ -424,7 +429,10 @@ class GoalDQNAgent(object):
                 next_state = torch.cat(batch.next_state, dim=0).float().to(self.device)
                 goal = torch.cat(batch.goal, dim=0).float().to(self.device)
                 done = torch.cat(batch.done, dim=0).to(self.device)
-                return state, action, next_state, reward, goal, done
+                if not self.use_rescale:
+                    return state, action, next_state, reward, goal, done
+                else:
+                    return state / 255.0, action, next_state / 255.0, reward, goal / 255.0, done
         else:
             if len(batch._fields) == 5:
                 state = torch.stack(batch.state).float().to(self.device)
@@ -444,7 +452,10 @@ class GoalDQNAgent(object):
 
     def toTensor(self, state):
         if not self.use_true_state:
-            state_obs = torch.tensor(np.array(state).transpose(0, 3, 1, 2), dtype=torch.float32, device=self.device)
+            if not self.use_rescale:
+                state_obs = torch.tensor(np.array(state).transpose(0, 3, 1, 2), dtype=torch.float32, device=self.device)
+            else:
+                state_obs = torch.tensor(np.array(state).transpose(0, 3, 1, 2) / 255.0, dtype=torch.float32, device=self.device)
         else:
             state_obs = torch.tensor(np.array(state), dtype=torch.float32, device=self.device)
         return state_obs

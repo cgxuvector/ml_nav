@@ -9,6 +9,7 @@ from collections import namedtuple
 import argparse
 import torch
 import random
+import os
 import numpy as np
 import IPython.terminal.debugger as Debug
 
@@ -41,13 +42,13 @@ def parse_input():
     # set the training mode
     parser.add_argument("--train_local_policy", type=str, default="False", help="Whether train a local policy.")
     parser.add_argument("--device", type=str, default="cpu", help="Device to use")
-    parser.add_argument("--lr", type=float, default=1e-3, help="Learning rate")
+    parser.add_argument("--lr", type=float, default=1e-4, help="Learning rate")
     parser.add_argument("--start_train_step", type=int, default=1000, help="Start training time step")
     parser.add_argument("--sampled_goal_num", type=int, default=10, help="Number of sampled start and goal positions.")
     parser.add_argument("--train_episode_num", type=int, default=10, help="Number of training epochs for each sample.")
     parser.add_argument("--total_time_steps", type=int, default=50000, help="Total time steps")
     parser.add_argument("--episode_time_steps", type=int, default=100, help="Time steps per episode")
-    parser.add_argument("--eval_policy_freq", type=int, default=10, help="Evaluate the current learned policy frequency")
+    parser.add_argument("--eval_policy_freq", type=int, default=1000, help="Evaluate the current learned policy frequency")
     parser.add_argument("--dqn_update_target_freq", type=int, default=2000, help="Frequency of updating the target")
     parser.add_argument("--dqn_update_policy_freq", type=int, default=10, help="Frequency of updating the policy")
     parser.add_argument("--soft_target_update", type=str, default="True", help="Soft update flag")
@@ -74,7 +75,8 @@ def parse_input():
     parser.add_argument("--run_mode", type=str, default='trn', help="Whether train or evaluate the SoRB")
     parser.add_argument("--max_dist", type=int, default=1, help="Max distance")
     parser.add_argument("--gpu_acc", type=str, default='False', help="Whether use GPU to boost imagine rendering")
-
+    parser.add_argument("--use_rescale", type=str, default='False', help="Whether use pixel value between [0, 1]")
+    
     return parser.parse_args()
 
 
@@ -101,6 +103,9 @@ def strTobool(inputs):
     inputs.distributional_rl = True if inputs.distributional_rl == "True" else False
     # use GPU to accelerate
     inputs.gpu_acc = True if inputs.gpu_acc == "True" else False
+    # use rescale value
+    inputs.use_rescale = True if inputs.use_rescale == "True" else False
+    
     return inputs
 
 
@@ -126,10 +131,6 @@ def make_env(inputs):
         'height': str(observation_height),
         'fps': str(observation_fps)
     }
-    if inputs.gpu_acc:
-        render = 'hardware'
-    else:
-        render = 'software'
     # set the mazes
     if len(inputs.maze_size_list) == 1 or len(inputs.maze_size_list) == 2:
         maze_size = [int(inputs.maze_size_list)]
@@ -151,7 +152,6 @@ def make_env(inputs):
     lab = RandomMazeTileRaw(level_name,
                             observation_list,
                             configurations,
-                            render=render,
                             use_true_state=inputs.use_true_state,
                             reward_type="sparse-1",
                             dist_epsilon=1e-3)
@@ -173,7 +173,8 @@ def make_agent(inputs):
                              device=inputs.device,
                              use_distributional=True,
                              support_atoms=inputs.support_atoms,
-                             batch_size=inputs.batch_size
+                             batch_size=inputs.batch_size,
+                             use_rescale=inputs.use_rescale
                              )
     else:
         agent = GoalDQNAgent(dqn_mode=inputs.dqn_mode,
@@ -185,7 +186,8 @@ def make_agent(inputs):
                              use_gradient_clip=inputs.dqn_gradient_clip,
                              gamma=inputs.gamma,
                              device=inputs.device,
-                             use_distributional=False
+                             use_distributional=False,
+                             use_rescale=inputs.use_rescale
                              )
     return agent
 
@@ -228,7 +230,9 @@ def run_experiment(inputs):
         gamma=inputs.gamma,
         save_dir=inputs.save_dir,
         model_name=inputs.model_idx,
-        device=inputs.device
+        device=inputs.device,
+        use_rescale=inputs.use_rescale,
+        eval_policy_freq=inputs.eval_policy_freq
     )
     # run the experiments
     if inputs.run_mode == 'trn':
@@ -305,8 +309,13 @@ if __name__ == '__main__':
 
     # user input model index
     input_model_idx = user_inputs.model_idx
+    input_save_dir = user_inputs.save_dir
+
+    # total seed list
+    total_seed_list = user_inputs.maze_seed_list.split(',')
 
     # split the data
+    """
     assert(user_inputs.run_num >= user_inputs.fold_k), f"The number of run should be same as the fold number k."
     random.seed(user_inputs.random_seed)
     trn_size, trn_seed, tst_size, tst_seed = split_trn_tst_mazes(user_inputs)
@@ -343,6 +352,27 @@ if __name__ == '__main__':
 
         # run the experiment
         run_experiment(user_inputs)
+    """
+    input_maze_size_list = user_inputs.maze_size_list.split(',')
+    for s in input_maze_size_list:
+        # set the random seed for reproduce
+        random.seed(user_inputs.random_seed)
+        np.random.seed(user_inputs.random_seed)
+        torch.manual_seed(user_inputs.random_seed)
 
+        # set the maze size list
+        user_inputs.maze_size_list = s
 
+        # print info
+        print(f"Run the experiment with random seed = {user_inputs.random_seed} using mazes size {s} and seed {user_inputs.maze_seed_list}")
 
+        # update the save directory
+        user_inputs.save_dir = input_save_dir + '/sorb/' + f'{s}x{s}' + f'/{user_inputs.random_seed}'
+        user_inputs.model_idx = input_model_idx + f'_{s}x{s}_obs_sorb_her'
+
+        # check the directory to store the results
+        if not os.path.exists(user_inputs.save_dir):
+            os.makedirs(user_inputs.save_dir)
+
+        # run the experiments
+        run_experiment(user_inputs) 
