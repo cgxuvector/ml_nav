@@ -245,11 +245,8 @@ if __name__ == '__main__':
     # total seed list
     total_seed_list = user_inputs.maze_seed_list.split(',')
 
-<<<<<<< HEAD
-    # run experiments 
-=======
     # run experiments
->>>>>>> origin
+    """
     for r in range(user_inputs.run_num):
         # set random seed for reproduce
         user_inputs.random_seed += 10 * r 
@@ -273,4 +270,27 @@ if __name__ == '__main__':
         user_inputs.model_idx = input_model_idx + f'_run_{r}'
         # run experiments
         run_experiment(user_inputs)
+    """
+    input_maze_size_list = user_inputs.maze_size_list.split(',')
+    for s in input_maze_size_list:
+        # set random seed for reproduce
+        random.seed(user_inputs.random_seed)
+        np.random.seed(user_inputs.random_seed)
+        torch.manual_seed(user_inputs.random_seed)
 
+        # set the maze size list
+        user_inputs.maze_size_list = s
+
+        # print info
+        print(f"Run the experiment with random seed = {user_inputs.random_seed} using mazes size {s} and seed {user_inputs.maze_seed_list}")
+
+        # update the save directory
+        user_inputs.save_dir = input_save_dir + '/' + f'{s}-{s}' + f'/{user_inputs.random_seed}'
+        user_inputs.model_idx = input_model_idx + f'_{s}x{s}_obs'
+
+        # check the directory to store the results
+        if not os.path.exists(user_inputs.save_dir):
+            os.makedirs(user_inputs.save_dir)
+
+        # run experiments
+        run_experiment(user_inputs) 

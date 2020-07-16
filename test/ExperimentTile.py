@@ -63,6 +63,7 @@ class Experiment(object):
         self.maze_seed = seed_list[0] if len(seed_list) == 1 else None
         self.maze_size_list = maze_list
         self.maze_seed_list = seed_list
+        print(self.maze_size, self.maze_seed)
         self.fix_maze = fix_maze
         self.fix_start = fix_start
         self.fix_goal = fix_goal
@@ -75,7 +76,7 @@ class Experiment(object):
         # goal-conditioned configurations
         self.use_goal = use_goal
         self.goal_dist = goal_dist
-        self.valid_goal_dist = list(range(1, goal_dist+1, 1))
+        self.valid_goal_dist = list(range(1, goal_dist+1, 1)) if goal_dist > 0 else list(range(1, 50, 1))
         self.use_imagine = use_imagine
         # for cycle relabel
         self.reverse_action = [1, 0, 3, 2]
@@ -90,7 +91,7 @@ class Experiment(object):
                              torch.tensor([0, 0, 0, 0, 0, 0, 0, 1])]
         if self.use_imagine:
             self.thinker = VAE.CVAE(64, use_small_obs=True)
-            self.thinker.load_state_dict(torch.load("/mnt/cheng_results/trained_model/VAE/small_obs_L64_B8.pt",
+            self.thinker.load_state_dict(torch.load("/mnt/cheng_results/VAE/models/small_obs_L64_B8.pt",
                                                      map_location=self.device))
             #self.thinker.load_state_dict(torch.load("./results/vae/model/small_obs_L64_B8.pt",
             #                                        map_location=self.device))
@@ -126,7 +127,7 @@ class Experiment(object):
         self.returns = []
         self.lengths = []
         self.policy_returns = []
-        #self.eval_dist_pairs = self.load_pair_data(self.maze_size, self.maze_seed)
+        self.eval_dist_pairs = self.load_pair_data(self.maze_size, self.maze_seed)
         # saving settings
         self.model_name = model_name
         self.save_dir = save_dir
@@ -524,15 +525,18 @@ class Experiment(object):
             action = self.agent.get_action(state, goal, eps)
 
             # step in the environment
-            next_state, reward, done, dist, trans, _, _ = self.env.step(action)
-            
-            episode_t += 1
+            next_state, reward, done, dist, trans, _, _ = self.env.step(action)            
+
             # save the transitions
+            episode_t += 1
             states.append(next_state)
             actions.append(action)
             rewards.append(reward)
             trans_poses.append(trans)
             dones.append(done)
+            
+            # increase
+            state = next_state
 
             # check terminal
             if done or (episode_t == self.max_steps_per_episode):
@@ -558,10 +562,12 @@ class Experiment(object):
                 )
 
                 # evaluate the current policy
-                #if (episode_idx - 1) % self.eval_policy_freq == 0:
+                if (episode_idx - 1) % self.eval_policy_freq == 0:
                     # evaluate the current policy by interaction
-                #    self.policy_evaluate()
-
+                    model_save_path = os.path.join(self.save_dir, self.model_name) + f"_{episode_idx}.pt"
+                    torch.save(self.agent.policy_net.state_dict(), model_save_path)
+                    self.eval_policy()
+   
                 # reset the environments
                 states = []
                 actions = []
@@ -593,9 +599,6 @@ class Experiment(object):
                     train_episode_num = self.train_episode_num
                     sample_start_goal_num = self.sample_start_goal_num
                 states.append(state)
-            else:
-                state = next_state
-                rewards.append(reward)
 
             # train the agent
             if t > self.start_train_step:
@@ -754,12 +757,13 @@ class Experiment(object):
 
         # obtain the state and goal observation
         state_obs, goal_obs, _, _ = self.env.reset(maze_configs)
+        
         # return states and goals
         return state_obs, goal_obs, init_pos, goal_pos
 
     def eval_policy(self):
-        # loop all the distance
-        tmp_dist = random.sample(self.valid_goal_dist, 1)[0]
+        # sample a distance
+        tmp_dist = random.sample(list(np.arange(1, 5, 1)), 1)[0]
         pairs_dict = {'start': self.eval_dist_pairs[str(tmp_dist)][0], 'goal': self.eval_dist_pairs[str(tmp_dist)][1]}
         # sample number
         eval_total_num = 50 if len(pairs_dict['start']) > 50 else len(pairs_dict['start'])
@@ -773,10 +777,10 @@ class Experiment(object):
             # update the maze
             state, goal, start_pos, goal_pos = self.update_maze_from_pos(s_pos, g_pos)
             # obtain the fake observation
-            if not self.use_true_state:
-                goal_loc_map = self.env_map.cropper(self.env_map.map2d_roughPadded, self.env_map.path[-1])
-                goal = self.imagine_goal_observation(goal_loc_map)
-            max_time_steps = 3
+            #if not self.use_true_state and not self.use_her:
+            #    goal_loc_map = self.env_map.cropper(self.env_map.map2d_roughPadded, self.env_map.path[-1])
+            #    goal = self.imagine_goal_observation(goal_loc_map)
+            max_time_steps = 20
             act_list = []
             for t in range(max_time_steps):
                 # get action
