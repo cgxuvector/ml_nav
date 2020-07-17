@@ -237,7 +237,7 @@ class Experiment(object):
         states.append(state)
 
         # store the buffer
-        self.graph_buffer.append(state)
+        #self.graph_buffer.append(state)
 
         # start the training
         pbar = tqdm.trange(self.max_time_steps)
@@ -321,7 +321,7 @@ class Experiment(object):
                     train_episode_num = self.train_episode_num
                     sample_start_goal_num = self.sample_start_goal_num
                 states.append(state)
-                self.graph_buffer.append(state)
+                #self.graph_buffer.append(state)
         
             # train the agent
             if t > self.start_train_step:
@@ -538,7 +538,7 @@ class Experiment(object):
             return dist
 
     def load_pair_data(self, m_size, m_seed):
-       path = f"/mnt/sda/map/maze_{m_size}_{m_seed}.pkl"
+       path = f"/mnt/cheng_results/map/maze_{m_size}_{m_seed}.pkl"
        f = open(path, 'rb')
        return pickle.load(f)
 
@@ -569,6 +569,7 @@ class Experiment(object):
                 distance = self.env.compute_distance(next_state_pos, new_goal_pos)
                 new_reward = self.env.compute_reward(distance)
                 new_done = 0 if new_reward == -1 else 1
+                new_reward = -1
                 transition = self.toTransition(state, action, next_state, new_reward, new_goal, new_done)
                 self.replay_buffer.add(transition)
 
@@ -599,11 +600,7 @@ class Experiment(object):
         :return: state tensor
         """
         if not self.use_true_state:  # convert the state observation from numpy to tensor with correct size
-            if not self.use_rescale:
-                state_obs = torch.tensor(np.array(obs_list).transpose(0, 3, 1, 2), dtype=torch.uint8)
-            else:
-                state_obs = torch.tensor(np.array(obs_list).transpose(0, 3, 1, 2), dtype=torch.uint8)
-                state_obs = state_obs.float() / 255.0
+            state_obs = torch.tensor(np.array(obs_list).transpose(0, 3, 1, 2), dtype=torch.uint8) 
         else:
             state_obs = torch.tensor(np.array(obs_list), dtype=torch.float32)
         return state_obs
@@ -705,7 +702,7 @@ class Experiment(object):
         # lengths_save_path = os.path.join(self.save_dir, self.model_name + "_length.npy")
         # save the memory buffer
         buffer_path = os.path.join(self.save_dir, self.model_name + "_buffer.npy")
-        sampled_init_states = random.sample(self.graph_buffer, 10)
+        sampled_init_states = [s.numpy() for s in self.replay_buffer.sample(1000).state]
         np.save(buffer_path, sampled_init_states)
         # save the results
         torch.save(self.agent.policy_net.state_dict(), model_save_path)
