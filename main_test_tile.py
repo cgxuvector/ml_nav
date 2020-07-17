@@ -66,6 +66,8 @@ def parse_input():
     # add new strategy
     parser.add_argument("--use_cycle_relabel", type=str, default='False', help='whether use the cycle relabel strategy')
     parser.add_argument("--use_rescale", type=str, default='False', help='whether rescale the value to [0,1]')
+    parser.add_argument("--use_state_est", type=str, default='False', help='whether estimate the state')
+    parser.add_argument("--alpha", type=float, default=1.0, help='hyperparameter for the two head case')
 
     return parser.parse_args()
 
@@ -91,6 +93,8 @@ def strTobool(inputs):
     # use cycle relabeling during training
     inputs.use_cycle_relabel = True if inputs.use_cycle_relabel == "True" else False
     inputs.use_rescale = True if inputs.use_rescale == "True" else False
+    inputs.use_state_est = True if inputs.use_state_est == "True" else False
+
     return inputs
 
 
@@ -163,7 +167,9 @@ def make_agent(inputs):
                              use_gradient_clip=inputs.dqn_gradient_clip,
                              gamma=inputs.gamma,
                              device=inputs.device,
-                             use_rescale=inputs.use_rescale
+                             use_rescale=inputs.use_rescale,
+                             use_state_est=inputs.use_state_est,
+                             alpha=inputs.alpha
                              )
     else:
         raise Exception(f"{inputs.agent} is not defined. Please try the valid agent (random, dqn, actor-critic)")
@@ -227,7 +233,7 @@ def run_experiment(inputs):
             if not inputs.use_her:
                 my_experiment.run_random_local_goal_dqn()
             else:
-                my_experiment.run_random_local_goal_dqn_her()
+                my_experiment.run_random_local_goal_dqn_her_our()
     else:
         # train a vanilla policy
         # my_experiment.run_dqn()

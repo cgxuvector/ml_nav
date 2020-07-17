@@ -34,12 +34,14 @@ class GoalDeepQNet(nn.Module):
             - No image / image feature input: fully-connected (3 layer implemented)
             - Image input: convolutional (not implemented)
     """
-    def __init__(self, small_obs=False, true_state=False):
+    def __init__(self, small_obs=False, true_state=False, use_state_est=False):
         super(GoalDeepQNet, self).__init__()
         # set the small observation
         self.small_obs = small_obs
         # set the state to be true
         self.true_state = true_state
+        # set the state estimation
+        self.estimate_state = use_state_est
         # if the convolutional flag is enabled.
         if not self.true_state:
             if not self.small_obs:
@@ -80,6 +82,15 @@ class GoalDeepQNet(nn.Module):
                     nn.ReLU(),
                     nn.Linear(1024, 4)
                 )
+
+                # if use the state estimation network
+                if self.estimate_state:
+                    self.fcEstNet = nn.Sequential(
+                        nn.Linear(2048 * 2, 1024),
+                        nn.ReLU(),
+                        nn.Linear(1024, 2),
+                        nn.LogSoftmax(dim=1)
+                    )
             else:
                 # if the convolutional flag is enabled.
                 self.conv_qNet = nn.Sequential(
@@ -108,6 +119,14 @@ class GoalDeepQNet(nn.Module):
                     nn.ReLU(),
                     nn.Linear(1024, 4)
                 )
+
+                if self.estimate_state:
+                    self.fcEstNet = nn.Sequential(
+                        nn.Linear(1024 * 2 * 4, 1024),
+                        nn.ReLU(),
+                        nn.Linear(1024, 2),
+                        nn.LogSoftmax(dim=1)
+                    )
         else:
             self.fcNet = nn.Sequential(
                 nn.Linear(6, 256),
@@ -117,6 +136,16 @@ class GoalDeepQNet(nn.Module):
                 nn.Linear(256, 4),
                 nn.Identity()
             )
+
+            if self.estimate_state:
+                self.fcEstNet = nn.Sequential(
+                    nn.Linear(6, 256),
+                    nn.ReLU(),
+                    nn.Linear(256, 256),
+                    nn.ReLU(),
+                    nn.Linear(256, 2),
+                    nn.LogSoftmax(dim=1)
+                )
 
     def forward(self, state, goal):
         if not self.true_state:
@@ -131,17 +160,24 @@ class GoalDeepQNet(nn.Module):
             # concatenate the tensor
             state_goal_fea = torch.cat((state_fea, goal_fea), dim=1)
             # concatenate the goal with state
-            x = self.fcNet(state_goal_fea)
+            val_x = self.fcNet(state_goal_fea)
+            # if use state estimation, one more head
+            if self.estimate_state:
+                est_x = self.fcEstNet(state_goal_fea)
         else:
             # convert the dimension
             state = state.view(-1, 3)
             goal = goal.view(-1, 3)
             state_goal_fea = torch.cat([state, goal], dim=1)
-            x = self.fcNet(state_goal_fea)
-        return x
-
-
-testModel = GoalDeepQNet()
+            val_x = self.fcNet(state_goal_fea)
+            # if use state estimation, one more head
+            if self.estimate_state:
+                est_x = self.fcEstNet(state_goal_fea)
+        
+        if not self.estimate_state:
+            return val_x
+        else:
+            return val_x, est_x
 
 
 class GoalDQNAgent(object):
@@ -156,7 +192,9 @@ class GoalDQNAgent(object):
                  use_rescale=False,
                  gamma=0.99,
                  learning_rate=1e-3,
-                 device="cpu"
+                 device="cpu",
+                 use_state_est=False,
+                 alpha=1.0
                  ):
         """
         Init the DQN agent
@@ -172,8 +210,8 @@ class GoalDQNAgent(object):
         self.device = torch.device(device)
         """ DQN configurations"""
         # create the policy network and target network
-        self.policy_net = GoalDeepQNet(use_small_obs, use_true_state)
-        self.target_net = GoalDeepQNet(use_small_obs, use_true_state)
+        self.policy_net = GoalDeepQNet(use_small_obs, use_true_state, use_state_est)
+        self.target_net = GoalDeepQNet(use_small_obs, use_true_state, use_state_est)
         # init the weights of policy network and target network
         self.policy_net.apply(customized_weights_init)
         self.target_net.load_state_dict(self.policy_net.state_dict())
@@ -184,6 +222,7 @@ class GoalDQNAgent(object):
         self.dqn_mode = dqn_mode
         """ Training configurations """
         self.gamma = gamma
+        self.alpha = alpha
         self.tau = 0.05  # parameters for soft target update
         self.use_true_state = use_true_state
         self.use_rescale = use_rescale
@@ -195,9 +234,17 @@ class GoalDQNAgent(object):
                                           lr=learning_rate,
                                           weight_decay=5e-4)
         self.criterion = torch.nn.MSELoss()
+        self.use_state_est = use_state_est
+        if self.use_state_est:
+            self.est_criterion = torch.nn.CrossEntropyLoss()
         """ Saving and plotting configurations"""
         self.returns = []
         self.lengths = []
+        self.total_loss = []
+        self.state_esti_loss = []
+        
+        self.current_total_loss = np.inf
+        self.current_state_loss = np.inf
 
     # select an action based on the policy network
     def get_action(self, input_state, goal, eps):
@@ -207,7 +254,11 @@ class GoalDQNAgent(object):
             input_state = self.toTensor(input_state)
             goal = self.toTensor(goal)
             with torch.no_grad():
-                goal_q_values = self.policy_net(input_state, goal).view(1, -1)
+                if not self.use_state_est:
+                    goal_q_values = self.policy_net(input_state, goal).view(1, -1)
+                else:
+                    goal_q_values, _ = self.policy_net(input_state, goal)
+                    goal_q_values = goal_q_values.view(1, -1)
                 action = goal_q_values.max(dim=1)[1].item()
         return action
 
@@ -226,11 +277,19 @@ class GoalDQNAgent(object):
         state, action, next_state, reward, goal, done = self.convert2tensor(batch_data)
         
         # compute the Q_policy(s, a)
-        sa_goal_values = self.policy_net(state, goal).gather(dim=1, index=action)
+        if not self.use_state_est:
+            sa_goal_values = self.policy_net(state, goal).gather(dim=1, index=action)
+        else:
+            sa_goal_values, _ = self.policy_net(state, goal)
+            sa_goal_values = sa_goal_values.gather(dim=1, index=action) 
         # compute the TD target r + gamma * max_a' Q_target(s', a')
         if self.dqn_mode == "vanilla":  # update the policy network using vanilla DQN
             # compute the : max_a' Q_target(s', a')
-            max_next_sa_goal_values = self.target_net(next_state, goal).max(1)[0].view(-1, 1).detach()
+            if not self.use_state_est:
+                max_next_sa_goal_values = self.target_net(next_state, goal).max(1)[0].view(-1, 1).detach()
+            else:
+                max_next_sa_goal_values, _ = self.target_net(next_state, goal)
+                max_next_sa_goal_values = max_next_sa_goal_values.max(1)[0].view(-1, 1).detach()
             # if s' is terminal, then change Q(s', a') = 0
             terminal_mask = (torch.ones(done.size(), device=self.device) - done)
             max_next_sa_goal_values = max_next_sa_goal_values * terminal_mask
@@ -238,17 +297,35 @@ class GoalDQNAgent(object):
             td_target = reward + self.gamma * max_next_sa_goal_values
         else:  # update the policy network using double DQN
             # select the maximal actions using greedy policy network: argmax_a Q_policy(S_t+1)
-            estimated_next_goal_action = self.policy_net(next_state, goal).max(dim=1)[1].view(-1, 1).detach()
+            if not self.use_state_est:
+                estimated_next_goal_action = self.policy_net(next_state, goal).max(dim=1)[1].view(-1, 1).detach()
+            else:
+                estimated_next_goal_action, state_goal_estimation = self.policy_net(next_state, goal)
+                estimated_next_goal_action = estimated_next_goal_action.max(dim=1)[1].view(-1, 1).detach()
             # compute the Q_target(s', argmax_a)
-            next_sa_goal_values = self.target_net(next_state, goal).gather(dim=1, index=estimated_next_goal_action).detach().view(-1, 1)
+            if not self.use_state_est:
+                next_sa_goal_values = self.target_net(next_state, goal).gather(dim=1, index=estimated_next_goal_action).detach().view(-1, 1)
+            else:
+                next_sa_goal_values, _ = self.target_net(next_state, goal)
+                next_sa_goal_values = next_sa_goal_values.gather(dim=1, index=estimated_next_goal_action).detach().view(-1, 1)
             # convert the value of the terminal states to be zero
             terminal_mask = (torch.ones(done.size(), device=self.device) - done)
             max_next_state_goal_q_values = next_sa_goal_values * terminal_mask
             # compute the TD target
             td_target = reward + self.gamma * max_next_state_goal_q_values
 
-        # compute the loss using MSE error: TD error
-        loss = self.criterion(sa_goal_values, td_target)
+        if not self.use_state_est:
+            # compute the loss using MSE error: TD error
+            loss = self.criterion(sa_goal_values, td_target)
+        else:
+            # compute the first component using MSE Loss: TD error
+            loss_1 = self.criterion(sa_goal_values, td_target) 
+            # compute the second component using Cross Entropy Loss: Estimation error 
+            loss_label = torch.cat((torch.ones_like(done) - done, done), dim=1)
+            loss_2 = (-1 * loss_label * state_goal_estimation).sum(-1).mean() 
+            # combine together
+            loss = loss_1 + self.alpha * loss_2
+
         # back propagation
         self.optimizer.zero_grad()
         loss.backward()
@@ -257,12 +334,26 @@ class GoalDQNAgent(object):
             for params in self.policy_net.parameters():
                 params.grad.data.clamp(-1, 1)
         self.optimizer.step()
+        
+        if not self.use_state_est:
+            return loss.item()
+        else:
+            return loss.item(), loss_2.item()
 
     def train_one_batch(self, t, batch):
         # update the policy network
         if not np.mod(t + 1, self.freq_update_policy):
             # sample a batch to train policy net
-            self.update_policy_net(batch)
+            if self.use_state_est:
+                loss, loss_1 = self.update_policy_net(batch)
+                self.total_loss.append(loss)
+                self.state_esti_loss.append(loss_1)
+                self.current_total_loss = loss
+                self.current_state_loss = loss_1
+            else:
+                loss = self.update_policy_net(batch)
+                self.current_total_loss = loss
+                self.total_loss.append(loss)
             if self.soft_update:
                 self.update_target_net()
 
