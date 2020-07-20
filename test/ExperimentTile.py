@@ -412,10 +412,6 @@ class Experiment(object):
 
             # step in the environment
             next_state, reward, done, dist, trans, _, _ = self.env.step(action)
-            # modify the reward to be 
-            # r(s_t, a_t, g) = -1 if s_t != g
-            # r(s_t, a_t, g) = 0 if s_t == g
-            reward = -1
             episode_t += 1
 
             # store the replay buffer and convert the data to tensor
@@ -424,10 +420,7 @@ class Experiment(object):
                 trans = self.toTransition(state, action, next_state, reward, init_state, goal, done)
                 # add the transition into the buffer
                 self.replay_buffer.add(trans)
-                if done:
-                    terminal_trans = self.toTransition(next_state, action, goal, 0, init_state, goal, done)
-                    self.replay_buffer.add(terminal_trans)
-            
+
             # update the state
             state = next_state
             rewards.append(reward)
@@ -445,21 +438,23 @@ class Experiment(object):
                 self.distance.append(dist)
                 # compute the episode number
                 episode_idx = len(self.returns)
-
+                
                 pbar.set_description(
-                    f'Episode: {episode_idx} | Steps: {episode_t} | Return: {G:2f} | Dist: {dist:.2f} | '
-                    f'Init: {self.env.start_pos} | Goal: {self.env.goal_pos} | '
-                    f'Eps: {eps:.3f} | Buffer: {len(self.replay_buffer)}'
-                )
+                    f'Episode: {episode_idx}|Steps: {episode_t}|Return: {G:.2f}|Dist: {dist:.2f}|'
+                    f'Init: {self.env.start_pos[0:2]}|Goal: {self.env.goal_pos[0:2]}|'
+                    f'Eps: {eps:.3f}|'
+                    f'GT: {len(self.env_map.path) - 1}|'
+                    f'Buffer: {len(self.replay_buffer)}|'
+                    f'Loss: {self.agent.current_total_loss:.4f}|'
+                    f'Pred Loss: {self.agent.current_state_loss:.4f}'
+                ) 
 
                 # evaluate the current policy
                 if (episode_idx - 1) % self.eval_policy_freq == 0:
                     # evaluate the current policy by interaction
                     model_save_path = os.path.join(self.save_dir, self.model_name) + f"_{episode_idx}.pt"
                     torch.save(self.agent.policy_net.state_dict(), model_save_path)
-                    self.eval_policy_novel()
-
-                #print("episode = ", episode_idx)
+                    self.eval_policy_novel() 
 
                 # reset the environments
                 rewards = []
@@ -478,7 +473,7 @@ class Experiment(object):
                         self.fix_start = False
                         self.fix_goal = False
                         # sample a valid distance
-                        self.goal_dist = random.sample(self.valid_goal_dist, 1)[0]
+                        # self.goal_dist = random.sample(self.valid_goal_dist, 1)[0]
                         state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=False)
                         init_state = state
                         train_episode_num = self.train_episode_num
@@ -488,7 +483,7 @@ class Experiment(object):
                     self.fix_start = False
                     self.fix_goal = False
                     # sample a valid distance
-                    self.goal_dist = random.sample(self.valid_goal_dist, 1)[0]
+                    # self.goal_dist = random.sample(self.valid_goal_dist, 1)[0]
                     state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=True)
                     init_state = state
                     # reset the training control

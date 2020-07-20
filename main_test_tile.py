@@ -233,7 +233,7 @@ def run_experiment(inputs):
             if not inputs.use_her:
                 my_experiment.run_random_local_goal_dqn()
             else:
-                my_experiment.run_random_local_goal_dqn_her_our()
+                my_experiment.run_random_local_goal_dqn_her()
     else:
         # train a vanilla policy
         # my_experiment.run_dqn()
