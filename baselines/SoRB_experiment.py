@@ -236,9 +236,6 @@ class Experiment(object):
         state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=self.fix_maze)
         states.append(state)
 
-        # store the buffer
-        # self.graph_buffer.append(self.toTensor(state))
-
         # start the training
         pbar = tqdm.trange(self.max_time_steps)
         for t in pbar:
@@ -321,7 +318,6 @@ class Experiment(object):
                     train_episode_num = self.train_episode_num
                     sample_start_goal_num = self.sample_start_goal_num
                 states.append(state)
-                #self.graph_buffer.append(self.toTensor(state))
         
             # train the agent
             if t > self.start_train_step:
@@ -568,6 +564,7 @@ class Experiment(object):
                 distance = self.env.compute_distance(next_state_pos, new_goal_pos)
                 new_reward = self.env.compute_reward(distance)
                 new_done = 0 if new_reward == -1 else 1
+                new_reward = -1
                 transition = self.toTransition(state, action, next_state, new_reward, new_goal, new_done)
                 self.replay_buffer.add(transition)
 
@@ -597,6 +594,7 @@ class Experiment(object):
         :param obs_list: List of the 8 observations
         :return: state tensor
         """
+
         if not self.use_true_state:  # convert the state observation from numpy to tensor with correct size 
             state_obs = torch.tensor(np.array(obs_list).transpose(0, 3, 1, 2), dtype=torch.uint8)
         else:
@@ -700,7 +698,7 @@ class Experiment(object):
         # lengths_save_path = os.path.join(self.save_dir, self.model_name + "_length.npy")
         # save the memory buffer
         buffer_path = os.path.join(self.save_dir, self.model_name + "_buffer.npy")
-        sampled_init_states = random.sample(self.graph_buffer, 10)
+        sampled_init_states = [s.numpy() for s in self.replay_buffer.sample(1000).state]
         np.save(buffer_path, sampled_init_states)
         # save the results
         torch.save(self.agent.policy_net.state_dict(), model_save_path)

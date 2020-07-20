@@ -277,7 +277,8 @@ if __name__ == '__main__':
         # run experiments
         run_experiment(user_inputs)
     """
-    input_maze_size_list = user_inputs.maze_size_list.split(',') 
+
+    input_maze_size_list = user_inputs.maze_size_list.split(',')
     for s in input_maze_size_list:
         # set random seed for reproduce
         random.seed(user_inputs.random_seed)
