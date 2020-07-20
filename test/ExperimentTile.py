@@ -53,7 +53,8 @@ class Experiment(object):
                  model_name=None,
                  use_imagine=0,  # imagination flag
                  device='cpu',
-                 use_cycle_relabel=False  # whether use cycle relabeling strategy
+                 use_cycle_relabel=False,  # whether use cycle relabeling strategy
+                 use_state_est=False
                  ):
         self.device = torch.device(device)
         # environment
@@ -63,7 +64,6 @@ class Experiment(object):
         self.maze_seed = seed_list[0] if len(seed_list) == 1 else None
         self.maze_size_list = maze_list
         self.maze_seed_list = seed_list
-        print(self.maze_size, self.maze_seed)
         self.fix_maze = fix_maze
         self.fix_start = fix_start
         self.fix_goal = fix_goal
@@ -71,6 +71,8 @@ class Experiment(object):
         self.decal_list = [decal_freq]
         # agent
         self.agent = agent
+        # use state estimation
+        self.use_state_est = use_state_est
         # state configurations
         self.use_true_state = use_true_state
         # goal-conditioned configurations
@@ -93,8 +95,6 @@ class Experiment(object):
             self.thinker = VAE.CVAE(64, use_small_obs=True)
             self.thinker.load_state_dict(torch.load("/mnt/cheng_results/VAE/models/small_obs_L64_B8.pt",
                                                      map_location=self.device))
-            #self.thinker.load_state_dict(torch.load("./results/vae/model/small_obs_L64_B8.pt",
-            #                                        map_location=self.device))
             self.thinker.eval()
         # training configurations
         self.train_local_policy = train_local_policy
@@ -399,6 +399,12 @@ class Experiment(object):
             # compute the epsilon
             eps = self.schedule.get_value(t)
 
+            # relabel the true goal observation with the fake goal with a fixed percentage
+            if self.use_imagine:
+                if random.uniform(0, 1) <= self.use_imagine:
+                    loc_goal_map = self.env_map.cropper(self.env_map.map2d_roughPadded, goal_pos)
+                    goal = self.imagine_goal_observation(loc_goal_map)
+  
             # get action
             action = self.agent.get_action(state, goal, eps)
 
@@ -408,11 +414,6 @@ class Experiment(object):
 
             # store the replay buffer and convert the data to tensor
             if self.use_replay_buffer:
-                # change the goal to imagine with probability 0.5
-                if self.use_imagine:
-                    if random.uniform(0, 1) <= self.use_imagine:
-                        loc_goal_map = self.env_map.cropper(self.env_map.map2d_roughPadded, goal_pos)
-                        goal = self.imagine_goal_observation(loc_goal_map)
                 # construct the transition
                 trans = self.toTransition(state, action, next_state, reward, init_state, goal, done)
                 # add the transition into the buffer
@@ -437,9 +438,13 @@ class Experiment(object):
                 episode_idx = len(self.returns)
 
                 pbar.set_description(
-                    f'Episode: {episode_idx} | Steps: {episode_t} | Return: {G:2f} | Dist: {dist:.2f} | '
-                    f'Init: {self.env.start_pos} | Goal: {self.env.goal_pos} | '
-                    f'Eps: {eps:.3f} | Buffer: {len(self.replay_buffer)}'
+                    f'Episode: {episode_idx}|Steps: {episode_t}|Return: {G:.2f}|Dist: {dist:.2f}|'
+                    f'Init: {self.env.start_pos[0:2]}|Goal: {self.env.goal_pos[0:2]}|'
+                    f'Eps: {eps:.3f}|'
+                    f'GT: {len(self.env_map.path) - 1}|'
+                    f'Buffer: {len(self.replay_buffer)}|'
+                    f'Loss: {self.agent.current_total_loss:.4f}|'
+                    f'Pred Loss: {self.agent.current_state_loss:.4f}'
                 )
 
                 # evaluate the current policy
@@ -447,9 +452,7 @@ class Experiment(object):
                     # evaluate the current policy by interaction
                     model_save_path = os.path.join(self.save_dir, self.model_name) + f"_{episode_idx}.pt"
                     torch.save(self.agent.policy_net.state_dict(), model_save_path)
-                    self.eval_policy_novel()
-
-                #print("episode = ", episode_idx)
+                    self.eval_policy_novel() 
 
                 # reset the environments
                 rewards = []
@@ -468,7 +471,7 @@ class Experiment(object):
                         self.fix_start = False
                         self.fix_goal = False
                         # sample a valid distance
-                        self.goal_dist = random.sample(self.valid_goal_dist, 1)[0]
+                        # self.goal_dist = random.sample(self.valid_goal_dist, 1)[0]
                         state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=False)
                         init_state = state
                         train_episode_num = self.train_episode_num
@@ -478,7 +481,7 @@ class Experiment(object):
                     self.fix_start = False
                     self.fix_goal = False
                     # sample a valid distance
-                    self.goal_dist = random.sample(self.valid_goal_dist, 1)[0]
+                    # self.goal_dist = random.sample(self.valid_goal_dist, 1)[0]
                     state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=True)
                     init_state = state
                     # reset the training control
@@ -491,6 +494,140 @@ class Experiment(object):
                 if self.use_cycle_relabel:
                     sampled_batch = self.cycle_relabel(sampled_batch)                
                 
+                self.agent.train_one_batch(t, sampled_batch)
+
+        # save results
+        self.save_results()
+
+    def run_random_local_goal_dqn_her_our(self):
+        """
+        Function is used to train the locally goal-conditioned double DQN.
+        """
+        # set the training statistics
+        print("Variant 1: Run random goal-conditioned DQN with HER")
+        states = []
+        actions = []
+        rewards = []
+        trans_poses = []
+        dones = []
+        episode_t = 0  # time step for one episode
+        sample_start_goal_num = self.sample_start_goal_num  # sampled start and goal pair
+        train_episode_num = self.train_episode_num  # training number for each start-goal pair
+        # initialize the state and goal
+        state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=self.fix_maze)
+        states.append(state)
+
+        # start the training
+        pbar = tqdm.trange(self.max_time_steps)
+        for t in pbar:
+            # compute the epsilon
+            eps = self.schedule.get_value(t)
+
+            # relabel the true goal observation with the fake goal with a fixed precentage
+            if self.use_imagine:
+                if random.uniform(0, 1) <= self.use_imagine:
+                    loc_goal_map = self.env_map.cropper(self.env_map.map2d_roughPadded, goal_pos)
+                    goal = self.imagine_goal_observation(loc_goal_map)
+
+            # get action
+            action = self.agent.get_action(state, goal, eps)
+
+            # step in the environment
+            next_state, reward, done, dist, trans, _, _ = self.env.step(action)
+            reward = -1
+
+            # add terminal estimation 
+            if done and self.use_imagine:
+                terminal_act = random.sample(range(4), 1)[0]
+                terminal_loc_goal_map = self.env_map.cropper(self.env_map.map2d_roughPadded, goal_pos)
+                terminal_goal = self.imagine_goal_observation(terminal_loc_goal_map)
+                terminal_trans = self.toTransition(next_state, terminal_act, terminal_goal, 0, terminal_goal, terminal_goal, done)
+                self.replay_buffer.add(terminal_trans)
+
+            # save the transitions
+            episode_t += 1
+            states.append(next_state)
+            actions.append(action)
+            rewards.append(reward)
+            trans_poses.append(trans)
+            dones.append(done)
+
+            # update the current state
+            state = next_state
+
+            # check terminal
+            if done or (episode_t == self.max_steps_per_episode):
+                # compute the discounted return for each time step
+                G = 0
+                for r in reversed(rewards):
+                    G = r + self.gamma * G
+
+                # store the return, episode length, and final distance for current episode
+                self.returns.append(G)
+                self.lengths.append(episode_t)
+                self.distance.append(dist)
+                # compute the episode number
+                episode_idx = len(self.returns)
+
+                # construct the memory buffer using HER
+                self.hindsight_experience_replay(states, actions, rewards, trans_poses, goal, dones)
+
+                pbar.set_description(
+                    f'Episode: {episode_idx}|Steps: {episode_t}|Return: {G:.2f}|Dist: {dist:.2f}|'
+                    f'Init: {self.env.start_pos[0:2]}|Goal: {self.env.goal_pos[0:2]}|'
+                    f'Eps: {eps:.3f}|'
+                    f'GT: {len(self.env_map.path) - 1}|'
+                    f'Buffer: {len(self.replay_buffer)}|'
+                    f'Loss: {self.agent.current_total_loss:.4f}|'
+                    f'Pred Loss: {self.agent.current_state_loss:.4f}'
+                )
+
+                # evaluate the current policy
+                if (episode_idx - 1) % self.eval_policy_freq == 0:
+                    # evaluate the current policy by interaction
+                    model_save_path = os.path.join(self.save_dir, self.model_name) + f"_{episode_idx}.pt"
+                    torch.save(self.agent.policy_net.state_dict(), model_save_path)
+                    self.eval_policy()
+
+                # reset the environments
+                states = []
+                actions = []
+                trans_poses = []
+                rewards = []
+                dones = []
+                episode_t = 0
+                # train a pair of start and goal with fixed number of episodes
+                if sample_start_goal_num > 0:
+                    if train_episode_num > 0:
+                        # keep the same start and goal
+                        self.fix_start = True
+                        self.fix_goal = True
+                        state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=False)
+                        train_episode_num -= 1
+                    else:
+                        # sample a new pair of start and goal
+                        self.fix_start = False
+                        self.fix_goal = False
+                        self.goal_dist = random.sample(self.valid_goal_dist, 1)[0]
+                        state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=False)
+                        #print(start_pos, goal_pos, ' - ', len(self.env_map.path))
+                        train_episode_num = self.train_episode_num
+                        sample_start_goal_num -= 1
+                else:
+                    # sample a new maze
+                    self.fix_start = False
+                    self.fix_goal = False
+                    self.goal_dist = random.sample(self.valid_goal_dist, 1)[0]
+                    #print(start_pos, goal_pos, ' - ', len(self.env_map.path))
+                    state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=True)
+                    # reset
+                    train_episode_num = self.train_episode_num
+                    sample_start_goal_num = self.sample_start_goal_num
+                states.append(state)
+
+            # train the agent
+            if t > self.start_train_step:
+                sampled_batch = self.replay_buffer.sample(self.batch_size)
                 self.agent.train_one_batch(t, sampled_batch)
 
         # save results
@@ -525,6 +662,7 @@ class Experiment(object):
             action = self.agent.get_action(state, goal, eps)
 
             # step in the environment
+
             next_state, reward, done, dist, trans, _, _ = self.env.step(action)            
 
             # save the transitions
@@ -608,6 +746,7 @@ class Experiment(object):
         # save results
         self.save_results()
 
+    
     def cycle_relabel(self, batch):
         reverse_action = [torch.tensor(self.reverse_action[act.item()], dtype=torch.int8).view(-1, 1) for act in batch.action]
         reverse_reward = []
@@ -671,6 +810,7 @@ class Experiment(object):
                 distance = self.env.compute_distance(next_state_pos, new_goal_pos)
                 new_reward = self.env.compute_reward(distance)
                 new_done = 0 if new_reward == -1 else 1
+                new_reward = -1
                 transition = self.toTransition(state, action, next_state, new_reward, new_goal, new_goal, new_done)
                 self.replay_buffer.add(transition)
 
@@ -763,7 +903,8 @@ class Experiment(object):
 
     def eval_policy(self):
         # sample a distance
-        tmp_dist = random.sample(list(np.arange(1, 5, 1)), 1)[0]
+        #tmp_dist = random.sample(list(np.arange(1, 5, 1)), 1)[0]
+        tmp_dist = 1
         pairs_dict = {'start': self.eval_dist_pairs[str(tmp_dist)][0], 'goal': self.eval_dist_pairs[str(tmp_dist)][1]}
         # sample number
         eval_total_num = 50 if len(pairs_dict['start']) > 50 else len(pairs_dict['start'])
@@ -893,12 +1034,19 @@ class Experiment(object):
         returns_save_path = os.path.join(self.save_dir, self.model_name + "_return.npy")
         policy_returns_save_path = os.path.join(self.save_dir, self.model_name + "_policy_return.npy")
         lengths_save_path = os.path.join(self.save_dir, self.model_name + "_length.npy")
+        total_loss_path = os.path.join(self.save_dir, self.model_name + '_total_loss.npy')
+        state_pred_loss_path = os.path.join(self.save_dir, self.model_name + '_state_pred_loss.npy')
+        
         # save the results
         torch.save(self.agent.policy_net.state_dict(), model_save_path)
         np.save(distance_save_path, self.distance)
         np.save(returns_save_path, self.returns)
         np.save(lengths_save_path, self.lengths)
         np.save(policy_returns_save_path, self.policy_returns)
+
+        # store the loss
+        np.save(total_loss_path, self.agent.total_loss)
+        np.save(state_pred_loss_path, self.agent.state_esti_loss)
 
     # load the pre-extract pairs
     @staticmethod

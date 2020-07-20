@@ -1,6 +1,6 @@
 from utils import mapper
 import numpy as np
-from collections import namedtuple, defaultdict
+from collections import namedtuple, defaultdict, deque
 import tqdm
 from model import VAE
 from utils import memory
@@ -116,7 +116,7 @@ class Experiment(object):
         self.b2b_pdist = None
 
         # graph_buffer
-        self.graph_buffer = []
+        self.graph_buffer = deque(maxlen=2000)
         self.eval_dist_pairs = self.load_pair_data(self.maze_size, self.maze_seed)
 
     def train_local_goal_conditioned_dqn(self):
@@ -236,9 +236,6 @@ class Experiment(object):
         state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=self.fix_maze)
         states.append(state)
 
-        # store the buffer
-        #self.graph_buffer.append(state)
-
         # start the training
         pbar = tqdm.trange(self.max_time_steps)
         for t in pbar:
@@ -285,10 +282,10 @@ class Experiment(object):
                     f'Eps: {eps:.3f} | Buffer: {len(self.replay_buffer)}'
                 )
 
-                if (episode_idx - 1) % self.eval_policy_freq == 0:
-                    model_save_path = os.path.join(self.save_dir, self.model_name) + f"_{episode_idx}.pt"
-                    torch.save(self.agent.policy_net.state_dict(), model_save_path)
-                    self.eval_policy()
+                #if (episode_idx - 1) % self.eval_policy_freq == 0:
+                #    model_save_path = os.path.join(self.save_dir, self.model_name) + f"_{episode_idx}.pt"
+                #    torch.save(self.agent.policy_net.state_dict(), model_save_path)
+                #    self.eval_policy()
 
                 # reset the environments
                 states = []
@@ -321,7 +318,6 @@ class Experiment(object):
                     train_episode_num = self.train_episode_num
                     sample_start_goal_num = self.sample_start_goal_num
                 states.append(state)
-                #self.graph_buffer.append(state)
         
             # train the agent
             if t > self.start_train_step:
@@ -329,11 +325,11 @@ class Experiment(object):
                 self.agent.train_one_batch(t, sampled_batch)
 
         # save results
-        self.save_results()
+        # self.save_results()
 
     def test_distance_prediction(self):
         # load the saved data
-        self.agent.policy_net.load_state_dict(torch.load(f'/mnt/sda/rl_results/7-7/test_5_her_obs.pt'))
+        self.agent.policy_net.load_state_dict(torch.load('/mnt/cheng_results/results_RL/7-7/13-norm-1/0/goal_ddqn_13x13_obs_maxdist_1_run_0.pt'))
         self.agent.policy_net.eval()
 
         # sample a start-goal pair
@@ -346,7 +342,6 @@ class Experiment(object):
                 goal = self.toTensor(goal).float()
                 pred_dist = self.agent.policy_net(state, goal)
             
-            # for distributional RL
             action = torch.mm(pred_dist.squeeze(0), self.agent.support_atoms_values).view(1, -1).max(dim=1)[1].item()
             pred_dist = pred_dist.squeeze(0)[action, :]
             # pred_dist = self.agent.support_atoms_values[pred_dist.view(1, -1).max(dim=1)[1].item()]
@@ -599,8 +594,9 @@ class Experiment(object):
         :param obs_list: List of the 8 observations
         :return: state tensor
         """
-        if not self.use_true_state:  # convert the state observation from numpy to tensor with correct size
-            state_obs = torch.tensor(np.array(obs_list).transpose(0, 3, 1, 2), dtype=torch.uint8) 
+
+        if not self.use_true_state:  # convert the state observation from numpy to tensor with correct size 
+            state_obs = torch.tensor(np.array(obs_list).transpose(0, 3, 1, 2), dtype=torch.uint8)
         else:
             state_obs = torch.tensor(np.array(obs_list), dtype=torch.float32)
         return state_obs
