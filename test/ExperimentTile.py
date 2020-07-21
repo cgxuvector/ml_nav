@@ -127,7 +127,6 @@ class Experiment(object):
         self.returns = []
         self.lengths = []
         self.policy_returns = []
-        self.eval_dist_pairs = self.load_pair_data(self.maze_size, self.maze_seed)
         # saving settings
         self.model_name = model_name
         self.save_dir = save_dir
@@ -469,8 +468,7 @@ class Experiment(object):
                         # sample a new pair of start and goal
                         self.fix_start = False
                         self.fix_goal = False
-                        # sample a valid distance
-                        # self.goal_dist = random.sample(self.valid_goal_dist, 1)[0]
+                        # sample a valid distance 
                         state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=False)
                         init_state = state
                         train_episode_num = self.train_episode_num
@@ -479,8 +477,7 @@ class Experiment(object):
                     # sample a new maze
                     self.fix_start = False
                     self.fix_goal = False
-                    # sample a valid distance
-                    # self.goal_dist = random.sample(self.valid_goal_dist, 1)[0]
+                    # sample a valid distance 
                     state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=True)
                     init_state = state
                     # reset the training control
@@ -490,8 +487,8 @@ class Experiment(object):
             # train the agent
             if t > self.start_train_step:
                 sampled_batch = self.replay_buffer.sample(self.batch_size)
-                if self.use_cycle_relabel:
-                    sampled_batch = self.cycle_relabel(sampled_batch)                
+                #if self.use_cycle_relabel:
+                #    sampled_batch = self.cycle_relabel(sampled_batch)                
                 
                 self.agent.train_one_batch(t, sampled_batch)
 
@@ -901,6 +898,7 @@ class Experiment(object):
         return state_obs, goal_obs, init_pos, goal_pos
 
     def eval_policy(self):
+        self.eval_dist_pairs = self.load_pair_data(self.maze_size, self.maze_seed)
         # sample a distance
         #tmp_dist = random.sample(list(np.arange(1, 5, 1)), 1)[0]
         tmp_dist = 1

@@ -251,48 +251,27 @@ if __name__ == '__main__':
     # total seed list
     total_seed_list = user_inputs.maze_seed_list.split(',')
 
-    # run experiments
-    """
-    for r in range(user_inputs.run_num):
+    # run experiments 
+    input_maze_size_list_init = user_inputs.maze_size_list.split(',')
+    input_maze_seed_list_init = user_inputs.maze_seed_list.split(',') 
+    for s in input_maze_size_list_init:
         # set random seed for reproduce
-        user_inputs.random_seed += 10 * r 
         random.seed(user_inputs.random_seed)
         np.random.seed(user_inputs.random_seed)
         torch.manual_seed(user_inputs.random_seed)
+
+        # shuffle the seed list
+        input_maze_seed_shuffle = input_maze_seed_list_init.copy() 
+        np.random.shuffle(input_maze_seed_shuffle)
         
-        # sample the training and testing mazes
-        sampled_seed_list = random.sample(total_seed_list, user_inputs.train_maze_num)
-        user_inputs.maze_seed_list = ','.join(sampled_seed_list)
-
-        # print info
-        print(f"Run the {r} experiment with random seed = {user_inputs.random_seed} using mazes size {user_inputs.maze_size_list} and seed {user_inputs.maze_seed_list}")
-       
-        # check the directory to store the results
-        if not os.path.exists(input_save_dir + '/' + str(r)):
-            os.makedirs(input_save_dir + '/' + str(r))
-
-        # update the directory
-        user_inputs.save_dir = input_save_dir + '/' + str(r)
-        user_inputs.model_idx = input_model_idx + f'_run_{r}'
-        # run experiments
-        run_experiment(user_inputs)
-    """
-
-    input_maze_size_list = user_inputs.maze_size_list.split(',')
-    for s in input_maze_size_list:
-        # set random seed for reproduce
-        random.seed(user_inputs.random_seed)
-        np.random.seed(user_inputs.random_seed)
-        torch.manual_seed(user_inputs.random_seed)
-
         # set the maze size list
-        user_inputs.maze_size_list = s
-    
+        user_inputs.maze_size_list = s 
+        user_inputs.maze_seed_list = ','.join(random.sample(input_maze_seed_shuffle, user_inputs.train_maze_num))
         # print info
         print(f"Run the experiment with random seed = {user_inputs.random_seed} using mazes size {s} and seed {user_inputs.maze_seed_list}")
         
         # update the save directory
-        user_inputs.save_dir = input_save_dir + '/' + f'{s}-norm-{user_inputs.goal_dist}' + f'/{user_inputs.random_seed}'
+        user_inputs.save_dir = input_save_dir + '/multi_mazes/' + f'{s}-norm-{user_inputs.goal_dist}' + f'/{user_inputs.random_seed}'
         user_inputs.model_idx = input_model_idx + f'_{s}x{s}_obs_maxdist_{user_inputs.goal_dist}_add_terminal' 
         
         # check the directory to store the results

@@ -68,7 +68,7 @@ class EvalPolicy(object):
                              torch.tensor([0, 0, 0, 0, 0, 0, 0, 1])]
         # load the vae model
         self.cvae = VAE.CVAE(64, use_small_obs=True)
-        self.cvae.load_state_dict(torch.load("/mnt/cheng_results/VAE/models/small_obs_L64_B8.pt", map_location=torch.device('cuda:0'))) 
+        self.cvae.load_state_dict(torch.load("/mnt/cheng_results/trained_model/VAE/small_obs_L64_B8.pt", map_location=torch.device('cuda:0'))) 
         self.cvae.eval()
         self.cvae = self.cvae.to(self.device)
         # save parameters
@@ -495,47 +495,47 @@ class EvalPolicy(object):
                     print(f"maze: {m_size}-{m_seed}-{g_dist}")
                     run = 0
                     total_runs = len(pairs_dict['start'])
-                    for s_pos, g_pos in zip(pairs_dict['start'], pairs_dict['goal']):
-                    #total_runs = 50
-                    #for run in range(total_runs):
+                    # for s_pos, g_pos in zip(pairs_dict['start'], pairs_dict['goal']):
+                    total_runs = 50
+                    for run in range(total_runs):
                         # sample a start-goal pair
-                        #pair_idx = random.sample(range(total_sub_pair_num), 1)[0]
+                        pair_idx = random.sample(range(total_sub_pair_num), 1)[0]
                         # with probability 0.5, reverse the order
-                        #if random.uniform(0, 1) < 0.5:
-                        #    s_pos = pairs_dict['start'][pair_idx]
-                        #    g_pos = pairs_dict['goal'][pair_idx]
-                        #else:
-                        #    s_pos = pairs_dict['goal'][pair_idx]
-                        #    g_pos = pairs_dict['start'][pair_idx]
+                        if random.uniform(0, 1) < 0.5:
+                            s_pos = pairs_dict['start'][pair_idx]
+                            g_pos = pairs_dict['goal'][pair_idx]
+                        else:
+                            s_pos = pairs_dict['goal'][pair_idx]
+                            g_pos = pairs_dict['start'][pair_idx]
                         #s_pos = [1, 8]
                         #g_pos = [1, 9]
-                        #print(run, ':', s_pos, ' - ', g_pos)
+                        print(run, ':', s_pos, ' - ', g_pos)
                         
                         # forward
                         success_flag = self.run_single_pair(s_pos, g_pos, mlb_map, mlb_graph)
                         if success_flag:
                             success_counter += 1
                         run += 1 
-                        print(f"Run {run}: Start = {s_pos}, Goal = {g_pos}, Dist = {len(self.env_map.path)}, Done = {success_flag}") 
+                        print(f"{m_size}-{m_seed}: Run {run}: Start = {s_pos}, Goal = {g_pos}, Dist = {len(self.env_map.path)}, Done = {success_flag}") 
                         
                         #Debug.set_trace()
                         #if not success_flag:
                         #    Debug.set_trace()
                         
                         # backward
-                        success_flag = self.run_single_pair(g_pos, s_pos, mlb_map, mlb_graph)
-                        if success_flag:
-                            success_counter += 1
-                        run += 1
-                        print(f"Run {run}: Start = {g_pos}, Goal = {s_pos}, Dist = {len(self.env_map.path)}, Done = {success_flag}")
+                        #success_flag = self.run_single_pair(g_pos, s_pos, mlb_map, mlb_graph)
+                        #if success_flag:
+                        #    success_counter += 1
+                        #run += 1
+                        #print(f"Run {run}: Start = {g_pos}, Goal = {s_pos}, Dist = {len(self.env_map.path)}, Done = {success_flag}")
                         #if not success_flag:
                         #    Debug.set_trace()
                         
                         print(f"--------------------------------------------------------------------")
                         
-                    np.save(f'./{self.maze_size}-{self.maze_seed_list[0]}-{args.use_oracle}-init-map.npy', init_mlb_map)
-                    np.save(f'./{self.maze_size}-{self.maze_seed_list[0]}-{args.use_oracle}-map.npy', mlb_map)
-                    np.save(f'./{self.maze_size}-{self.maze_seed_list[0]}-{args.use_oracle}-valid-pos.npy', self.env_map.valid_pos)
+                    #np.save(f'./{self.maze_size}-{self.maze_seed_list[0]}-{args.use_oracle}-init-map.npy', init_mlb_map)
+                    #np.save(f'./{self.maze_size}-{self.maze_seed_list[0]}-{args.use_oracle}-map.npy', mlb_map)
+                    #np.save(f'./{self.maze_size}-{self.maze_seed_list[0]}-{args.use_oracle}-valid-pos.npy', self.env_map.valid_pos)
                     # show results
                     print(f"Success count = {success_counter}, Total count = {run}")
                     print(f"Mean successful rate for distance = {g_dist} is {success_counter / run}")
@@ -657,7 +657,7 @@ class EvalPolicy(object):
                     next_state, reward, _, dist, next_trans, _, _ = my_lab.step(reversed_act)
                    
                     # print information
-                 #   print(f"Return: state={self.env.position_maze2map(state_pos_maze, [self.maze_size, self.maze_size])}, Action={ACTION_LIST[reversed_act]}, next state={self.env.position_maze2map(next_trans, [self.maze_size, self.maze_size])}, goal = {self.env.position_maze2map(target_position_maze, [self.maze_size, self.maze_size])}")
+                    #print(f"Return: state={self.env.position_maze2map(state_pos_maze, [self.maze_size, self.maze_size])}, Action={ACTION_LIST[reversed_act]}, next state={self.env.position_maze2map(next_trans, [self.maze_size, self.maze_size])}, goal = {self.env.position_maze2map(target_position_maze, [self.maze_size, self.maze_size])}")
                     #Debug.set_trace()
                     state_pos_maze = next_trans
                     state_obs = next_state
@@ -1003,7 +1003,7 @@ if __name__ == '__main__':
     elif eval_mode == 'imagine-local-policy':
         my_agent = GoalDQNAgent(use_true_state=args.use_true_state, use_small_obs=True, use_rescale=args.use_rescale, device=device, use_state_est=args.use_state_est)
         my_agent.policy_net.load_state_dict(
-             torch.load(f"/mnt/cheng_results/rl_results/7-7/our/{args.model_maze_size}-norm-{args.model_dist}/{args.model_maze_seed}/goal_ddqn_{args.model_maze_size}x{args.model_maze_size}_obs_maxdist_{args.model_dist}_add_terminal.pt",
+             torch.load(f"/mnt/cheng_results/results_RL/7-15/our/{args.model_maze_size}-norm-{args.model_dist}/{args.model_maze_seed}/goal_ddqn_{args.model_maze_size}x{args.model_maze_size}_obs_maxdist_{args.model_dist}_add_terminal.pt",
                         map_location=torch.device(args.device))
         )
         #my_agent.policy_net.load_state_dict(
