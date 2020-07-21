@@ -93,7 +93,7 @@ class Experiment(object):
                              torch.tensor([0, 0, 0, 0, 0, 0, 0, 1])]
         if self.use_imagine:
             self.thinker = VAE.CVAE(64, use_small_obs=True)
-            self.thinker.load_state_dict(torch.load("/mnt/cheng_results/VAE/models/small_obs_L64_B8.pt",
+            self.thinker.load_state_dict(torch.load("/mnt/cheng_results/trained_model/VAE/small_obs_L64_B8.pt",
                                                      map_location=self.device))
             self.thinker.eval()
         # training configurations
@@ -127,7 +127,6 @@ class Experiment(object):
         self.returns = []
         self.lengths = []
         self.policy_returns = []
-        self.eval_dist_pairs = self.load_pair_data(self.maze_size, self.maze_seed)
         # saving settings
         self.model_name = model_name
         self.save_dir = save_dir
@@ -418,7 +417,7 @@ class Experiment(object):
                 trans = self.toTransition(state, action, next_state, reward, init_state, goal, done)
                 # add the transition into the buffer
                 self.replay_buffer.add(trans)
-            
+
             # update the state
             state = next_state
             rewards.append(reward)
@@ -436,7 +435,7 @@ class Experiment(object):
                 self.distance.append(dist)
                 # compute the episode number
                 episode_idx = len(self.returns)
-
+                
                 pbar.set_description(
                     f'Episode: {episode_idx}|Steps: {episode_t}|Return: {G:.2f}|Dist: {dist:.2f}|'
                     f'Init: {self.env.start_pos[0:2]}|Goal: {self.env.goal_pos[0:2]}|'
@@ -445,8 +444,7 @@ class Experiment(object):
                     f'Buffer: {len(self.replay_buffer)}|'
                     f'Loss: {self.agent.current_total_loss:.4f}|'
                     f'Pred Loss: {self.agent.current_state_loss:.4f}'
-                )
-
+                ) 
                 # evaluate the current policy
                 if (episode_idx - 1) % self.eval_policy_freq == 0:
                     # evaluate the current policy by interaction
@@ -470,8 +468,7 @@ class Experiment(object):
                         # sample a new pair of start and goal
                         self.fix_start = False
                         self.fix_goal = False
-                        # sample a valid distance
-                        # self.goal_dist = random.sample(self.valid_goal_dist, 1)[0]
+                        # sample a valid distance 
                         state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=False)
                         init_state = state
                         train_episode_num = self.train_episode_num
@@ -480,8 +477,7 @@ class Experiment(object):
                     # sample a new maze
                     self.fix_start = False
                     self.fix_goal = False
-                    # sample a valid distance
-                    # self.goal_dist = random.sample(self.valid_goal_dist, 1)[0]
+                    # sample a valid distance 
                     state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=True)
                     init_state = state
                     # reset the training control
@@ -491,8 +487,8 @@ class Experiment(object):
             # train the agent
             if t > self.start_train_step:
                 sampled_batch = self.replay_buffer.sample(self.batch_size)
-                if self.use_cycle_relabel:
-                    sampled_batch = self.cycle_relabel(sampled_batch)                
+                #if self.use_cycle_relabel:
+                #    sampled_batch = self.cycle_relabel(sampled_batch)                
                 
                 self.agent.train_one_batch(t, sampled_batch)
 
@@ -902,6 +898,7 @@ class Experiment(object):
         return state_obs, goal_obs, init_pos, goal_pos
 
     def eval_policy(self):
+        self.eval_dist_pairs = self.load_pair_data(self.maze_size, self.maze_seed)
         # sample a distance
         #tmp_dist = random.sample(list(np.arange(1, 5, 1)), 1)[0]
         tmp_dist = 1
