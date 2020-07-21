@@ -495,18 +495,18 @@ class EvalPolicy(object):
                     print(f"maze: {m_size}-{m_seed}-{g_dist}")
                     run = 0
                     total_runs = len(pairs_dict['start'])
-                    for s_pos, g_pos in zip(pairs_dict['start'], pairs_dict['goal']):
-                    #total_runs = 50
-                    #for run in range(total_runs):
+                    #for s_pos, g_pos in zip(pairs_dict['start'], pairs_dict['goal']):
+                    total_runs = args.run_num
+                    for run in range(total_runs):
                         # sample a start-goal pair
-                        #pair_idx = random.sample(range(total_sub_pair_num), 1)[0]
+                        pair_idx = random.sample(range(total_sub_pair_num), 1)[0]
                         # with probability 0.5, reverse the order
-                        #if random.uniform(0, 1) < 0.5:
-                        #    s_pos = pairs_dict['start'][pair_idx]
-                        #    g_pos = pairs_dict['goal'][pair_idx]
-                        #else:
-                        #    s_pos = pairs_dict['goal'][pair_idx]
-                        #    g_pos = pairs_dict['start'][pair_idx]
+                        if random.uniform(0, 1) < 0.5:
+                            s_pos = pairs_dict['start'][pair_idx]
+                            g_pos = pairs_dict['goal'][pair_idx]
+                        else:
+                            s_pos = pairs_dict['goal'][pair_idx]
+                            g_pos = pairs_dict['start'][pair_idx]
                         #s_pos = [1, 8]
                         #g_pos = [1, 9]
                         #print(run, ':', s_pos, ' - ', g_pos)
@@ -516,26 +516,26 @@ class EvalPolicy(object):
                         if success_flag:
                             success_counter += 1
                         run += 1 
-                        print(f"Run {run}: Start = {s_pos}, Goal = {g_pos}, Dist = {len(self.env_map.path)}, Done = {success_flag}") 
+                        print(f"{m_size}:{m_seed}: Run {run}: Start = {s_pos}, Goal = {g_pos}, Dist = {len(self.env_map.path)}, Done = {success_flag}") 
                         
                         #Debug.set_trace()
                         #if not success_flag:
                         #    Debug.set_trace()
                         
                         # backward
-                        success_flag = self.run_single_pair(g_pos, s_pos, mlb_map, mlb_graph)
-                        if success_flag:
-                            success_counter += 1
-                        run += 1
-                        print(f"Run {run}: Start = {g_pos}, Goal = {s_pos}, Dist = {len(self.env_map.path)}, Done = {success_flag}")
+                        #success_flag = self.run_single_pair(g_pos, s_pos, mlb_map, mlb_graph)
+                        #if success_flag:
+                        #    success_counter += 1
+                        #run += 1
+                        #print(f"Run {run}: Start = {g_pos}, Goal = {s_pos}, Dist = {len(self.env_map.path)}, Done = {success_flag}")
                         #if not success_flag:
                         #    Debug.set_trace()
                         
                         print(f"--------------------------------------------------------------------")
                         
-                    np.save(f'./{self.maze_size}-{self.maze_seed_list[0]}-{args.use_oracle}-init-map.npy', init_mlb_map)
-                    np.save(f'./{self.maze_size}-{self.maze_seed_list[0]}-{args.use_oracle}-map.npy', mlb_map)
-                    np.save(f'./{self.maze_size}-{self.maze_seed_list[0]}-{args.use_oracle}-valid-pos.npy', self.env_map.valid_pos)
+                    #np.save(f'./{self.maze_size}-{self.maze_seed_list[0]}-{args.use_oracle}-init-map.npy', init_mlb_map)
+                    #np.save(f'./{self.maze_size}-{self.maze_seed_list[0]}-{args.use_oracle}-map.npy', mlb_map)
+                    #np.save(f'./{self.maze_size}-{self.maze_seed_list[0]}-{args.use_oracle}-valid-pos.npy', self.env_map.valid_pos)
                     # show results
                     print(f"Success count = {success_counter}, Total count = {run}")
                     print(f"Mean successful rate for distance = {g_dist} is {success_counter / run}")
