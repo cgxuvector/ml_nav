@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 import random
+import copy
 from utils import searchAlg
 import IPython.terminal.debugger as Debug
 
@@ -40,6 +41,7 @@ class RoughMap(object):
 
         # txt map and primary valid positions and primary valid local maps
         self.valid_pos = []  # walkable positions in the txt map
+        self.wall_pos = []  # wall positions
         self.valid_loc_maps = []  # local map for the walkable positions
         self.map2d_txt = self.load_map('txt')  # map represented as the raw txt file
         self.init_pos = self.valid_pos[0]
@@ -57,6 +59,14 @@ class RoughMap(object):
         # egocentric local maps (size adjustable)
         self.map2d_rough = np.ones(self.map2d_grid.shape) - self.map2d_grid
         self.local_maps, self.map2d_roughPadded = self.crop_local_maps(self.path)
+
+        # define the shuffle map
+        self.map2d_imprecise = None
+        self.map2d_rough_imprecise = None
+        self.map2d_roughpad_imprecise = None
+        # define the imprecise valid position
+        self.imprecise_valid_pos = None
+        self.imprecise_wall_pos = None
 
     @staticmethod
     def remove_apples(txt):
@@ -85,6 +95,9 @@ class RoughMap(object):
                     for j_idx, s in enumerate(l):
                         if s != '\n' and s != '*':
                             self.valid_pos.append([i_idx, j_idx])
+
+                        if s == '*' and 0 < i_idx < self.maze_size - 1 and 0 < j_idx < self.maze_size - 1:
+                            self.wall_pos.append([i_idx, j_idx])
             return map_txt
         elif m_type == 'bw':
             rescaled_init, rescaled_goal, map_bw = self.map_txt2bw(map_path, self.maze_size)
@@ -162,6 +175,21 @@ class RoughMap(object):
                 else:
                     grid_map[r, c] = 0.0
         return grid_map
+    @staticmethod
+    def map_grid2bw(grid_map):
+        """
+        Function is used to build the grid map from the binary map
+        """
+        bw_map = np.copy(grid_map)
+        row, col = bw_map.shape
+        # obtain the grid map
+        for r in range(row):
+            for c in range(col):
+                if bw_map[r, c] < 0.3:
+                    bw_map[r, c] = 1
+                else:
+                    bw_map[r, c] = 0.0
+        return bw_map
 
     # display the map: txt map or occupancy map
     def show_map(self, m_type):
@@ -463,13 +491,120 @@ class RoughMap(object):
         goal_pos_list = [self.valid_pos[idx] for idx in pairs[1].tolist()] if len(pairs[1]) > 0 else None
         return {'start': start_pos_list, 'goal': goal_pos_list}
 
+    def shuffle_map(self, ratio, shuffle_mode='wall2corridor'): 
+        # copy the accurate map
+        self.map2d_imprecise = copy.deepcopy(self.map2d_grid)
+        self.imprecise_valid_pos = copy.deepcopy(self.valid_pos)
+        self.imprecise_wall_pos = copy.deepcopy(self.wall_pos)
 
-# size_list = [13]
-# seed_list = list(range(20))
+        # compute the shuffle number
+        if shuffle_mode == 'wall2corridor':
+            # shuffle number
+            shuffle_num = int(len(self.imprecise_wall_pos) * ratio)
+            pos_candidates = self.imprecise_wall_pos
+        elif shuffle_mode == 'corridor2wall':
+            # shuffle number
+            shuffle_num = int(len(self.imprecise_valid_pos) * ratio)
+            pos_candidates = self.imprecise_valid_pos
+        elif shuffle_mode == 'mixed':
+            # mixture
+            shuffle_num = int(((self.maze_size - 2)**2) * ratio)
+            pos_candidates = self.imprecise_valid_pos + self.imprecise_wall_pos
+        else:
+            raise Exception("Wrong shuffle mode")
+
+        # sample the item
+        positions = random.sample(pos_candidates, shuffle_num)
+        # shuffle the positions
+        for pos in positions:
+            if shuffle_mode == 'wall2corridor':
+                if random.uniform(0, 1) < 0.5:
+                    # add into corridor
+                    self.imprecise_valid_pos.append(pos)
+                    # remove from wall
+                    self.imprecise_wall_pos.remove(pos)
+                    # change the imprecise map
+                    self.map2d_imprecise[pos[0], pos[1]] = 0.0
+            elif shuffle_mode == 'corridor2wall':
+                if random.uniform(0, 1) < 0.5:
+                    # add into corridor
+                    self.imprecise_wall_pos.append(pos)
+                    # remove from wall
+                    self.imprecise_valid_pos.remove(pos)
+                    # change the imprecise map
+                    self.map2d_imprecise[pos[0], pos[1]] = 1.0
+            elif shuffle_mode == 'mixed':
+                if random.uniform(0, 1) < 0.5:
+                    if pos in self.imprecise_valid_pos:
+                        continue
+                    else:
+                        # add into corridor
+                        self.imprecise_valid_pos.append(pos)
+                        # remove from wall
+                        self.imprecise_wall_pos.remove(pos)
+                        # change the imprecise map
+                        self.map2d_imprecise[pos[0], pos[1]] = 0.0
+                else:
+                    if pos in self.imprecise_wall_pos:
+                        continue
+                    else:
+                        # add into corridor
+                        self.imprecise_wall_pos.append(pos)
+                        # remove from wall
+                        self.imprecise_valid_pos.remove(pos)
+                        # change the imprecise map
+                        self.map2d_imprecise[pos[0], pos[1]] = 1.0
+            else:
+                raise Exception("Wrong shuffle mode")
+        
+        self.map2d_rough_imprecise = np.ones(self.map2d_imprecise.shape) - self.map2d_imprecise
+        # pad the map
+        pad_step = int((self.loc_map_size - 1) / 2)
+        # create background
+        pad_map_size = int(self.map2d_rough_imprecise.shape[0] + 2 * pad_step)
+        self.map2d_roughpad_imprecise = np.zeros((pad_map_size, pad_map_size))
+        # insert the rough map
+        self.map2d_roughpad_imprecise[pad_step:pad_map_size-pad_step, pad_step:pad_map_size-pad_step] = self.map2d_rough_imprecise
+
+        print(self.map2d_grid)
+        print(self.map2d_imprecise)
+
+# size_list = [19]
+# seed_list = [17]
 # dist = 1
+# env_map = RoughMap(19, 17, 3)
+#
+# tmp = env_map.map_grid2bw(env_map.map2d_grid)
+# plt.imshow(tmp)
+# plt.axis('off')
+# env_map.shuffle_map(0.2, 'mixed')
+# plt.show()
+# tmp_shuffle = env_map.map_grid2bw(env_map.map2d_imprecise)
+# plt.imshow(tmp_shuffle)
+# plt.show()
+
+# plot avoid ill learned behavior
+# env_map.update_mapper([17, 1], [3, 5])
+# path_1 = [np.array([17, 1]), np.array([16, 1]), np.array([15, 1]), np.array([15, 2]), np.array([15, 3]),
+#           np.array([16, 3]), np.array([17, 3]), np.array([17, 3]), np.array([17, 4]), np.array([17, 5]),
+#           np.array([17, 6]), np.array([16, 6]), np.array([17, 6]), np.array([17, 7]), np.array([17, 8]),
+#           np.array([17, 9]), np.array([16, 9]), np.array([15, 9]), np.array([14, 9]), np.array([13, 9]),
+#           np.array([12, 9]), np.array([11, 9]), np.array([10, 9]), np.array([9, 9]), np.array([9, 8]),
+#           np.array([8, 8]), np.array([9, 8]), np.array([10, 9]), np.array([10, 10]), np.array([10, 11]),
+#           np.array([9, 11]), np.array([10, 11]), np.array([9, 11]), np.array([8, 11]), np.array([7, 11]),
+#           np.array([7, 12]), np.array([7, 13]), np.array([8, 13]), np.array([9, 13]), np.array([9, 14]),
+#           np.array([9, 15]), np.array([8, 15]), np.array([7, 15]), np.array([6, 15]), np.array([5, 15]),
+#           np.array([4, 15]), np.array([3, 15]), np.array([3, 14]), np.array([3, 13]), np.array([3, 12]),
+#           np.array([3, 11]), np.array([3, 10]), np.array([3, 9]), np.array([3, 8]), np.array([3, 7]),
+#           np.array([3, 6]), np.array([3, 5])]
+#
+# env_map.map2d_path = env_map.show_path(path_1, env_map.map2d_grid)
+# plt.axis('off')
+# plt.imshow(env_map.map2d_path)
+# plt.savefig(f'19-17_map_optimal_path_3.png', dpi=100)
+# plt.show()
 # for size in size_list:
 #     for seed in seed_list:
-#         print(seed)
 #         # for i in range(2000):
 #         env_map = RoughMap(size, seed, 3)
 #         #     init_pos, goal_pos = env_map.sample_random_start_goal_pos(False, False, dist)
@@ -480,6 +615,6 @@ class RoughMap(object):
 #         plt.title(f"{size}-{seed}-map")
 #         plt.axis('off')
 #         plt.imshow(env_map.map2d_rough)
-#         # plt.savefig(f'{size}x{seed}_map.png', dpi=300)
+#         plt.savefig(f'{size}x{seed}_map.png', dpi=100)
 #         plt.show()
 

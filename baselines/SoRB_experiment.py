@@ -54,8 +54,10 @@ class Experiment(object):
                  model_name=None,
                  device='cpu',
                  use_rescale=False,
-                 eval_policy_freq=100
+                 eval_policy_freq=100,
+                 args=None
                  ):
+        self.args = args
         self.eval_policy_freq = eval_policy_freq
         self.use_rescale = use_rescale
         self.device = torch.device(device)
@@ -329,7 +331,7 @@ class Experiment(object):
 
     def test_distance_prediction(self):
         # load the saved data
-        self.agent.policy_net.load_state_dict(torch.load('/mnt/cheng_results/results_RL/7-7/13-norm-1/0/goal_ddqn_13x13_obs_maxdist_1_run_0.pt'))
+        self.agent.policy_net.load_state_dict(torch.load(f'/mnt/cheng_results/rl_results/7-7/sorb/{self.args.model_maze_size}x{self.args.model_maze_size}/{self.args.model_seed}/goal_ddqn_{self.args.model_maze_size}x{self.args.model_maze_size}_obs_sorb_her.pt'))
         self.agent.policy_net.eval()
 
         # sample a start-goal pair
@@ -338,14 +340,14 @@ class Experiment(object):
         for r in range(run_num):
             gt_dist = len(self.env_map.path) - 1
             with torch.no_grad():
-                state = self.toTensor(state).float()
-                goal = self.toTensor(goal).float()
-                pred_dist = self.agent.policy_net(state, goal)
+                state = self.toTensor(state).float().to(self.device) / 255
+                goal = self.toTensor(goal).float().to(self.device) / 255
+                pred_dist = self.agent.policy_net(state, goal).to(self.device)
             
             action = torch.mm(pred_dist.squeeze(0), self.agent.support_atoms_values).view(1, -1).max(dim=1)[1].item()
-            pred_dist = pred_dist.squeeze(0)[action, :]
+            pred_dist = pred_dist.squeeze(0)[action, :].cpu()
             # pred_dist = self.agent.support_atoms_values[pred_dist.view(1, -1).max(dim=1)[1].item()]
-            pred_dist = np.round(torch.sum(self.agent.support_atoms_values.squeeze(1) * pred_dist) - 1)
+            pred_dist = np.round(torch.sum(self.agent.support_atoms_values.squeeze(1).cpu() * pred_dist) - 1)
             # for normal DQN
             #pred_dist = pred_dist.max()
             print(f'State={start_pos}, goal={goal_pos}, act={DEFAULT_ACTION_LIST[action]}, GT={gt_dist} Pred={-1 * pred_dist}, Err = {gt_dist - abs(pred_dist)}')
@@ -357,15 +359,16 @@ class Experiment(object):
         # evaluation results
         eval_results = defaultdict()
         # load the policy
-        self.agent.policy_net.load_state_dict(torch.load(f'/mnt/sda/rl_results/7x7/sorb_dqn_{self.maze_size}.pt'))
+        self.agent.policy_net.load_state_dict(torch.load(f'/mnt/cheng_results/rl_results/7-7/sorb/{self.args.model_maze_size}x{self.args.model_maze_size}/{self.args.model_seed}/goal_ddqn_{self.args.model_maze_size}x{self.args.model_maze_size}_obs_sorb_her.pt'))
         self.agent.policy_net.eval()
         # load the replay buffer
-        self.replay_buffer = np.load(f'./sorb_test/test_{self.maze_size}_buffer.npy')
-        # init the environment
+        self.replay_buffer = np.load(f'/mnt/cheng_results/rl_results/7-7/sorb/{self.args.model_maze_size}x{self.args.model_maze_size}/{self.args.model_seed}/goal_ddqn_{self.args.model_maze_size}x{self.args.model_maze_size}_obs_sorb_her_buffer.npy')
+        # init the environment 
         self.update_map2d_and_maze3d(set_new_maze=True)
-        # self.b2b_pdist = self.compute_pairwise_dist(mode='buffer-buffer')
-        # np.save(f'./b2b_{self.maze_size}.npy', self.b2b_pdist)
-        self.b2b_pdist = np.load(f'./b2b_{self.maze_size}.npy')
+        self.b2b_pdist = self.compute_pairwise_dist(mode='buffer-buffer')
+        np.save(f'./b2b_{self.args.model_maze_size}x{self.args.model_seed}.npy', self.b2b_pdist)
+        Debug.set_trace()
+        self.b2b_pdist = np.load(f'./b2b_{self.args.model_maze_size}x{self.args.model_seed}.npy')
         total_pairs_dict = self.load_pair_data(self.maze_size, self.maze_seed)
         pairs_dict = {'start': None, 'goal': None}
         for g_dist in self.maze_dist_list:
@@ -374,92 +377,69 @@ class Experiment(object):
                 break
             pairs_dict['start'] = total_pairs_dict[str(g_dist)][0]
             pairs_dict['goal'] = total_pairs_dict[str(g_dist)][1]
-            run_num = 100
+            run_num = 50
             success_count = 0
-            #for r in range(run_num):
-            #    idx = random.sample(range(len(pairs_dict['start'])), 1)[0]
-            #    if random.uniform(0, 1) < 0.5:
-            #        s_pos = pairs_dict['start'][idx]
-            #        g_pos = pairs_dict['goal'][idx]
-            #    else:
-            #        s_pos = pairs_dict['goal'][idx]
-            #        g_pos = pairs_dict['start'][idx]
-            for s_pos, g_pos in zip(pairs_dict['start'], pairs_dict['goal']):
-                #s_pos = [1, 3]
-                #g_pos = [5, 1]
-                state, goal, start_pos, goal_pos = self.update_maze_from_pos(s_pos, g_pos)
-                print(f"Start pos = {start_pos}, Goal pos = {goal_pos}")
-                # time steps
-                max_time_steps = 20
-                for t in range(max_time_steps):
-                    # get an action
-                    action, waypoint = self.search_policy(state, goal)
-                    # take one step
-                    next_state, reward, done, dist, trans, _, _ = self.env.step(action)
-                    print(f"Step = {t}: state={state}, action={DEFAULT_ACTION_LIST[action]}, next_state={next_state}, waypoint={waypoint} done={done}")
-                    # check terminal
-                    if done:
-                        success_count += 1
-                        break
-                    else:
-                        state = next_state
-                 
-                # reverse direction
-                tmp_pos = s_pos
-                s_pos = g_pos
-                g_pos = tmp_pos
-                state, goal, start_pos, goal_pos = self.update_maze_from_pos(s_pos, g_pos)
-                print(f"Start pos = {start_pos}, Goal pos = {goal_pos}")
-                # time steps
-                max_time_steps = 20
-                for t in range(max_time_steps):
-                    # get an action
-                    action, waypoint = self.search_policy(state, goal)
-                    # take one step
-                    next_state, reward, done, dist, trans, _, _ = self.env.step(action)
-                    print(f"Step = {t}: state={state}, action={DEFAULT_ACTION_LIST[action]}, next_state={next_state}, waypoint={waypoint} done={done}")
-                    # check terminal
-                    if done:
-                        success_count += 1
-                        break
-                    else:
-                        state = next_state
+            for r in range(run_num):
+                idx = random.sample(range(len(pairs_dict['start'])), 1)[0]
+                if random.uniform(0, 1) < 0.5:
+                    s_pos = pairs_dict['start'][idx]
+                    g_pos = pairs_dict['goal'][idx]
+                else:
+                    s_pos = pairs_dict['goal'][idx]
+                    g_pos = pairs_dict['start'][idx]
+            #for s_pos, g_pos in zip(pairs_dict['start'], pairs_dict['goal']):
                 
-                print('-------------------------------')
-            print(f"Success rate = {success_count / (len(pairs_dict['start']) * 2)}")
-            eval_results[f"maze-{self.maze_size}-{self.maze_seed}-{g_dist}"] = success_count / (len(pairs_dict['start'] * 2))
+                state, goal, start_pos, goal_pos = self.update_maze_from_pos(s_pos, g_pos)
+                # time steps
+                max_time_steps = 2
+                state_position = start_pos 
+                goal_position = goal_pos
+                for t in range(max_time_steps):
+                    # get an action
+                    action, waypoint = self.search_policy(state, goal)
+                    # take one step
+                    next_state, reward, done, dist, trans, _, _ = self.env.step(action)
+                    next_state_position = self.env.position_maze2map(trans, [self.args.model_maze_size, self.args.model_maze_size])
+                    print(f"Step = {t}: state={state_position}, action={DEFAULT_ACTION_LIST[action]}, next_state={next_state_position}, goal={goal_pos} done={done}")
+                    # check terminal
+                    if done:
+                        success_count += 1
+                        break
+                    else:
+                        state = next_state
+                        state_position = next_state_position  
+                print('-------------------------------------------------------------------------------------------------')
+            print(f"Success rate = {success_count / run_num}")
+            eval_results[f"maze-{self.maze_size}-{self.maze_seed}-{g_dist}"] = success_count / run_num
         print("Evaluation finished")
-        save_name = '/'.join([self.save_dir, f"eval_{self.maze_size}_policy.txt"])
-        with open(save_name, "w") as f:
-            for key, val in eval_results.items():
-                tmp_str = key + " " + str(val) + '\n'
-                f.write(tmp_str)
-            f.close()
+        #save_name = '/'.join([self.save_dir, f"eval_{self.maze_size}_policy.txt"])
+        #with open(save_name, "w") as f:
+        #    for key, val in eval_results.items():
+        #        tmp_str = key + " " + str(val) + '\n'
+        #        f.write(tmp_str)
+        #    f.close()
 
     def search_policy(self, state, goal):
-        # compute the next way point
-        # print('Search next way point')
+        # compute the next way point 
         state_wp = self.shortest_path(state, goal)
-        #print("Next way point = ", state_wp)
         # compute the distance between state and way point
-        dist_s2wp = self.compute_distance(self.toTensor(state), self.toTensor(state_wp), true_dist=True)
+        dist_s2wp = self.compute_distance(state.transpose(0, 3, 1, 2), state_wp, true_dist=False)
         # compute the distance between state and goal
-        dist_s2g = self.compute_distance(self.toTensor(state), self.toTensor(goal), true_dist=True)
+        dist_s2g = self.compute_distance(state.transpose(0, 3, 1, 2), goal.transpose(0, 3, 1, 2), true_dist=False)
         # compute the action to take
         #print(f"S2Way = {dist_s2wp}, S2Goal = {dist_s2g}")
         if dist_s2wp < dist_s2g or dist_s2g > self.max_dist:
             #print("Use way point")
-            action = self.agent.get_action(self.toTensor(state), self.toTensor(state_wp), 0)
+            action = self.agent.get_action(state, state_wp.transpose(0, 2, 3, 1), 0)
             waypoint = state_wp
         else:
             #print("Use raw goal")
-            action = self.agent.get_action(self.toTensor(state), self.toTensor(goal), 0)
+            action = self.agent.get_action(state, goal, 0)
             waypoint = goal
         return action, waypoint
 
     def shortest_path(self, state, goal):
         # compute the distance matrices
-        #print("compute buffer to buffer")
         pdist_b2b = self.b2b_pdist 
         pdist_s2b = self.compute_pairwise_dist(state=self.toTensor(state), mode='state-buffer')
         pdist_b2g = self.compute_pairwise_dist(goal=self.toTensor(goal), mode='buffer-goal')
@@ -483,22 +463,22 @@ class Experiment(object):
     def compute_pairwise_dist(self, state=None, goal=None, mode=None):
         state_num = self.replay_buffer.shape[0]
         # set different source tensor based on different mode
-        if mode == 'state-buffer':
+        if mode == 'state-buffer': 
             pdist = np.zeros((1, state_num))
             for i in range(state_num):
                 with torch.no_grad():
                     tmp_state = state
-                    tmp_goal = torch.tensor(self.replay_buffer[i]).float()
-                    dist = self.compute_distance(tmp_state, tmp_goal, true_dist=True)
+                    tmp_goal = torch.tensor(self.replay_buffer[i])
+                    dist = self.compute_distance(tmp_state, tmp_goal, true_dist=False)
                     pdist[0, i] = dist
             pdist = np.transpose(np.ones_like(pdist)) * pdist
-        elif mode == 'buffer-goal':
+        elif mode == 'buffer-goal': 
             pdist = np.zeros((1, state_num))
             for i in range(state_num):
                 with torch.no_grad():
                     tmp_state = goal
-                    tmp_goal = torch.tensor(self.replay_buffer[i]).float()
-                    dist = self.compute_distance(tmp_state, tmp_goal, true_dist=True)
+                    tmp_goal = torch.tensor(self.replay_buffer[i])
+                    dist = self.compute_distance(tmp_state, tmp_goal, true_dist=False)
                     pdist[0, i] = dist
             pdist = np.transpose(np.ones_like(pdist)) * pdist
         elif mode == 'buffer-buffer':
@@ -507,8 +487,9 @@ class Experiment(object):
             for i in range(state_num):
                 for j in range(i+1, state_num):
                     with torch.no_grad():
-                        tmp_state = torch.tensor(self.replay_buffer[i]).float()
-                        tmp_goal = torch.tensor(self.replay_buffer[j]).float()
+                        print(i, ' - ', j)
+                        tmp_state = torch.tensor(self.replay_buffer[i])
+                        tmp_goal = torch.tensor(self.replay_buffer[j])
                         dist = self.compute_distance(tmp_state, tmp_goal, true_dist=False)
                         pdist[i, j] = dist
             pdist = pdist + pdist.t()
@@ -521,10 +502,15 @@ class Experiment(object):
     def compute_distance(self, state, goal, true_dist=False):
         if not true_dist:
             with torch.no_grad():
-                q_values = self.agent.policy_net(state, goal)
-                # because our policy is a greedy policy
-                v_value = q_values.max(dim=1)[0]
-            return abs(v_value.item())
+                state = torch.tensor(np.array(state)).float().to(self.device) / 255
+                goal = torch.tensor(np.array(goal)).float().to(self.device) / 255
+                pred_dist = self.agent.policy_net(state, goal)
+                
+                action = torch.mm(pred_dist.squeeze(0), self.agent.support_atoms_values).view(1, -1).max(dim=1)[1].item()
+                pred_dist = pred_dist.squeeze(0)[action, :].cpu() 
+                pred_dist = np.round(torch.sum(self.agent.support_atoms_values.squeeze(1).cpu() * pred_dist) - 1)
+                 
+            return abs(pred_dist.item())
         else:
             state_map = [int(s) for s in state.numpy().tolist()][0:2]
             goal_map = [int(g) for g in goal.numpy().tolist()][0:2]
