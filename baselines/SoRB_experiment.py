@@ -1,6 +1,6 @@
 from utils import mapper
 import numpy as np
-from collections import namedtuple, defaultdict
+from collections import namedtuple, defaultdict, deque
 import tqdm
 from model import VAE
 from utils import memory
@@ -116,7 +116,7 @@ class Experiment(object):
         self.b2b_pdist = None
 
         # graph_buffer
-        self.graph_buffer = []
+        self.graph_buffer = deque(maxlen=10000)
         self.eval_dist_pairs = self.load_pair_data(self.maze_size, self.maze_seed)
 
     def train_local_goal_conditioned_dqn(self):
@@ -231,13 +231,14 @@ class Experiment(object):
         episode_t = 0  # time step for one episode
         sample_start_goal_num = self.sample_start_goal_num  # sampled start and goal pair
         train_episode_num = self.train_episode_num  # training number for each start-goal pair
+        max_goal_dist = self.goal_dist
 
         # initialize the state and goal
         state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=self.fix_maze)
         states.append(state)
 
         # store the buffer
-        self.graph_buffer.append(state)
+        # self.graph_buffer.append(self.toTensor(state))
 
         # start the training
         pbar = tqdm.trange(self.max_time_steps)
@@ -261,7 +262,7 @@ class Experiment(object):
 
             # update the current state
             state = next_state
-
+     
             # check terminal
             if done or (episode_t == self.max_steps_per_episode):
                 # compute the discounted return for each time step
@@ -282,7 +283,8 @@ class Experiment(object):
                 pbar.set_description(
                     f'Episode: {episode_idx} | Steps: {episode_t} | Return: {G:2f} | Dist: {dist:.2f} | '
                     f'Init: {self.env.start_pos} | Goal: {self.env.goal_pos} | '
-                    f'Eps: {eps:.3f} | Buffer: {len(self.replay_buffer)}'
+                    f'Eps: {eps:.3f} | Buffer: {len(self.replay_buffer)} | '
+                    f'Size: {len(self.graph_buffer)}'
                 )
 
                 if (episode_idx - 1) % self.eval_policy_freq == 0:
@@ -309,6 +311,7 @@ class Experiment(object):
                         # sample a new pair of start and goal
                         self.fix_start = False
                         self.fix_goal = False
+                        self.goal_dist = random.sample(range(1, max_goal_dist, 1), 1)[0]
                         state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=False)
                         train_episode_num = self.train_episode_num
                         sample_start_goal_num -= 1
@@ -316,12 +319,13 @@ class Experiment(object):
                     # sample a new maze
                     self.fix_start = False
                     self.fix_goal = False
+                    self.goal_dist = random.sample(range(1, max_goal_dist, 1), 1)[0]
                     state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=True)
                     # reset
                     train_episode_num = self.train_episode_num
                     sample_start_goal_num = self.sample_start_goal_num
                 states.append(state)
-                self.graph_buffer.append(state)
+                #self.graph_buffer.append(self.toTensor(state))
         
             # train the agent
             if t > self.start_train_step:
@@ -569,6 +573,7 @@ class Experiment(object):
                 distance = self.env.compute_distance(next_state_pos, new_goal_pos)
                 new_reward = self.env.compute_reward(distance)
                 new_done = 0 if new_reward == -1 else 1
+                new_reward = -1
                 transition = self.toTransition(state, action, next_state, new_reward, new_goal, new_done)
                 self.replay_buffer.add(transition)
 
@@ -599,11 +604,7 @@ class Experiment(object):
         :return: state tensor
         """
         if not self.use_true_state:  # convert the state observation from numpy to tensor with correct size
-            if not self.use_rescale:
-                state_obs = torch.tensor(np.array(obs_list).transpose(0, 3, 1, 2), dtype=torch.uint8)
-            else:
-                state_obs = torch.tensor(np.array(obs_list).transpose(0, 3, 1, 2), dtype=torch.uint8)
-                state_obs = state_obs.float() / 255.0
+            state_obs = torch.tensor(np.array(obs_list).transpose(0, 3, 1, 2), dtype=torch.uint8)
         else:
             state_obs = torch.tensor(np.array(obs_list), dtype=torch.float32)
         return state_obs
@@ -705,7 +706,7 @@ class Experiment(object):
         # lengths_save_path = os.path.join(self.save_dir, self.model_name + "_length.npy")
         # save the memory buffer
         buffer_path = os.path.join(self.save_dir, self.model_name + "_buffer.npy")
-        sampled_init_states = random.sample(self.graph_buffer, 10)
+        sampled_init_states = [s.numpy() for s in self.replay_buffer.sample(1000).state] 
         np.save(buffer_path, sampled_init_states)
         # save the results
         torch.save(self.agent.policy_net.state_dict(), model_save_path)
