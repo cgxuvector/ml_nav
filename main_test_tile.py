@@ -38,7 +38,7 @@ def parse_input():
     # set the training mode
     parser.add_argument("--train_local_policy", type=str, default="False", help="Whether train a local policy.")
     parser.add_argument("--device", type=str, default="cpu", help="Device to use")
-    parser.add_argument("--lr", type=float, default=1e-3, help="Learning rate")
+    parser.add_argument("--lr", type=float, default=1e-4, help="Learning rate")
     parser.add_argument("--start_train_step", type=int, default=1000, help="Start training time step")
     parser.add_argument("--sampled_goal_num", type=int, default=10, help="Number of sampled start and goal positions.")
     parser.add_argument("--train_episode_num", type=int, default=10, help="Number of training epochs for each sample.")
@@ -66,6 +66,8 @@ def parse_input():
     # add new strategy
     parser.add_argument("--use_cycle_relabel", type=str, default='False', help='whether use the cycle relabel strategy')
     parser.add_argument("--use_rescale", type=str, default='False', help='whether rescale the value to [0,1]')
+    parser.add_argument("--use_state_est", type=str, default='False', help='whether estimate the state')
+    parser.add_argument("--alpha", type=float, default=1.0, help='hyperparameter for the two head case')
 
     return parser.parse_args()
 
@@ -91,6 +93,8 @@ def strTobool(inputs):
     # use cycle relabeling during training
     inputs.use_cycle_relabel = True if inputs.use_cycle_relabel == "True" else False
     inputs.use_rescale = True if inputs.use_rescale == "True" else False
+    inputs.use_state_est = True if inputs.use_state_est == "True" else False
+
     return inputs
 
 
@@ -163,7 +167,9 @@ def make_agent(inputs):
                              use_gradient_clip=inputs.dqn_gradient_clip,
                              gamma=inputs.gamma,
                              device=inputs.device,
-                             use_rescale=inputs.use_rescale
+                             use_rescale=inputs.use_rescale,
+                             use_state_est=inputs.use_state_est,
+                             alpha=inputs.alpha
                              )
     else:
         raise Exception(f"{inputs.agent} is not defined. Please try the valid agent (random, dqn, actor-critic)")
@@ -245,28 +251,32 @@ if __name__ == '__main__':
     # total seed list
     total_seed_list = user_inputs.maze_seed_list.split(',')
 
-    # run experiments
-    for r in range(user_inputs.run_num):
+    # run experiments 
+    input_maze_size_list_init = user_inputs.maze_size_list.split(',')
+    input_maze_seed_list_init = user_inputs.maze_seed_list.split(',') 
+    for s in input_maze_size_list_init:
         # set random seed for reproduce
-        user_inputs.random_seed += 10 * r 
         random.seed(user_inputs.random_seed)
         np.random.seed(user_inputs.random_seed)
         torch.manual_seed(user_inputs.random_seed)
+
+        # shuffle the seed list
+        input_maze_seed_shuffle = input_maze_seed_list_init.copy() 
+        np.random.shuffle(input_maze_seed_shuffle)
         
-        # sample the training and testing mazes
-        sampled_seed_list = random.sample(total_seed_list, user_inputs.train_maze_num)
-        user_inputs.maze_seed_list = ','.join(sampled_seed_list)
-
+        # set the maze size list
+        user_inputs.maze_size_list = s 
+        user_inputs.maze_seed_list = ','.join(random.sample(input_maze_seed_shuffle, user_inputs.train_maze_num))
         # print info
-        print(f"Run the {r} experiment with random seed = {user_inputs.random_seed} using mazes size {user_inputs.maze_size_list} and seed {user_inputs.maze_seed_list}")
-       
+        print(f"Run the experiment with random seed = {user_inputs.random_seed} using mazes size {s} and seed {user_inputs.maze_seed_list}")
+        
+        # update the save directory
+        user_inputs.save_dir = input_save_dir + '/multi_mazes/' + f'{s}-norm-{user_inputs.goal_dist}' + f'/{user_inputs.random_seed}'
+        user_inputs.model_idx = input_model_idx + f'_{s}x{s}_obs_maxdist_{user_inputs.goal_dist}_add_terminal' 
+        
         # check the directory to store the results
-        if not os.path.exists(input_save_dir + '/' + str(r)):
-            os.makedirs(input_save_dir + '/' + str(r))
-
-        # update the directory
-        user_inputs.save_dir = input_save_dir + '/' + str(r)
-        user_inputs.model_idx = input_model_idx + f'_run_{r}'
+        if not os.path.exists(user_inputs.save_dir):
+            os.makedirs(user_inputs.save_dir)
+    
         # run experiments
         run_experiment(user_inputs)
-
