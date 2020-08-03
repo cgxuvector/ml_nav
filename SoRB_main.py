@@ -9,6 +9,7 @@ from collections import namedtuple
 import argparse
 import torch
 import random
+import os
 import numpy as np
 import IPython.terminal.debugger as Debug
 
@@ -41,13 +42,13 @@ def parse_input():
     # set the training mode
     parser.add_argument("--train_local_policy", type=str, default="False", help="Whether train a local policy.")
     parser.add_argument("--device", type=str, default="cpu", help="Device to use")
-    parser.add_argument("--lr", type=float, default=1e-3, help="Learning rate")
+    parser.add_argument("--lr", type=float, default=1e-4, help="Learning rate")
     parser.add_argument("--start_train_step", type=int, default=1000, help="Start training time step")
     parser.add_argument("--sampled_goal_num", type=int, default=10, help="Number of sampled start and goal positions.")
     parser.add_argument("--train_episode_num", type=int, default=10, help="Number of training epochs for each sample.")
     parser.add_argument("--total_time_steps", type=int, default=50000, help="Total time steps")
     parser.add_argument("--episode_time_steps", type=int, default=100, help="Time steps per episode")
-    parser.add_argument("--eval_policy_freq", type=int, default=10, help="Evaluate the current learned policy frequency")
+    parser.add_argument("--eval_policy_freq", type=int, default=1000, help="Evaluate the current learned policy frequency")
     parser.add_argument("--dqn_update_target_freq", type=int, default=2000, help="Frequency of updating the target")
     parser.add_argument("--dqn_update_policy_freq", type=int, default=10, help="Frequency of updating the policy")
     parser.add_argument("--soft_target_update", type=str, default="True", help="Soft update flag")
@@ -74,6 +75,12 @@ def parse_input():
     parser.add_argument("--run_mode", type=str, default='trn', help="Whether train or evaluate the SoRB")
     parser.add_argument("--max_dist", type=int, default=1, help="Max distance")
     parser.add_argument("--gpu_acc", type=str, default='False', help="Whether use GPU to boost imagine rendering")
+    parser.add_argument("--use_rescale", type=str, default='False', help="Whether use pixel value between [0, 1]")
+
+    # evaluation
+    parser.add_argument("--model_maze_size", type=int, default=13)
+    parser.add_argument("--model_dist", type=int, default=1)
+    parser.add_argument("--model_seed", type=int, default=0)
 
     return parser.parse_args()
 
@@ -101,6 +108,9 @@ def strTobool(inputs):
     inputs.distributional_rl = True if inputs.distributional_rl == "True" else False
     # use GPU to accelerate
     inputs.gpu_acc = True if inputs.gpu_acc == "True" else False
+    # use rescale value
+    inputs.use_rescale = True if inputs.use_rescale == "True" else False
+    
     return inputs
 
 
@@ -126,10 +136,6 @@ def make_env(inputs):
         'height': str(observation_height),
         'fps': str(observation_fps)
     }
-    if inputs.gpu_acc:
-        render = 'hardware'
-    else:
-        render = 'software'
     # set the mazes
     if len(inputs.maze_size_list) == 1 or len(inputs.maze_size_list) == 2:
         maze_size = [int(inputs.maze_size_list)]
@@ -151,7 +157,6 @@ def make_env(inputs):
     lab = RandomMazeTileRaw(level_name,
                             observation_list,
                             configurations,
-                            render=render,
                             use_true_state=inputs.use_true_state,
                             reward_type="sparse-1",
                             dist_epsilon=1e-3)
@@ -173,7 +178,8 @@ def make_agent(inputs):
                              device=inputs.device,
                              use_distributional=True,
                              support_atoms=inputs.support_atoms,
-                             batch_size=inputs.batch_size
+                             batch_size=inputs.batch_size,
+                             use_rescale=inputs.use_rescale
                              )
     else:
         agent = GoalDQNAgent(dqn_mode=inputs.dqn_mode,
@@ -185,7 +191,8 @@ def make_agent(inputs):
                              use_gradient_clip=inputs.dqn_gradient_clip,
                              gamma=inputs.gamma,
                              device=inputs.device,
-                             use_distributional=False
+                             use_distributional=False,
+                             use_rescale=inputs.use_rescale
                              )
     return agent
 
@@ -228,7 +235,10 @@ def run_experiment(inputs):
         gamma=inputs.gamma,
         save_dir=inputs.save_dir,
         model_name=inputs.model_idx,
-        device=inputs.device
+        device=inputs.device,
+        use_rescale=inputs.use_rescale,
+        eval_policy_freq=inputs.eval_policy_freq,
+        args=inputs
     )
     # run the experiments
     if inputs.run_mode == 'trn':
@@ -244,60 +254,6 @@ def run_experiment(inputs):
                         f"{inputs.run_mode}")
 
 
-def split_trn_tst_mazes(args):
-    trn_size_list = []
-    trn_seed_list = []
-    tst_size_list = []
-    tst_seed_list = []
-    # convert string to list
-    seed_list = args.maze_seed_list.split(',') if len(args.maze_seed_list) > 1 else [args.maze_seed_list[0]]
-
-    if not args.mix_maze:
-        assert(len(args.maze_size_list) == 1 or len(args.maze_size_list) == 2), f"Invalid maze size input, expect only 1 size type, but get {len(args.maze_size_list)}"
-        assert(len(seed_list) >= args.trn_num_each_maze), f"The number of total mazes is smaller than the number" \
-                                                          f"of necessary training mazes."
-        for run in range(args.run_num):
-            # sample training mazes
-            tmp_trn_list = random.sample(seed_list, args.trn_num_each_maze)
-            tmp_tst_list = list(set(seed_list) - set(tmp_trn_list))
-            # convert to string
-            tmp_trn_seed_str = ','.join(tmp_trn_list) if len(tmp_trn_list) > 1 else tmp_trn_list[0]
-            if len(tmp_tst_list):
-                tmp_tst_seed_str = ','.join(tmp_tst_list) if len(tmp_tst_list) > 1 else tmp_tst_list[0]
-            else:
-                tmp_tst_seed_str = "null"
-            # save the current split
-            trn_size_list.append(args.maze_size_list)
-            tst_size_list.append(args.maze_size_list)
-            trn_seed_list.append(tmp_trn_seed_str)
-            tst_seed_list.append(tmp_tst_seed_str)
-    else:
-        assert(len(args.maze_size_list) > 1), f"Invalid maze size input, expect more than 1 maze type, but get {len(args.maze_size_list)}"
-        assert (len(seed_list) >= args.trn_num_each_maze), f"The number of total mazes is smaller than the number" \
-                                                           f"of necessary training mazes."
-
-        # sample mazes
-        trn_maze_str = "5,7,9,11"
-        tst_maze_str = "13,15,17,19,21"
-        for run in range(args.run_num):
-            # sample training mazes
-            tmp_trn_list = random.sample(seed_list, args.trn_num_each_maze)
-            tmp_tst_list = list(set(seed_list) - set(tmp_trn_list))
-            # convert to string
-            tmp_trn_seed_str = ','.join(tmp_trn_list)
-            if len(tmp_tst_list):
-                tmp_tst_seed_str = ','.join(tmp_tst_list) if len(tmp_tst_list) > 1 else tmp_tst_list[0]
-            else:
-                tmp_tst_seed_str = "null"
-            # save the current split
-            trn_size_list.append(trn_maze_str)
-            trn_seed_list.append(tmp_trn_seed_str)
-            tst_size_list.append(tst_maze_str)
-            tst_seed_list.append(tmp_tst_seed_str)
-
-    return trn_size_list, trn_seed_list, tst_size_list, tst_seed_list
-
-
 if __name__ == '__main__':
     # load the input parameters
     user_inputs = parse_input()
@@ -305,44 +261,31 @@ if __name__ == '__main__':
 
     # user input model index
     input_model_idx = user_inputs.model_idx
+    input_save_dir = user_inputs.save_dir
 
-    # split the data
-    assert(user_inputs.run_num >= user_inputs.fold_k), f"The number of run should be same as the fold number k."
-    random.seed(user_inputs.random_seed)
-    trn_size, trn_seed, tst_size, tst_seed = split_trn_tst_mazes(user_inputs)
+    # total seed list
+    total_seed_list = user_inputs.maze_seed_list.split(',')
 
-    # run the experiment for fix number of times
-    if user_inputs.fold_k != -1:
-        for r, size, seed, tst in zip(range(user_inputs.run_num), trn_size, trn_seed):
-            # set different random seed
-            user_inputs.random_seed = r
-
-            # set the random seed
-            random.seed(user_inputs.random_seed)
-            np.random.seed(user_inputs.random_seed)
-            torch.manual_seed(user_inputs.random_seed)
-
-            # reset the training mazes
-            user_inputs.maze_size_list = size
-            user_inputs.maze_seed_list = seed
-
-            # run the experiment
-            print(f"Run the {r + 1} experiment with random seed = {user_inputs.random_seed} using mazes size {size} and "
-                  f"seed {seed}")
-            user_inputs.model_idx = input_model_idx + f'_seed_{r}'
-
-            run_experiment(user_inputs)
-    else:
-        # set random seed
+    input_maze_size_list = user_inputs.maze_size_list.split(',') 
+    for s in input_maze_size_list:
+        # set the random seed for reproduce
         random.seed(user_inputs.random_seed)
         np.random.seed(user_inputs.random_seed)
         torch.manual_seed(user_inputs.random_seed)
 
-        # print information
-        print("Run experiment without k-fold cross validation")
+        # set the maze size list
+        user_inputs.maze_size_list = s
 
-        # run the experiment
-        run_experiment(user_inputs)
+        # print info
+        print(f"Run the experiment with random seed = {user_inputs.random_seed} using mazes size {s} and seed {user_inputs.maze_seed_list}")
 
+        # update the save directory
+        user_inputs.save_dir = input_save_dir + '/sorb/' + f'{s}x{s}' + f'/{user_inputs.random_seed}'
+        user_inputs.model_idx = input_model_idx + f'_{s}x{s}_obs_sorb_her'
 
+        # check the directory to store the results
+        #if not os.path.exists(user_inputs.save_dir):
+        #    os.makedirs(user_inputs.save_dir)
 
+        # run the experiments
+        run_experiment(user_inputs) 

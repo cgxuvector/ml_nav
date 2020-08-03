@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 import random
+import copy
 from utils import searchAlg
 import IPython.terminal.debugger as Debug
 
@@ -61,6 +62,8 @@ class RoughMap(object):
 
         # define the shuffle map
         self.map2d_imprecise = None
+        self.map2d_rough_imprecise = None
+        self.map2d_roughpad_imprecise = None
         # define the imprecise valid position
         self.imprecise_valid_pos = None
         self.imprecise_wall_pos = None
@@ -361,11 +364,6 @@ class RoughMap(object):
 
         for idx, pos in enumerate(path):
             local_maps.append(self.cropper(pad_map, pos))
-            tmp_loc = self.cropper(pad_map, pos)
-            plt.imshow(tmp_loc)
-            plt.axis('off')
-            plt.savefig(f'./loc_map_{idx}.png', dpi=50)
-            plt.show()
 
         return local_maps, pad_map
 
@@ -495,9 +493,9 @@ class RoughMap(object):
 
     def shuffle_map(self, ratio, shuffle_mode='wall2corridor'):
         # copy the accurate map
-        self.map2d_imprecise = self.map2d_grid.copy()
-        self.imprecise_valid_pos = self.valid_pos.copy()
-        self.imprecise_wall_pos = self.wall_pos.copy()
+        self.map2d_imprecise = copy.deepcopy(self.map2d_grid)
+        self.imprecise_valid_pos = copy.deepcopy(self.valid_pos)
+        self.imprecise_wall_pos = copy.deepcopy(self.wall_pos)
 
         # compute the shuffle number
         if shuffle_mode == 'wall2corridor':
@@ -559,14 +557,22 @@ class RoughMap(object):
             else:
                 raise Exception("Wrong shuffle mode")
 
+        self.map2d_rough_imprecise = np.ones(self.map2d_imprecise.shape) - self.map2d_imprecise
+        # pad the map
+        pad_step = int((self.loc_map_size - 1) / 2)
+        # create background
+        pad_map_size = int(self.map2d_rough_imprecise.shape[0] + 2 * pad_step)
+        self.map2d_roughpad_imprecise = np.zeros((pad_map_size, pad_map_size))
+        # insert the rough map
+        self.map2d_roughpad_imprecise[pad_step:pad_map_size-pad_step, pad_step:pad_map_size-pad_step] = self.map2d_rough_imprecise
 
-# size_list = [15]
+        print(self.map2d_grid)
+        print(self.map2d_imprecise)
+
+# size_list = [19]
 # seed_list = [17]
 # dist = 1
-# env_map = RoughMap(13, 0, 3)
-# plt.axis('off')
-# plt.imshow(env_map.map2d_rough)
-# plt.savefig('./13_bw.png', dpi=100)
+# env_map = RoughMap(19, 17, 3)
 #
 # tmp = env_map.map_grid2bw(env_map.map2d_grid)
 # plt.imshow(tmp)
@@ -597,8 +603,6 @@ class RoughMap(object):
 # plt.imshow(env_map.map2d_path)
 # plt.savefig(f'19-17_map_optimal_path_3.png', dpi=100)
 # plt.show()
-# size_list = [13]
-# seed_list = [12]
 # for size in size_list:
 #     for seed in seed_list:
 #         # for i in range(2000):
