@@ -69,7 +69,7 @@ class EvalPolicy(object):
                              torch.tensor([0, 0, 0, 0, 0, 0, 0, 1])]
         # load the vae model
         self.cvae = VAE.CVAE(64, use_small_obs=True)
-        self.cvae.load_state_dict(torch.load("/mnt/cheng_results/VAE/models/small_obs_L64_B8.pt", map_location=torch.device('cuda:0'))) 
+        self.cvae.load_state_dict(torch.load("/mnt/sda/dataset/ml_nav/VAE/model/small_obs_L64_B8.pt", map_location=torch.device('cuda:0'))) 
         self.cvae.eval()
         self.cvae = self.cvae.to(self.device)
         # save parameters
@@ -476,7 +476,7 @@ class EvalPolicy(object):
                     #init_mlb_map = np.load(f'./eval_results/mlb_map_{m_size}_{m_seed}_mix_{args.imprecise_rate}.npy')
                 else:
                     #init_mlb_map = self.build_mlb_from_2d_map(max_edge_len=1)
-                    init_mlb_map = np.load(f'/mnt/cheng_results/mlb_map_{m_size}_{m_seed}.npy')
+                    init_mlb_map = np.load(f'/mnt/sda/mlb_map_{m_size}_{m_seed}.npy')
                 
                 # obtain all the distance pairs 
                 total_pairs_dict = self.load_pair_data(m_size, m_seed)
@@ -547,6 +547,7 @@ class EvalPolicy(object):
                     # show results
                     print(f"Success count = {success_counter}, Total count = {run}")
                     print(f"Mean successful rate for distance = {g_dist} is {success_counter / run}")
+                    """
                     eval_results[f"{m_size}-{m_seed}-{g_dist}"] = float(success_counter) / run
    
                 # print info
@@ -558,9 +559,10 @@ class EvalPolicy(object):
                         tmp_str = key + ' ' + str(val) + '\n'
                         f.write(tmp_str)
                     f.close()
-
+                """
     def run_single_pair(self, s_pos, g_pos, mlb_map, mlb_graph):
         act_list = []
+        act_idx_list = []
         # success flag
         success_flag = False 
         # set the environment based on the sampled start and goal positions
@@ -600,7 +602,7 @@ class EvalPolicy(object):
                 action = self.agent.get_action(state_obs, next_obs, 0)
                 next_state, reward, done, dist, next_trans, _, _ = my_lab.step(action) 
                 sub_action_list.append(action)
-
+                act_idx_list.append(action)
                 with torch.no_grad():
                     current_state = self.toTensor(next_state) / 255
                     target_goal = self.toTensor(next_obs) / 255
@@ -621,15 +623,15 @@ class EvalPolicy(object):
                 if args.use_oracle:
                     if np.sum(abs(next_trans - np.array(next_pos_maze))) == 0:
                     #if reach_sub_goal == 1:
-                        #print(f'Reach the way point {next_pos_map} from {state_pos} with action = {ACTION_LIST[action]}')
+                        print(f'Reach the way point {next_pos_map} with action = {ACTION_LIST[action]}')
                         sub_nav_done = True
-#                        act_list.append(ACTION_LIST[action])
+                        act_list.append(ACTION_LIST[action])
                         break
                 else:
                     if reach_sub_goal == 1:
                         print(f'reach waypoint {next_pos_map}')
                         sub_nav_done = True
-#                        act_list.append(ACTION_LIST[action])
+                        act_list.append(ACTION_LIST[action])
                         break 
 
             # if agent fail to reach the way point
@@ -658,6 +660,7 @@ class EvalPolicy(object):
                     
                     #reversed_act = reversed_actions[action]
                     reversed_act = self.agent.get_action(state_obs, last_way_point_obs, 0)
+                    act_idx_list.append(reversed_act)
                     # take the step
                     next_state, reward, _, dist, next_trans, _, _ = my_lab.step(reversed_act)
                    
@@ -708,9 +711,9 @@ class EvalPolicy(object):
             # check the final terminal
             if nav_done:
                 success_flag = True
- #               if len(act_list) > len(self.env_map.path):
- #                   print(act_list)
- #                   Debug.set_trace()
+                if len(act_list) > len(self.env_map.path):
+                    print(act_idx_list)
+                    Debug.set_trace()
                 break
 
             if not nav_done and state_pos == goal_pos:
@@ -851,7 +854,7 @@ class EvalPolicy(object):
 
     
     def load_pair_data(self, m_size, m_seed):
-        path = f'/mnt/cheng_results/map/maze_{m_size}_{m_seed}.pkl'
+        path = f'/mnt/sda/map/maze_{m_size}_{m_seed}.pkl'
         # path = f'./results/6-16/maze_{m_size}_{m_seed}.pkl'
         f = open(path, 'rb')
         return pickle.load(f)
@@ -1058,7 +1061,7 @@ if __name__ == '__main__':
     elif eval_mode == 'imagine-local-policy':
         my_agent = GoalDQNAgent(use_true_state=args.use_true_state, use_small_obs=True, use_rescale=args.use_rescale, device=device, use_state_est=args.use_state_est)
         my_agent.policy_net.load_state_dict(
-             torch.load(f"/mnt/cheng_results/rl_results/7-7/our/{args.model_maze_size}-norm-{args.model_dist}/{args.model_maze_seed}/goal_ddqn_{args.model_maze_size}x{args.model_maze_size}_obs_maxdist_{args.model_dist}_add_terminal.pt",
+             torch.load(f"/mnt/sda/rl_results/our/{args.model_maze_seed}/goal_ddqn_{args.model_maze_size}x{args.model_maze_size}_obs_maxdist_{args.model_dist}_add_terminal.pt",
                         map_location=torch.device(args.device))
         )
         #my_agent.policy_net.load_state_dict(
