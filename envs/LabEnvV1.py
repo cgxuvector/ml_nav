@@ -5,7 +5,7 @@ from scipy import ndimage
 import matplotlib.pyplot as plt
 import time
 import IPython.terminal.debugger as Debug
-plt.rcParams.update({'font.size': 8})
+plt.rcParams.update({'font.size': 15})
 
 
 # actions in Deepmind

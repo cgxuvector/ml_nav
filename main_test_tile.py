@@ -15,6 +15,7 @@ DEFAULT_SIZE = [5, 7, 9, 11, 13, 15, 17, 19, 21]
 DEFAULT_SEED = list(range(20))
 
 
+# parser function
 def parse_input():
     parser = argparse.ArgumentParser()
     # set the agent
@@ -23,20 +24,21 @@ def parse_input():
     # set the env params
     parser.add_argument("--maze_size_list", type=str, default="5", help="Maze size list")
     parser.add_argument("--maze_seed_list", type=str, default="0", help="Maze seed list")
-    parser.add_argument("--fix_maze", type=str, default="True", help="Fix the maze")
-    parser.add_argument("--fix_start", type=str, default="True", help="Fix the start position")
-    parser.add_argument("--fix_goal", type=str, default="True", help="Fix the goal position")
+    parser.add_argument("--fix_maze", action='store_true', default=False, help="Fix the maze")
+    parser.add_argument("--fix_start", action='store_true', default=False, help="Fix the start position")
+    parser.add_argument("--fix_goal", action='store_true', default=False, help="Fix the goal position")
     parser.add_argument("--decal_freq", type=float, default=0.001, help="Wall decorator frequency")
-    parser.add_argument("--use_true_state", type=str, default="True", help="Using true state flag")
-    parser.add_argument("--use_small_obs", type=str, default='False', help="Using small observations flag")
-    parser.add_argument("--use_goal", type=str, default="False", help="Using goal conditioned flag")
+    parser.add_argument("--use_true_state", action='store_true', default=False, help="Using true state flag")
+    parser.add_argument("--use_small_obs", action='store_true', default=False, help="Using small observations flag")
+    parser.add_argument("--use_goal", action='store_true', default=False, help="Using goal conditioned flag")
     parser.add_argument("--goal_dist", type=int, default=-1, help="Set distance between start and goal")
     parser.add_argument("--use_imagine", type=float, default=0, help="Proportion of relabeled imagination goal")
+    parser.add_argument("--terminal_dist", type=float, default=4.0, help="Termination distance for one episode")
     # set the running mode
     parser.add_argument("--run_num", type=int, default=1, help="Number of run for each experiment.")
     parser.add_argument("--random_seed", type=int, default=0, help="Random seed")
     # set the training mode
-    parser.add_argument("--train_local_policy", type=str, default="False", help="Whether train a local policy.")
+    parser.add_argument("--train_local_policy", action='store_true', default=False, help="Whether train a local policy.")
     parser.add_argument("--device", type=str, default="cpu", help="Device to use")
     parser.add_argument("--lr", type=float, default=1e-4, help="Learning rate")
     parser.add_argument("--start_train_step", type=int, default=1000, help="Start training time step")
@@ -47,55 +49,25 @@ def parse_input():
     parser.add_argument("--eval_policy_freq", type=int, default=10, help="Evaluate the current learned policy frequency")
     parser.add_argument("--dqn_update_target_freq", type=int, default=1000, help="Frequency of updating the target")
     parser.add_argument("--dqn_update_policy_freq", type=int, default=4, help="Frequency of updating the policy")
-    parser.add_argument("--soft_target_update", type=str, default="False", help="Soft update flag")
-    parser.add_argument("--dqn_gradient_clip", type=str, default="False", help="Clip the gradient flag")
-    parser.add_argument("--mix_maze", type=str, default="False", help="If set true, then the training mazes are mixed size")
-    # parser.add_argument("--fold_k", type=int, default=-1, help="Cross validation, k = -1 means no k-fold")
+    parser.add_argument("--soft_target_update", action='store_true', default=False, help="Soft update flag")
+    parser.add_argument("--dqn_gradient_clip", action='store_true', default=False, help="Clip the gradient flag")
     parser.add_argument("--train_maze_num", type=int, default=1, help="Number of the training mazes")
     # set the memory params
     parser.add_argument("--memory_size", type=int, default=20000, help="Memory size or replay buffer size")
     parser.add_argument("--batch_size", type=int, default=64, help="Size of the mini-batch")
-    parser.add_argument("--use_memory", type=str, default="True", help="If true, use the memory")
-    parser.add_argument("--use_her", type=str, default="False", help="If true, use the Hindsight Experience Replay")
+    parser.add_argument("--use_memory", action='store_true', default=False, help="If true, use the memory")
+    parser.add_argument("--use_her", action='store_true', default=False, help="If true, use the Hindsight Experience Replay")
     parser.add_argument("--future_k", type=int, default=4, help="Number of sampling future states")
     # set RL params
     parser.add_argument("--gamma", type=float, default=0.99, help="Gamma")
     # set the saving params
-    parser.add_argument("--model_idx", type=str, default=None, help="model index")
+    parser.add_argument("--model_name", type=str, default=None, help="model name")
     parser.add_argument("--save_dir", type=str, default=None, help="saving folder")
     # add new strategy
-    parser.add_argument("--use_cycle_relabel", type=str, default='False', help='whether use the cycle relabel strategy')
-    parser.add_argument("--use_rescale", type=str, default='False', help='whether rescale the value to [0,1]')
-    parser.add_argument("--use_state_est", type=str, default='False', help='whether estimate the state')
+    parser.add_argument("--use_rescale", action='store_true', default=False, help='whether rescale the value to [0,1]')
+    parser.add_argument("--use_state_est", action='store_true', default=False, help='whether estimate the state')
     parser.add_argument("--alpha", type=float, default=1.0, help='hyperparameter for the two head case')
-
     return parser.parse_args()
-
-
-# convert the True/False from str to bool
-def strTobool(inputs):
-    # set params of mazes
-    inputs.fix_maze = True if inputs.fix_maze == "True" else False
-    inputs.fix_start = True if inputs.fix_start == "True" else False
-    inputs.fix_goal = True if inputs.fix_goal == "True" else False
-    inputs.use_small_obs = True if inputs.use_small_obs == "True" else False
-    inputs.use_true_state = True if inputs.use_true_state == "True" else False
-    inputs.use_goal = True if inputs.use_goal == "True" else False 
-    # set params of training
-    inputs.train_local_policy = True if inputs.train_local_policy == "True" else False
-    inputs.use_memory = True if inputs.use_memory == "True" else False
-    inputs.soft_target_update = True if inputs.soft_target_update == 'True' else False
-    inputs.dqn_gradient_clip = True if inputs.dqn_gradient_clip == 'True' else False
-    # set params of HER
-    inputs.use_her = True if inputs.use_her == "True" else False
-    # use mixed mazes as training
-    inputs.mix_maze = True if inputs.mix_maze == "True" else False
-    # use cycle relabeling during training
-    inputs.use_cycle_relabel = True if inputs.use_cycle_relabel == "True" else False
-    inputs.use_rescale = True if inputs.use_rescale == "True" else False
-    inputs.use_state_est = True if inputs.use_state_est == "True" else False
-
-    return inputs
 
 
 # make the environment
@@ -107,6 +79,7 @@ def make_env(inputs):
         'RGB.LOOK_RANDOM_PANORAMA_VIEW',
         'RGB.LOOK_TOP_DOWN_VIEW'
     ]
+    # set the observation size
     if inputs.use_small_obs:
         observation_width = 32
         observation_height = 32
@@ -121,27 +94,21 @@ def make_env(inputs):
         'fps': str(observation_fps)
     }
     # set the mazes
-    if len(inputs.maze_size_list) == 1:
-        maze_size = [int(inputs.maze_size_list)]
-    else:
-        maze_size = [int(s) for s in inputs.maze_size_list.split(",")]
-    if len(inputs.maze_seed_list) == 1:
-        maze_seed = [int(inputs.maze_seed_list)]
-    else:
-        maze_seed = [int(s) for s in inputs.maze_seed_list.split(",")]
-    assert set(maze_size) <= set(DEFAULT_SIZE), f"Input contains invalid maze size. Expect a subset of {DEFAULT_SIZE}, " \
-                                                f"but get {maze_size}."
-    assert set(maze_seed) <= set(DEFAULT_SEED), f"Input contains invalid maze seed. Expect a subset of {DEFAULT_SEED}, " \
-                                                f"but get {maze_seed}."
+    maze_size_list = [int(m_s) for m_s in inputs.maze_size_list.split(",")]
+    maze_seed_list = [int(m_s) for m_s in inputs.maze_seed_list.split(",")]
+    assert set(maze_size_list) <= set(DEFAULT_SIZE), f"Containing invalid maze size. Expect a subset of" \
+                                                     f" {DEFAULT_SIZE}, but get {maze_size_list}."
+    assert set(maze_seed_list) <= set(DEFAULT_SEED), f"Containing invalid maze seed. Expect a subset of" \
+                                                     f" {DEFAULT_SEED}, but get {maze_seed_list}."
     # create the environment
     lab = RandomMazeTileRaw(level_name,
                             observation_list,
                             configurations,
                             use_true_state=inputs.use_true_state,
                             reward_type="sparse-1",
-                            dist_epsilon=1e-3)
+                            dist_epsilon=inputs.terminal_dist)
     
-    return lab, maze_size, maze_seed
+    return lab, maze_size_list, maze_seed_list
 
 
 # make the agent
@@ -186,10 +153,8 @@ def run_experiment(inputs):
     # create the transition
     if not inputs.use_goal:
         transition = namedtuple("transition", ["state", "action", "reward", "next_state", "done"])
-    elif not inputs.use_cycle_relabel:
-        transition = namedtuple("transition", ["state", "action", "reward", "next_state", "goal", "done"])
     else:
-        transition = namedtuple("transition", ["state", "action", "reward", "next_state", "init", "goal", "done"])
+        transition = namedtuple("transition", ["state", "action", "reward", "next_state", "goal", "done"])
     # create the experiment
     my_experiment = Experiment(
         env=my_lab,
@@ -218,10 +183,9 @@ def run_experiment(inputs):
         batch_size=inputs.batch_size,
         gamma=inputs.gamma,
         save_dir=inputs.save_dir,
-        model_name=inputs.model_idx,
+        model_name=inputs.model_name,
         use_imagine=inputs.use_imagine,
         device=inputs.device,
-        use_cycle_relabel=inputs.use_cycle_relabel
     )
     
     # run the experiments
@@ -236,43 +200,52 @@ def run_experiment(inputs):
                 my_experiment.run_random_local_goal_dqn_her()
     else:
         # train a vanilla policy
-        # my_experiment.run_dqn()
-        my_experiment.run_maze_complexity_comparison()
- 
+        my_experiment.run_dqn()
+
+
 if __name__ == '__main__':
     # load the input parameters
     user_inputs = parse_input()
-    user_inputs = strTobool(user_inputs)
 
     # user input model index
-    input_model_idx = user_inputs.model_idx
+    input_model_name = user_inputs.model_name
     input_save_dir = user_inputs.save_dir
 
     # total seed list
     total_seed_list = user_inputs.maze_seed_list.split(',')
 
+    """ Experiment Paradigm
+        - One run for different sizes of mazes
+        - Sample #train_maze_num mazes for training
+    """
     # run experiments 
-    input_maze_size_list_init = user_inputs.maze_size_list.split(',')
-    input_maze_seed_list_init = user_inputs.maze_seed_list.split(',') 
+    input_maze_size_list_init = user_inputs.maze_size_list.split(',')  # obtain all maze sizes
+    input_maze_seed_list_init = user_inputs.maze_seed_list.split(',')  # obtain all maze seeds
+    # loop maze sizes
     for s in input_maze_size_list_init:
         # set random seed for reproduce
         random.seed(user_inputs.random_seed)
         np.random.seed(user_inputs.random_seed)
         torch.manual_seed(user_inputs.random_seed)
-
-        # shuffle the seed list
-        input_maze_seed_shuffle = input_maze_seed_list_init.copy() 
-        np.random.shuffle(input_maze_seed_shuffle)
         
-        # set the maze size list
-        user_inputs.maze_size_list = s 
+        # set the training maze size list
+        user_inputs.maze_size_list = s
+
+        # set the training maze seed list
+        input_maze_seed_shuffle = input_maze_seed_list_init.copy()
+        np.random.shuffle(input_maze_seed_shuffle)
         user_inputs.maze_seed_list = ','.join(random.sample(input_maze_seed_shuffle, user_inputs.train_maze_num))
+
         # print info
-        print(f"Run the experiment with random seed = {user_inputs.random_seed} using mazes size {s} and seed {user_inputs.maze_seed_list}")
+        print(f"Run the experiment with random seed = {user_inputs.random_seed} using mazes size {s} and"
+              f" seed {user_inputs.maze_seed_list}")
         
         # update the save directory
-        user_inputs.save_dir = input_save_dir + '/multi_mazes/' + f'{s}-norm-{user_inputs.goal_dist}' + f'/{user_inputs.random_seed}'
-        user_inputs.model_idx = input_model_idx + f'_{s}x{s}_obs_maxdist_{user_inputs.goal_dist}_add_terminal' 
+        if user_inputs.train_maze_num > 1:
+            user_inputs.save_dir = input_save_dir + '/few_shot/' + f'{s}-{user_inputs.goal_dist}' + f'/{user_inputs.random_seed}'
+        else:
+            user_inputs.save_dir = input_save_dir + '/one_shot/' + f'{s}-{user_inputs.goal_dist}' + f'/{user_inputs.random_seed}'
+        user_inputs.model_name = input_model_name + f'_{s}x{s}_obs_dist_{user_inputs.goal_dist}'
         
         # check the directory to store the results
         if not os.path.exists(user_inputs.save_dir):

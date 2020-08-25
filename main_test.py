@@ -16,65 +16,60 @@ DEFAULT_SEED = list(range(20))
 def parse_input():
     parser = argparse.ArgumentParser()
     # set the agent
-    parser.add_argument("--agent", type=str, default="random", help="Type of the agent. (random, dqn, goal-dqn)")
-    parser.add_argument("--dqn_mode", type=str, default="vanilla", help="Type of the DQN. (vanilla, double)")
+    parser.add_argument("--agent", type=str, default="random", help="Type of the agent (random, dqn, goal-dqn)")
+    parser.add_argument("--dqn_mode", type=str, default="vanilla", help="Type of the DQN (vanilla, double)")
     # set the env params
-    parser.add_argument("--maze_size_list", type=str, default="5", help="Maze size list. [5, 7, 9, 11, 13]")
-    parser.add_argument("--maze_seed_list", type=str, default="0", help="Maze seed list. [0, 1, 2 .. ,19]")
-    parser.add_argument("--fix_maze", type=str, default="True", help="Fix the maze.")
-    parser.add_argument("--fix_start", type=str, default="True", help="Fix the start position.")
-    parser.add_argument("--fix_goal", type=str, default="True", help="Fix the goal position.")
-    parser.add_argument("--train_episode_num", type=int, default=10, help="Number of training epochs for each sample")
-    parser.add_argument("--sampled_goal_num", type=int, default=5, help="Number of sampled start and goal positions")
+    parser.add_argument("--maze_size_list", type=str, default="5", help="Maze size list")
+    parser.add_argument("--maze_seed_list", type=str, default="0", help="Maze seed list")
+    parser.add_argument("--fix_maze", action='store_true', default=False, help="Fix the maze")
+    parser.add_argument("--fix_start", action='store_true', default=False, help="Fix the start position")
+    parser.add_argument("--fix_goal", action='store_true', default=False, help="Fix the goal position")
+    parser.add_argument("--decal_freq", type=float, default=0.001, help="Wall decorator frequency")
+    parser.add_argument("--use_true_state", action='store_true', default=False, help="Using true state flag")
+    parser.add_argument("--use_small_obs", action='store_true', default=False, help="Using small observations flag")
+    parser.add_argument("--use_goal", action='store_true', default=False, help="Using goal conditioned flag")
+    parser.add_argument("--goal_dist", type=int, default=-1, help="Set distance between start and goal")
+    parser.add_argument("--use_imagine", type=float, default=0, help="Proportion of relabeled imagination goal")
+    parser.add_argument("--terminal_dist", type=float, default=4.0, help="Termination distance for one episode")
     # set the running mode
-    parser.add_argument("--rnd_seed", type=int, default=1234, help="Random seed")
+    parser.add_argument("--run_num", type=int, default=1, help="Number of run for each experiment.")
+    parser.add_argument("--random_seed", type=int, default=0, help="Random seed")
     # set the training mode
+    parser.add_argument("--train_local_policy", action='store_true', default=False, help="Whether train a local policy.")
     parser.add_argument("--device", type=str, default="cpu", help="Device to use")
-    parser.add_argument("--lr", type=float, default=1e-3, help="Learning rate")
-    parser.add_argument("--start_train_steps", type=int, default=1000, help="Start training time step")
-    parser.add_argument("--total_time_steps", type=int, default=1000000, help="Total time steps")
-    parser.add_argument("--episode_time_steps", type=int, default=2000, help="Time steps per episode")
-    parser.add_argument("--dqn_update_target_net", type=int, default=10, help="Frequency of updating the target")
-    parser.add_argument("--dqn_update_policy_net", type=int, default=4, help="Frequency of updating the policy")
-    parser.add_argument("--soft_target_update_tau", type=float, default=0.05, help="Soft update factor")
-    parser.add_argument("--dqn_gradient_clip", type=str, default="False", help="If true, clip the gradient")
+    parser.add_argument("--lr", type=float, default=1e-4, help="Learning rate")
+    parser.add_argument("--start_train_step", type=int, default=1000, help="Start training time step")
+    parser.add_argument("--sampled_goal_num", type=int, default=10, help="Number of sampled start and goal positions.")
+    parser.add_argument("--train_episode_num", type=int, default=10, help="Number of training epochs for each sample.")
+    parser.add_argument("--total_time_steps", type=int, default=50000, help="Total time steps")
+    parser.add_argument("--episode_time_steps", type=int, default=100, help="Time steps per episode")
+    parser.add_argument("--eval_policy_freq", type=int, default=10, help="Evaluate the current learned policy frequency")
+    parser.add_argument("--dqn_update_target_freq", type=int, default=1000, help="Frequency of updating the target")
+    parser.add_argument("--dqn_update_policy_freq", type=int, default=4, help="Frequency of updating the policy")
+    parser.add_argument("--soft_target_update", action='store_true', default=False, help="Soft update flag")
+    parser.add_argument("--dqn_gradient_clip", action='store_true', default=False, help="Clip the gradient flag")
+    parser.add_argument("--train_maze_num", type=int, default=1, help="Number of the training mazes")
     # set the memory params
     parser.add_argument("--memory_size", type=int, default=20000, help="Memory size or replay buffer size")
     parser.add_argument("--batch_size", type=int, default=64, help="Size of the mini-batch")
-    parser.add_argument("--use_memory", type=str, default="True", help="If true, use the memory")
+    parser.add_argument("--use_memory", action='store_true', default=False, help="If true, use the memory")
+    parser.add_argument("--use_her", action='store_true', default=False, help="If true, use the Hindsight Experience Replay")
+    parser.add_argument("--future_k", type=int, default=4, help="Number of sampling future states")
     # set RL params
-    parser.add_argument("--gamma", type=float, default=0.995, help="Gamma")
+    parser.add_argument("--gamma", type=float, default=0.99, help="Gamma")
     # set the saving params
-    parser.add_argument("--model_idx", type=str, default=None, help="model index")
+    parser.add_argument("--model_name", type=str, default=None, help="model name")
     parser.add_argument("--save_dir", type=str, default=None, help="saving folder")
-    # set goal-conditioned
-    parser.add_argument("--use_goal", type=str, default="False", help="whether using goal conditioned strategy")
-    # set smaller observations
-    parser.add_argument("--use_small_obs", type=str, default='True', help="whether using small observations")
-    # set goal distance
-    parser.add_argument("--goal_dist", type=int, default=1, help="distance between start and goal")
+    # add new strategy
+    parser.add_argument("--use_rescale", action='store_true', default=False, help='whether rescale the value to [0,1]')
+    parser.add_argument("--use_state_est", action='store_true', default=False, help='whether estimate the state')
+    parser.add_argument("--alpha", type=float, default=1.0, help='hyperparameter for the two head case')
     return parser.parse_args()
-
-
-def strTobool(inputs):
-    # set params of mazes
-    inputs.fix_maze = True if inputs.fix_maze == "True" else False
-    inputs.fix_start = True if inputs.fix_start == "True" else False
-    inputs.fix_goal = True if inputs.fix_goal == "True" else False
-    # set params of training
-    inputs.use_memory = True if inputs.use_memory == "True" else False
-    inputs.dqn_gradient_clip = True if inputs.dqn_gradient_clip == 'True' else False
-    # set params of goal
-    inputs.use_goal = True if inputs.use_goal == "True" else False
-    # set params of observation
-    inputs.use_small_obs = True if inputs.use_small_obs == "True" else False
-    return inputs
 
 
 if __name__ == '__main__':
     """ Load the input arguments """
     inputs = parse_input()
-    inputs = strTobool(inputs)
 
     """ Set up the Deepmind environment"""
     # necessary observations (correct: this is the egocentric observations (following the counter clock direction))

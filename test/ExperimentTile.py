@@ -53,7 +53,6 @@ class Experiment(object):
                  model_name=None,
                  use_imagine=0,  # imagination flag
                  device='cpu',
-                 use_cycle_relabel=False,  # whether use cycle relabeling strategy
                  use_state_est=False
                  ):
         self.device = torch.device(device)
