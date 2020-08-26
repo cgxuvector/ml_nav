@@ -38,7 +38,7 @@ def parse_input():
     parser.add_argument("--run_num", type=int, default=1, help="Number of run for each experiment.")
     parser.add_argument("--random_seed", type=int, default=0, help="Random seed")
     # set the training mode
-    parser.add_argument("--train_local_policy", action='store_true', default=False, help="Whether train a local policy.")
+    parser.add_argument("--train_random_policy", action='store_true', default=False, help="Whether train a local policy.")
     parser.add_argument("--device", type=str, default="cpu", help="Device to use")
     parser.add_argument("--lr", type=float, default=1e-4, help="Learning rate")
     parser.add_argument("--start_train_step", type=int, default=1000, help="Start training time step")
@@ -61,8 +61,8 @@ def parse_input():
     # set RL params
     parser.add_argument("--gamma", type=float, default=0.99, help="Gamma")
     # set the saving params
-    parser.add_argument("--model_name", type=str, default=None, help="model name")
-    parser.add_argument("--save_dir", type=str, default=None, help="saving folder")
+    parser.add_argument("--model_name", type=str, default='null', help="model name")
+    parser.add_argument("--save_dir", type=str, default='./', help="saving folder")
     # add new strategy
     parser.add_argument("--use_rescale", action='store_true', default=False, help='whether rescale the value to [0,1]')
     parser.add_argument("--use_state_est", action='store_true', default=False, help='whether estimate the state')
@@ -147,7 +147,7 @@ def make_agent(inputs):
 # run experiment
 def run_experiment(inputs):
     # create the environment
-    my_lab, size, seed = make_env(inputs)
+    my_lab, size_list, seed_list = make_env(inputs)
     # create the agent
     my_agent = make_agent(inputs)
     # create the transition
@@ -159,8 +159,8 @@ def run_experiment(inputs):
     my_experiment = Experiment(
         env=my_lab,
         agent=my_agent,
-        maze_list=size,
-        seed_list=seed,
+        maze_list=size_list,
+        seed_list=seed_list,
         decal_freq=inputs.decal_freq,
         fix_maze=inputs.fix_maze,
         fix_start=inputs.fix_start,
@@ -168,7 +168,7 @@ def run_experiment(inputs):
         use_goal=inputs.use_goal,
         goal_dist=inputs.goal_dist,
         use_true_state=inputs.use_true_state,
-        train_local_policy=inputs.train_local_policy,
+        train_random_policy=inputs.train_random_policy,
         sample_start_goal_num=inputs.sampled_goal_num,
         train_episode_num=inputs.train_episode_num,
         start_train_step=inputs.start_train_step,
@@ -180,24 +180,26 @@ def run_experiment(inputs):
         future_k=inputs.future_k,
         buffer_size=inputs.memory_size,
         transition=transition,
+        learning_rate=inputs.lr,
         batch_size=inputs.batch_size,
         gamma=inputs.gamma,
         save_dir=inputs.save_dir,
         model_name=inputs.model_name,
         use_imagine=inputs.use_imagine,
         device=inputs.device,
+        use_state_est=inputs.use_state_est
     )
     
     # run the experiments
     if inputs.use_goal:
         # train a global goal-conditioned policy
-        if not inputs.train_local_policy:
+        if not inputs.train_random_policy:
             my_experiment.run_goal_dqn()
         else:  # train a local goal-conditioned policy
             if not inputs.use_her:
                 my_experiment.run_random_local_goal_dqn()
             else:
-                my_experiment.run_random_local_goal_dqn_her()
+                my_experiment.run_random_goal_dqn_her()
     else:
         # train a vanilla policy
         my_experiment.run_dqn()
@@ -234,7 +236,10 @@ if __name__ == '__main__':
         # set the training maze seed list
         input_maze_seed_shuffle = input_maze_seed_list_init.copy()
         np.random.shuffle(input_maze_seed_shuffle)
-        user_inputs.maze_seed_list = ','.join(random.sample(input_maze_seed_shuffle, user_inputs.train_maze_num))
+        if len(input_maze_seed_list_init) > user_inputs.train_maze_num:
+            user_inputs.maze_seed_list = ','.join(random.sample(input_maze_seed_shuffle, user_inputs.train_maze_num))
+        else:
+            user_inputs.maze_seed_list = ','.join(input_maze_seed_shuffle)
 
         # print info
         print(f"Run the experiment with random seed = {user_inputs.random_seed} using mazes size {s} and"

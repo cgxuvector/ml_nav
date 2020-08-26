@@ -27,7 +27,9 @@ VALID_OBS = ['RGBD_INTERLEAVED',
              'RGB.LOOK_PANORAMA_VIEW',
              'RGB.LOOK_TOP_DOWN_VIEW',
              'DEBUG.POS.TRANS',
-             'DEBUG.POS.ROT'
+             'DEBUG.POS.ROT',
+             'VEL.TRANS',
+             'VEL.ROT'
             ]
 
 
