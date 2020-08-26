@@ -491,7 +491,7 @@ class RoughMap(object):
         goal_pos_list = [self.valid_pos[idx] for idx in pairs[1].tolist()] if len(pairs[1]) > 0 else None
         return {'start': start_pos_list, 'goal': goal_pos_list}
 
-    def shuffle_map(self, ratio, shuffle_mode='wall2corridor'): 
+    def shuffle_map(self, ratio, shuffle_mode='wall2corridor'):
         # copy the accurate map
         self.map2d_imprecise = copy.deepcopy(self.map2d_grid)
         self.imprecise_valid_pos = copy.deepcopy(self.valid_pos)
@@ -556,7 +556,7 @@ class RoughMap(object):
                         self.map2d_imprecise[pos[0], pos[1]] = 1.0
             else:
                 raise Exception("Wrong shuffle mode")
-        
+
         self.map2d_rough_imprecise = np.ones(self.map2d_imprecise.shape) - self.map2d_imprecise
         # pad the map
         pad_step = int((self.loc_map_size - 1) / 2)
@@ -569,19 +569,28 @@ class RoughMap(object):
         print(self.map2d_grid)
         print(self.map2d_imprecise)
 
-# size_list = [19]
-# seed_list = [17]
-# dist = 1
-# env_map = RoughMap(19, 17, 3)
+
+# env_map = RoughMap(7, 21, 3)
 #
-# tmp = env_map.map_grid2bw(env_map.map2d_grid)
-# plt.imshow(tmp)
+# plt.imshow(env_map.map2d_bw)
 # plt.axis('off')
-# env_map.shuffle_map(0.2, 'mixed')
 # plt.show()
-# tmp_shuffle = env_map.map_grid2bw(env_map.map2d_imprecise)
-# plt.imshow(tmp_shuffle)
-# plt.show()
+
+# path_1 = [np.array([1, 11]), np.array([1, 10]), np.array([1, 9]), np.array([2, 9]), np.array([3, 9]),
+#           np.array([16, 3]), np.array([17, 3]), np.array([17, 3]), np.array([17, 4]), np.array([17, 5]),
+#           np.array([17, 6]), np.array([16, 6]), np.array([17, 6]), np.array([17, 7]), np.array([17, 8]),
+#           np.array([17, 9]), np.array([16, 9]), np.array([15, 9]), np.array([14, 9]), np.array([13, 9]),
+#           np.array([12, 9]), np.array([11, 9]), np.array([10, 9]), np.array([9, 9]), np.array([9, 8]),
+#           np.array([8, 8]), np.array([9, 8]), np.array([10, 9]), np.array([10, 10]), np.array([10, 11]),
+#           np.array([9, 11]), np.array([10, 11]), np.array([9, 11]), np.array([8, 11]), np.array([7, 11]),
+#           np.array([7, 12]), np.array([7, 13]), np.array([8, 13]), np.array([9, 13]), np.array([9, 14]),
+#           np.array([9, 15]), np.array([8, 15]), np.array([7, 15]), np.array([6, 15]), np.array([5, 15]),
+#           np.array([4, 15]), np.array([3, 15]), np.array([3, 14]), np.array([3, 13]), np.array([3, 12]),
+#           np.array([3, 11]), np.array([3, 10]), np.array([3, 9]), np.array([3, 8]), np.array([3, 7]),
+#           np.array([3, 6]), np.array([3, 5])]
+#
+# env_map.map2d_path = env_map.show_path(path_1, env_map.map2d_grid)
+# plt.axis('off')
 
 # plot avoid ill learned behavior
 # env_map.update_mapper([17, 1], [3, 5])

@@ -82,11 +82,9 @@ class RandomMaze(object):
         self._trans = None
         # orientation info
         self._rots = None
-
         # velocity
         self._trans_vel = None
         self._rots_vel = None
-
         """ 
             Default configuration parameters for the maze on the txt map.
         """
@@ -119,7 +117,7 @@ class RandomMaze(object):
         # reward configurations
         self.reward_type = reward_type
         # terminal conditions
-        self.dist_epsilon = 4
+        self.dist_epsilon = dist_epsilon
 
         # plotting objects
         self.fig, self.arrays = None, None

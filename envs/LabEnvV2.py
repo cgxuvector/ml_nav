@@ -5,7 +5,7 @@ from scipy import ndimage
 import matplotlib.pyplot as plt
 import IPython.terminal.debugger as Debug
 
-plt.rcParams.update({'font.size': 8})
+plt.rcParams.update({'font.size': 15})
 
 
 # actions in Deepmind
@@ -57,7 +57,7 @@ class RandomMazeTileRaw(object):
         self._lab = deepmind_lab.Lab(self._level_name,
                                      self._observation_names,
                                      self._level_configs,
-                                     renderer='hardware'
+                                     renderer='software'
                                      )
 
         """ observations from the maze """
@@ -168,8 +168,8 @@ class RandomMazeTileRaw(object):
         if configs['start_pos']:
             self.start_pos = configs['start_pos'] if configs['start_pos'] else self.start_pos
             if not self._use_state:
-                # maze_init_pos = self.position_map2maze(self.start_pos, self.maze_size)
-                maze_init_pos = [0, 0, 0]
+                maze_init_pos = self.position_map2maze(self.start_pos, self.maze_size)
+                # maze_init_pos = [0, 0, 0]
                 self._lab.write_property("params.start_pos.x", str(maze_init_pos[0]))
                 self._lab.write_property("params.start_pos.y", str(maze_init_pos[1]))
                 self._lab.write_property("params.start_pos.yaw", str(maze_init_pos[2]))
@@ -178,9 +178,9 @@ class RandomMazeTileRaw(object):
             self.goal_pos = configs['goal_pos'] if configs['goal_pos'] else self.goal_pos
             if not self._use_state:
                 maze_goal_pos = self.position_map2maze(self.goal_pos, self.maze_size)
-                # self._lab.write_property("params.goal_pos.x", str(maze_goal_pos[0]))
-                # self._lab.write_property("params.goal_pos.y", str(maze_goal_pos[1]))
-                # self._lab.write_property("params.goal_pos.yaw", str(maze_goal_pos[2]))
+                self._lab.write_property("params.goal_pos.x", str(maze_goal_pos[0]))
+                self._lab.write_property("params.goal_pos.y", str(maze_goal_pos[1]))
+                self._lab.write_property("params.goal_pos.yaw", str(maze_goal_pos[2]))
                 # send the view position
                 self._lab.write_property("params.view_pos.x", str(maze_goal_pos[0]))
                 self._lab.write_property("params.view_pos.y", str(maze_goal_pos[1]))
@@ -193,7 +193,7 @@ class RandomMazeTileRaw(object):
             else:
                 self._lab.reset()
 
-            for i in range(1):
+            for i in range(10):
                 self._lab.step(ACTION_LIST[4], num_steps=4)
 
         """ initialize the 3D maze"""
@@ -207,12 +207,13 @@ class RandomMazeTileRaw(object):
         self._top_down_obs = self._current_state['RGB.LOOK_TOP_DOWN_VIEW'] if not self._use_state else None
         # plt.axis('off')
         # plt.imshow(ndimage.rotate(self._top_down_obs, -90))
-        # plt.savefig(f'{self.maze_size[0]}_{self.maze_size[1]}_top_down.png', dpi=300)
+        # plt.savefig(f'{self.maze_size[0]}_{self.maze_size[1]}_top_down.png', dpi=100)
         # for i in range(8):
         #     plt.axis('off')
         #     plt.imshow(self._last_observation[i])
         #     plt.savefig(f'{self.maze_size[0]}_{self.maze_size[1]}_front_view_{i}.png', dpi=300)
-        # plt.imshow()
+        # plt.show()
+        # Debug.set_trace()
         # initialize the goal observations
         self._goal_observation = self.get_random_observations_tile(self.goal_pos) if not self._use_state else self.goal_pos
         # initialize the positions and orientations
@@ -247,6 +248,7 @@ class RandomMazeTileRaw(object):
         if self._lab.is_running() or self._use_state:  # If the maze is still running
             # get the next observations
             self._last_observation = self.get_random_observations_tile(self.current_pos) if not self._use_state else self.current_pos
+            self._goal_observation = self.get_random_observations_tile(self.goal_pos)
             # get the next position
             pos_x, pos_y, pos_z = self.position_map2maze(self.current_pos, self.maze_size) if not self._use_state else self.current_pos
             # get the next orientations
@@ -267,6 +269,7 @@ class RandomMazeTileRaw(object):
             terminal = True
             # set the current observation
             self._last_observation = np.copy(self._last_observation)
+            self._goal_observation = np.copy(self._goal_observation)
             # set the top down observation
             self._top_down_obs = np.copy(self._top_down_obs)
             # set the position and orientations
@@ -361,47 +364,47 @@ class RandomMazeTileRaw(object):
 
         # init or update data
         if time_step is None:
-            self.fig, self.arrays = plt.subplots(3, 3)
-            self.arrays[0, 1].set_title("Front view")
+            self.fig, self.arrays = plt.subplots(3, 3, figsize=(9, 9))
+            self.arrays[0, 1].set_title("North view")
             self.arrays[0, 1].axis("off")
             self.img_artists.append(self.arrays[0, 1].imshow(observations[0]))
-            self.arrays[0, 0].set_title("Front-left view")
+            self.arrays[0, 0].set_title("Northwest view")
             self.arrays[0, 0].axis("off")
             self.img_artists.append(self.arrays[0, 0].imshow(observations[1]))
-            self.arrays[1, 0].set_title("Left view")
+            self.arrays[1, 0].set_title("West view")
             self.arrays[1, 0].axis("off")
             self.img_artists.append(self.arrays[1, 0].imshow(observations[2]))
             self.arrays[1, 1].set_title("Top-down view")
             self.arrays[1, 1].axis("off")
             self.img_artists.append(self.arrays[1, 1].imshow(ndimage.rotate(self._top_down_obs, -90)))
             # self.img_artists.append(None)
-            self.arrays[2, 0].set_title("Back-left view")
+            self.arrays[2, 0].set_title("Southwest view")
             self.arrays[2, 0].axis("off")
             self.img_artists.append(self.arrays[2, 0].imshow(observations[3]))
-            self.arrays[2, 1].set_title("Back view")
+            self.arrays[2, 1].set_title("South view")
             self.arrays[2, 1].axis("off")
             self.img_artists.append(self.arrays[2, 1].imshow(observations[4]))
-            self.arrays[2, 2].set_title("Back-right view")
+            self.arrays[2, 2].set_title("Southeast view")
             self.arrays[2, 2].axis("off")
             self.img_artists.append(self.arrays[2, 2].imshow(observations[5]))
-            self.arrays[1, 2].set_title("Right view")
+            self.arrays[1, 2].set_title("East view")
             self.arrays[1, 2].axis("off")
             self.img_artists.append(self.arrays[1, 2].imshow(observations[6]))
-            self.arrays[0, 2].set_title("Front-right view")
+            self.arrays[0, 2].set_title("Northeast view")
             self.arrays[0, 2].axis("off")
             self.img_artists.append(self.arrays[0, 2].imshow(observations[7]))
         else:
             self.img_artists[0].set_data(observations[0])
             self.img_artists[1].set_data(observations[1])
             self.img_artists[2].set_data(observations[2])
-            # self.img_artists[3].set_data(ndimage.rotate(self._top_down_obs, -90))
+            self.img_artists[3].set_data(ndimage.rotate(self._top_down_obs, -90))
             self.img_artists[4].set_data(observations[3])
             self.img_artists[5].set_data(observations[4])
             self.img_artists[6].set_data(observations[5])
             self.img_artists[7].set_data(observations[6])
             self.img_artists[8].set_data(observations[7])
         self.fig.canvas.draw()
-        plt.pause(0.0001)
+        # plt.pause(0.0001)
         return self.fig
 
         # show the panoramic view
@@ -411,32 +414,34 @@ class RandomMazeTileRaw(object):
         # init or update data
         if flag is None:
             self.fig, self.arrays = plt.subplots(3, 3)
-            self.arrays[0, 1].set_title("Front view")
+            self.fig.set_figheight(15)
+            self.fig.set_figwidth(15)
+            self.arrays[0, 1].set_title("North view")
             self.arrays[0, 1].axis("off")
             self.img_artists.append(self.arrays[0, 1].imshow(observations[0]))
-            self.arrays[0, 0].set_title("Front-left view")
+            self.arrays[0, 0].set_title("Northwest view")
             self.arrays[0, 0].axis("off")
             self.img_artists.append(self.arrays[0, 0].imshow(observations[1]))
-            self.arrays[1, 0].set_title("Left view")
+            self.arrays[1, 0].set_title("West view")
             self.arrays[1, 0].axis("off")
             self.img_artists.append(self.arrays[1, 0].imshow(observations[2]))
             self.arrays[1, 1].set_title("Top-down view")
             self.arrays[1, 1].axis("off")
             self.img_artists.append(self.arrays[1, 1].imshow(ndimage.rotate(self._top_down_obs, -90)))
             self.img_artists.append([])
-            self.arrays[2, 0].set_title("Back-left view")
+            self.arrays[2, 0].set_title("Southwest view")
             self.arrays[2, 0].axis("off")
             self.img_artists.append(self.arrays[2, 0].imshow(observations[3]))
-            self.arrays[2, 1].set_title("Back view")
+            self.arrays[2, 1].set_title("South view")
             self.arrays[2, 1].axis("off")
             self.img_artists.append(self.arrays[2, 1].imshow(observations[4]))
-            self.arrays[2, 2].set_title("Back-right view")
+            self.arrays[2, 2].set_title("Southeast view")
             self.arrays[2, 2].axis("off")
             self.img_artists.append(self.arrays[2, 2].imshow(observations[5]))
-            self.arrays[1, 2].set_title("Right view")
+            self.arrays[1, 2].set_title("East view")
             self.arrays[1, 2].axis("off")
             self.img_artists.append(self.arrays[1, 2].imshow(observations[6]))
-            self.arrays[0, 2].set_title("Front-right view")
+            self.arrays[0, 2].set_title("Northeast view")
             self.arrays[0, 2].axis("off")
             self.img_artists.append(self.arrays[0, 2].imshow(observations[7]))
         else:
