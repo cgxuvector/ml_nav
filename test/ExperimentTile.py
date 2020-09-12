@@ -129,7 +129,7 @@ class Experiment(object):
         """
             Function is used to train the vanilla or double DQN agent.
         """
-        print("Experiment: Run DQN.")
+        print(f"Experiment: Run {self.agent.dqn_mode} DQN.")
         # set the training statistics
         rewards = []  # reward list for one episode
         episode_t = 0  # time step counter
@@ -152,7 +152,7 @@ class Experiment(object):
             # store the replay buffer and convert the data to tensor
             if self.use_replay_buffer:
                 # construct the transition
-                trans = self.toTransition(state, action, next_state, reward, done)
+                trans = self.toTransition(state, action, next_state, reward, _, done)
                 # add the transition into the buffer
                 self.replay_buffer.add(trans)
 
@@ -338,11 +338,11 @@ class Experiment(object):
                     f'Pred Loss: {self.agent.current_state_loss:.4f}'
                 ) 
                 # evaluate the current policy
-                if (episode_idx - 1) % self.eval_policy_freq == 0:
+                #if (episode_idx - 1) % self.eval_policy_freq == 0:
                     # evaluate the current policy by interaction
-                    model_save_path = os.path.join(self.save_dir, self.model_name) + f"_{episode_idx}.pt"
-                    torch.save(self.agent.policy_net.state_dict(), model_save_path)
-                    self.eval_policy_novel() 
+                #    model_save_path = os.path.join(self.save_dir, self.model_name) + f"_{episode_idx}.pt"
+                #    torch.save(self.agent.policy_net.state_dict(), model_save_path)
+                #    self.eval_policy_novel() 
 
                 # reset the environments
                 rewards = []

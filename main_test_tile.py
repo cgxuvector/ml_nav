@@ -33,9 +33,7 @@ def parse_input():
     parser.add_argument("--use_goal", action='store_true', default=False, help="Using goal conditioned flag")
     parser.add_argument("--goal_dist", type=int, default=-1, help="Set distance between start and goal")
     parser.add_argument("--use_imagine", type=float, default=0, help="Proportion of relabeled imagination goal")
-    parser.add_argument("--terminal_dist", type=float, default=4.0, help="Termination distance for one episode")
-    # set the running mode
-    parser.add_argument("--run_num", type=int, default=1, help="Number of run for each experiment.")
+    parser.add_argument("--terminal_dist", type=float, default=1e-3, help="Termination distance for one episode")
     parser.add_argument("--random_seed", type=int, default=0, help="Random seed")
     # set the training mode
     parser.add_argument("--train_random_policy", action='store_true', default=False, help="Whether train a local policy.")

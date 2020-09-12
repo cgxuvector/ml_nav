@@ -69,7 +69,7 @@ class EvalPolicy(object):
                              torch.tensor([0, 0, 0, 0, 0, 0, 0, 1])]
         # load the vae model
         self.cvae = VAE.CVAE(64, use_small_obs=True)
-        self.cvae.load_state_dict(torch.load("/mnt/sda/dataset/ml_nav/VAE/model/small_obs_L64_B8.pt", map_location=torch.device('cuda:0'))) 
+        self.cvae.load_state_dict(torch.load("/mnt/cheng_results/VAE/models/small_obs_L64_B8.pt", map_location=torch.device('cuda:0'))) 
         self.cvae.eval()
         self.cvae = self.cvae.to(self.device)
         # save parameters
@@ -213,7 +213,7 @@ class EvalPolicy(object):
                 tmp_str = key + ' ' + str(val) + '\n'
                 f.write(tmp_str)
             f.close()
-
+    """
     def eval_navigate_with_local_policy(self):
         # store training data
         eval_results = defaultdict()
@@ -455,11 +455,11 @@ class EvalPolicy(object):
                                     g_dist,
                                     done,
                                     act_list)) 
-
-    def eval_navigate_with_hybrid_local_policy_using_dynamic_behavior_map(self):
-        # store training data
+    """
+    def eval_navigate_with_dynamic_topological_map(self):
+        # store the evaluation results in a dictionary
         eval_results = defaultdict()
-        # loop all the mazes
+        # loop all evaluation mazes
         for m_size in self.maze_size_list:
             self.maze_size = m_size
             for m_seed in self.maze_seed_list:
@@ -469,6 +469,7 @@ class EvalPolicy(object):
                 # build the initial dynamic behavior map
                 print(f"Init the dynamic behavior map")
                 if self.args.imprecise_rate > 0:
+                    # build the map using imprecise 2d map
                     self.env_map.shuffle_map(args.imprecise_rate, 'mixed')
                     init_mlb_map = self.build_mlb_from_2d_imprecise_map(max_edge_len=1)
                     #np.save(f'./eval_results/mlb_map_{m_size}_{m_seed}_w2c_{args.imprecise_rate}.npy', init_mlb_map) 
@@ -476,9 +477,10 @@ class EvalPolicy(object):
                     #init_mlb_map = np.load(f'./eval_results/mlb_map_{m_size}_{m_seed}_mix_{args.imprecise_rate}.npy')
                 else:
                     #init_mlb_map = self.build_mlb_from_2d_map(max_edge_len=1)
-                    init_mlb_map = np.load(f'/mnt/sda/mlb_map_{m_size}_{m_seed}.npy')
+                    # build the map using rough 2-D map
+                    init_mlb_map = np.load(f'/mnt/cheng_results/mlb_map_{m_size}_{m_seed}.npy')
                 
-                # obtain all the distance pairs 
+                # obtain all the distance pairs
                 total_pairs_dict = self.load_pair_data(m_size, m_seed)
                 pairs_dict = {'start': None, 'goal': None}
                 # loop all possible distance 
@@ -486,7 +488,7 @@ class EvalPolicy(object):
                     # init the map for different distance
                     mlb_map = init_mlb_map.copy()
                     mlb_graph = csr_matrix(mlb_map)
-                    # get pairs with specific distance
+                    # check if the distance is valid
                     if not str(g_dist) in total_pairs_dict.keys():
                         print(f"Maze {m_size}-{m_seed} has no pair with distance {g_dist}")
                         eval_results[f"{m_size}-{m_seed}-{g_dist}"] = None
@@ -501,51 +503,67 @@ class EvalPolicy(object):
                     print(f"maze: {m_size}-{m_seed}-{g_dist}")
                     valid_run_count = 0
                     total_runs = len(pairs_dict['start'])
-                    #for s_pos, g_pos in zip(pairs_dict['start'], pairs_dict['goal']):
                     total_runs = args.run_num
-                    #for s_pos, g_pos in zip(pairs_dict['start'], pairs_dict['goal']):
                     run = 0
-                    while run < total_runs:
+                    pos_unconnected_num = 0
+                    pos_single_connected_num = 0
+                    for s_pos, g_pos in zip(pairs_dict['start'], pairs_dict['goal']):
+                    #run = 0
+                    #while run < total_runs:
                         # sample a start-goal pair
                         pair_idx = random.sample(range(total_sub_pair_num), 1)[0]
                         # with probability 0.5, reverse the order
-                        if random.uniform(0, 1) < 0.5:
-                            s_pos = pairs_dict['start'][pair_idx]
-                            g_pos = pairs_dict['goal'][pair_idx]
-                        else:
-                            s_pos = pairs_dict['goal'][pair_idx]
-                            g_pos = pairs_dict['start'][pair_idx]
-                        #print(run, ':', s_pos, ' - ', g_pos)
-                        if self.args.imprecise_rate > 0:
-                            if not s_pos in self.env_map.imprecise_valid_pos or not g_pos in self.env_map.imprecise_valid_pos:
-                                print(f"{s_pos} or {g_pos} is not in imprecise valid positions")
-                                continue
-                        # forward
-                        success_flag = self.run_single_pair(s_pos, g_pos, mlb_map, mlb_graph)
-                        if success_flag:
-                            success_counter += 1
-                        run += 1 
-                
-                        print(f"{m_size}-{m_seed}: Run {run}: Start = {s_pos}, Goal = {g_pos}, Dist = {len(self.env_map.path)}, Done = {success_flag}") 
-                        #Debug.set_trace()
-                        #if not success_flag:
-                        #    Debug.set_trace()
+                        #if random.uniform(0, 1) < 0.5:
+                        #    s_pos = pairs_dict['start'][pair_idx]
+                        #    g_pos = pairs_dict['goal'][pair_idx]
+                        #else:
+                        #    s_pos = pairs_dict['goal'][pair_idx]
+                        #    g_pos = pairs_dict['start'][pair_idx]
+                        # option for imprecise maze
+                        #if self.args.imprecise_rate > 0:
+                        #    if not s_pos in self.env_map.imprecise_valid_pos or not g_pos in self.env_map.imprecise_valid_pos:
+                        #        print(f"{s_pos} or {g_pos} is not in imprecise valid positions")
+                        #        continue
                         
+                        # get the index of the start and goal positions 
+                        if g_dist == 1:
+                            s_idx = self.env_map.valid_pos.index(s_pos)
+                            g_idx = self.env_map.valid_pos.index(g_pos)
+                        
+                        # forward
+                        success_flag_forward = self.run_single_pair(s_pos, g_pos, mlb_map, mlb_graph)
+                        if success_flag_forward:
+                            success_counter += 1
+                            # update the graph only for dist = 1
+                            if mlb_map[s_idx, g_idx] == 0 and g_dist == 1:
+                                mlb_map[s_idx, g_idx] = 1
+                                mlb_graph = csr_matrix(mlb_map)
+                        run += 1 
+                        print(f"{m_size}-{m_seed}: Run {run}: Start = {s_pos}, Goal = {g_pos}, Dist = {len(self.env_map.path)}, Done = {success_flag_forward}")  
+                        
+
                         # backward
-                        #success_flag = self.run_single_pair(g_pos, s_pos, mlb_map, mlb_graph)
-                        #if success_flag:
-                        #    success_counter += 1
-                        #run += 1
-                        #print(f"Run {run}: Start = {g_pos}, Goal = {s_pos}, Dist = {len(self.env_map.path)}, Done = {success_flag}")
-                        #if not success_flag:
-                        #    Debug.set_trace() 
+                        success_flag_backward = self.run_single_pair(g_pos, s_pos, mlb_map, mlb_graph)
+                        if success_flag_backward:
+                            success_counter += 1
+                            if mlb_map[g_idx, s_idx] == 0 and g_dist == 1:
+                                mlb_map[g_idx, s_idx] = 1
+                                mlb_graph = csr_matrix(mlb_map)
+                        run += 1
+                            
+                        print(f"{m_size}-{m_seed}: Run {run}: Start = {g_pos}, Goal = {s_pos}, Dist = {len(self.env_map.path)}, Done = {success_flag_backward}") 
+                        # reset flag
+                        success_flag_forward = False
+                        success_flag_backward = False
                         print(f"--------------------------------------------------------------------")
                         
-                    #np.save(f'./{self.maze_size}-{self.maze_seed_list[0]}-{args.use_oracle}-init-map.npy', init_mlb_map)
-                    #np.save(f'./{self.maze_size}-{self.maze_seed_list[0]}-{args.use_oracle}-map.npy', mlb_map)
-                    #np.save(f'./{self.maze_size}-{self.maze_seed_list[0]}-{args.use_oracle}-valid-pos.npy', self.env_map.valid_pos)
                     # show results
+                    np.save(f'./eval_results/novel_mazes/{m_size}-{self.args.model_maze_seed}-{m_seed}_tdm.npy', mlb_map)
+                    np.save(f'./eval_results/novel_mazes/{m_size}-{self.args.model_maze_seed}-{m_seed}-True-valid-pos.npy', self.env_map.valid_pos)
+                    np.save(f'./eval_results/novel_mazes/{m_size}-{self.args.model_maze_seed}-{m_seed}-success.npy', [float(success_counter)/run, run])
+                    #np.save(f'{m_size}-{m_seed}-Fail-pos.npy', fail_cases)
                     print(f"Success count = {success_counter}, Total count = {run}")
+                    print(f"Single connected positons = {pos_single_connected_num}, Unconnected positions = {pos_unconnected_num}")
                     print(f"Mean successful rate for distance = {g_dist} is {success_counter / run}")
                     """
                     eval_results[f"{m_size}-{m_seed}-{g_dist}"] = float(success_counter) / run
@@ -580,34 +598,40 @@ class EvalPolicy(object):
         current_pos_map = state_pos
         goal_pos_maze = self.env.position_map2maze(goal_pos + [0], [self.maze_size, self.maze_size])
         state_pos_maze = self.env.position_map2maze(start_pos + [0], [self.maze_size, self.maze_size])
+        # start one navigation
         while t_counter < max_time_steps:  
             # get the next way point: observation, position (map)
-            next_obs, next_pos_map = self.mlb_search_next_waypoint(state_pos, goal_pos, mlb_graph) 
+            next_landmark_obs, next_landmark_pos_map = self.mlb_search_next_waypoint(state_pos, goal_pos, mlb_graph) 
+            
             # check whether there is a connected path
-            if next_obs is None or next_pos_map is None:
+            if next_landmark_obs is None or next_landmark_pos_map is None:
                 print(f"None path is found between {state_pos} and {goal_pos}")
                 success_flag = False
                 break
 
             # compute the pos in the environment to decide the sub-goal termination
-            next_pos_maze = self.env.position_map2maze(next_pos_map + [0], [self.maze_size, self.maze_size])
+            next_landmark_pos_maze = self.env.position_map2maze(next_landmark_pos_map + [0], [self.maze_size, self.maze_size])
             
             # way point navigation budget
-            max_steps_per_goal = 1
+            max_steps_per_goal = 1 # steps for each landmark
             sub_nav_done = False
             sub_action_list = []
-            last_way_point_obs = state_obs
+            last_landmark_obs = state_obs
             while max_steps_per_goal > 0:
                 # get the action
-                action = self.agent.get_action(state_obs, next_obs, 0)
+                action = self.agent.get_action(state_obs, next_landmark_obs, 0)
+                # agent take that action
                 next_state, reward, done, dist, next_trans, _, _ = my_lab.step(action) 
+                # record the feedback
                 sub_action_list.append(action)
                 act_idx_list.append(action)
-                with torch.no_grad():
-                    current_state = self.toTensor(next_state) / 255
-                    target_goal = self.toTensor(next_obs) / 255
-                    _, state_pred = self.agent.policy_net(current_state, target_goal) 
-                    reach_sub_goal = state_pred.view(1, -1).max(dim=1)[1].item()
+                
+                # for pred-variant
+                #with torch.no_grad():
+                #    current_state = self.toTensor(next_state) / 255
+                #    target_goal = self.toTensor(next_landmark_obs) / 255
+                #    _, state_pred = self.agent.policy_net(current_state, target_goal) 
+                #    reach_sub_goal = state_pred.view(1, -1).max(dim=1)[1].item()
                 #print(f"State={self.env.position_maze2map(state_pos_maze, [self.maze_size, self.maze_size])}, Act={ACTION_LIST[action]}, Next state={self.env.position_maze2map(next_trans, [self.maze_size, self.maze_size])}, Done={done}, Goal={next_pos_map}, State pred = {np.round(state_pred.cpu().exp().numpy(), 2)}")
                # Debug.set_trace() 
                 # update the current state
@@ -621,30 +645,28 @@ class EvalPolicy(object):
                 
                 # check terminal
                 if args.use_oracle:
-                    if np.sum(abs(next_trans - np.array(next_pos_maze))) == 0:
-                    #if reach_sub_goal == 1:
-                        print(f'Reach the way point {next_pos_map} with action = {ACTION_LIST[action]}')
+                    if np.sum(abs(next_trans - np.array(next_landmark_pos_maze))) == 0:
+                        print(f'Reach the way point {next_landmark_pos_map} with action = {ACTION_LIST[action]}')
                         sub_nav_done = True
                         act_list.append(ACTION_LIST[action])
                         break
                 else:
                     if reach_sub_goal == 1:
-                        print(f'reach waypoint {next_pos_map}')
+                        print(f'reach waypoint {next_landmark_pos_map}')
                         sub_nav_done = True
                         act_list.append(ACTION_LIST[action])
                         break 
 
             # if agent fail to reach the way point
             if not sub_nav_done:
-                print(f"Fail to reach the way point {next_pos_map}")
+                print(f"Fail to reach the way point {next_landmark_pos_map}")
                 fail_count += 1
                 target_position_maze = self.env.position_map2maze(state_pos + [0], [self.maze_size, self.maze_size])
-                #print(f"Current pos = {self.env.position_maze2map(next_trans, [self.maze_size, self.maze_size])}")
                 for action in range(len(sub_action_list)):
                     # estimate the current position
-                    with torch.no_grad():
-                        _, state_pred = self.agent.policy_net(self.toTensor(state_obs)/255, self.toTensor(last_way_point_obs)/255)
-                        reach_sub_goal = state_pred.view(1, -1).max(dim=1)[1].item() 
+                    #with torch.no_grad():
+                    #    _, state_pred = self.agent.policy_net(self.toTensor(state_obs)/255, self.toTensor(last_way_point_obs)/255)
+                    #    reach_sub_goal = state_pred.view(1, -1).max(dim=1)[1].item() 
                     
                     # check terminal
                     if args.use_oracle:
@@ -659,7 +681,7 @@ class EvalPolicy(object):
 
                     
                     #reversed_act = reversed_actions[action]
-                    reversed_act = self.agent.get_action(state_obs, last_way_point_obs, 0)
+                    reversed_act = self.agent.get_action(state_obs, last_landmark_obs, 0)
                     act_idx_list.append(reversed_act)
                     # take the step
                     next_state, reward, _, dist, next_trans, _, _ = my_lab.step(reversed_act)
@@ -672,9 +694,9 @@ class EvalPolicy(object):
                     t_counter += 1
                     
                     # estimate the current position
-                    with torch.no_grad():
-                        _, state_pred = self.agent.policy_net(self.toTensor(state_obs)/255, self.toTensor(last_way_point_obs)/255)
-                        reach_sub_goal = state_pred.view(1, -1).max(dim=1)[1].item() 
+                    #with torch.no_grad():
+                    #    _, state_pred = self.agent.policy_net(self.toTensor(state_obs)/255, self.toTensor(last_way_point_obs)/255)
+                    #    reach_sub_goal = state_pred.view(1, -1).max(dim=1)[1].item() 
 
                     # check terminal
                     if args.use_oracle:
@@ -689,7 +711,7 @@ class EvalPolicy(object):
 
                 # update the graph
                 state_idx = self.env_map.valid_pos.index(state_pos) if not self.args.imprecise_rate > 0 else self.env_map.imprecise_valid_pos.index(state_pos)
-                goal_idx = self.env_map.valid_pos.index(next_pos_map) if not self.args.imprecise_rate > 0 else self.env_map.imprecise_valid_pos.index(next_pos_map)
+                goal_idx = self.env_map.valid_pos.index(next_landmark_pos_map) if not self.args.imprecise_rate > 0 else self.env_map.imprecise_valid_pos.index(next_landmark_pos_map)
                 # based on the observation variance, I will let the agent try several times
                 if fail_count > 10:
                     print("Update graph")
@@ -706,20 +728,20 @@ class EvalPolicy(object):
                     state_obs_imagined = self.imagine_goal_obs(loc_map)
                     state_obs = state_obs_imagined
             else:
-                state_pos = next_pos_map
+                state_pos = next_landmark_pos_map
 
             # check the final terminal
             if nav_done:
                 success_flag = True
-                if len(act_list) > len(self.env_map.path):
-                    print(act_idx_list)
-                    Debug.set_trace()
+                #if len(act_list) > len(self.env_map.path):
+                #    print(act_idx_list)
+                #    Debug.set_trace()
                 break
 
             if not nav_done and state_pos == goal_pos:
                 success_flag = False
                 state_idx = self.env_map.valid_pos.index(state_pos) if not self.args.imprecise_rate > 0 else self.env_map.imprecise_valid_pos.index(state_pos)
-                goal_idx = self.env_map.valid_pos.index(next_pos_map) if not self.args.imprecise_rate > 0 else self.env_map.imprecise_valid_pos.index(next_pos_map)
+                goal_idx = self.env_map.valid_pos.index(next_landmark_pos_map) if not self.args.imprecise_rate > 0 else self.env_map.imprecise_valid_pos.index(next_landmark_pos_map)
                 mlb_map[state_idx, goal_idx] = 0
                 print("Wrong waypoint reaching estimation")
                 break
@@ -854,8 +876,7 @@ class EvalPolicy(object):
 
     
     def load_pair_data(self, m_size, m_seed):
-        path = f'/mnt/sda/map/maze_{m_size}_{m_seed}.pkl'
-        # path = f'./results/6-16/maze_{m_size}_{m_seed}.pkl'
+        path = f'/mnt/cheng_results/map/maze_{m_size}_{m_seed}.pkl'
         f = open(path, 'rb')
         return pickle.load(f)
 
@@ -947,7 +968,7 @@ class EvalPolicy(object):
 def parse_input():
     parser = argparse.ArgumentParser()
     parser.add_argument("--eval_mode", type=str, default='random-policy', help="Evaluation mode: random-policy, "
-                                                                               "her-policy, or imagine-local-policy")
+                                                                               "her-policy, or our-policy")
     parser.add_argument("--maze_size_list", type=str, default='5', help="Maze size list")
     parser.add_argument("--maze_seed_list", type=str, default='0', help="Maze seed list")
     parser.add_argument("--model_maze_size", type=int, default=5, help="Model maze size")
@@ -958,64 +979,41 @@ def parse_input():
     parser.add_argument("--save_path", type=str, default='./eval_results', help="Save path")
     parser.add_argument("--file_name", type=str, default="test", help="File name")
     parser.add_argument("--run_num", type=int, default=100, help="Number of evaluation run")
-    parser.add_argument("--use_true_state", type=str, default="True", help="Whether use the true state")
-    parser.add_argument("--use_goal", type=str, default="True", help="Whether use the goal conditioned policy")
-    parser.add_argument("--use_imagine", type=str, default="True", help="Whether use the imagined observation")
-    parser.add_argument("--use_state_est", type=str, default="False", help="Whether use the state estimation")
-    parser.add_argument("--use_rescale", type=str, default="True", help="Whether use the rescaled observation")
+    parser.add_argument("--use_true_state", action='store_true', default=False, help="Whether use the true state")
+    parser.add_argument("--use_goal", action='store_true', default=False, help="Whether use the goal conditioned policy")
+    parser.add_argument("--use_imagine", action='store_true', default=False, help="Whether use the imagined observation")
+    parser.add_argument("--use_state_est", action='store_true', default=False, help="Whether use the state estimation")
+    parser.add_argument("--use_rescale", action='store_true', default=False, help="Whether use the rescaled observation")
     parser.add_argument("--max_episode_len", type=int, default=100, help="Max time steps per episode")
     parser.add_argument("--seed_idx", type=int, default=0)
     parser.add_argument("--device", type=str, default='cuda:0', help="device")   
-    parser.add_argument("--use_oracle", type=str, default='True', help='whether use the orcale to decide waypoint')
+    parser.add_argument("--use_oracle", action='store_true', default=False, help='whether use the orcale to decide waypoint')
     parser.add_argument("--random_seed", type=int, default='1234', help="random seed")
     parser.add_argument("--imprecise_rate", type=float, default=-1, help="imprecise rate of the 2d map")
     
-    return parser.parse_args()
-
-
-# convert the True/False from str to bool
-def strTobool(inputs):
-    inputs.use_true_state = True if inputs.use_true_state == "True" else False
-    inputs.use_goal = True if inputs.use_goal == "True" else False
-    inputs.use_imagine = True if inputs.use_imagine == "True" else False
-    inputs.use_rescale = True if inputs.use_rescale == "True" else False
-    inputs.use_state_est = True if inputs.use_state_est == "True" else False
-    inputs.use_oracle = True if inputs.use_oracle == "True" else False
-
-    return inputs
+    return parser.parse_args() 
 
 
 if __name__ == '__main__':
     # set the evaluation model
     args = parse_input()
-    args = strTobool(args)
     eval_mode = args.eval_mode
     save_path = args.save_path
     file_name = args.file_name
 
-    # random seed
+    # random seed & device
     rnd_seed = args.random_seed
     random.seed(rnd_seed)
     np.random.seed(rnd_seed)
     torch.manual_seed(rnd_seed) 
-
     device = torch.device(args.device)
         
     """ Set evaluation envs
     """
     # set maze to be evaluated
-    if len(args.maze_size_list) == 1 or len(args.maze_size_list) == 2:
-        maze_size = [int(args.maze_size_list)]
-    else:
-        maze_size = [int(s) for s in args.maze_size_list.split(",")]
-    if len(args.maze_seed_list) == 1 or len(args.maze_seed_list) == 2:
-        maze_seed = [int(args.maze_seed_list)]
-    else:
-        maze_seed = [int(s) for s in args.maze_seed_list.split(",")]
-    if len(args.distance_list) == 1 or len(args.distance_list) == 2:
-        distance_list = [int(args.distance_list)]
-    else:
-        distance_list = [int(s) for s in args.distance_list.split(",")]
+    maze_size = [int(s) for s in args.maze_size_list.split(",")]
+    maze_seed = [int(s) for s in args.maze_seed_list.split(",")]
+    distance_list = [int(s) for s in args.distance_list.split(",")]
     maze_size_eval = maze_size
     maze_seed_eval = maze_seed
     dist_eval = distance_list  # [2, 3, 6, 9, 10]
@@ -1058,21 +1056,14 @@ if __name__ == '__main__':
                            res_name=file_name,
                            args=args)
         myVis.eval_random_policy()
-    elif eval_mode == 'imagine-local-policy':
-        my_agent = GoalDQNAgent(use_true_state=args.use_true_state, use_small_obs=True, use_rescale=args.use_rescale, device=device, use_state_est=args.use_state_est)
-        my_agent.policy_net.load_state_dict(
-             torch.load(f"/mnt/sda/rl_results/our/{args.model_maze_seed}/goal_ddqn_{args.model_maze_size}x{args.model_maze_size}_obs_maxdist_{args.model_dist}_add_terminal.pt",
-                        map_location=torch.device(args.device))
+    elif eval_mode == 'our-policy':
+        my_agent = GoalDQNAgent(use_true_state=args.use_true_state,
+                                use_small_obs=True,
+                                use_rescale=args.use_rescale,
+                                device=device,
+                                use_state_est=args.use_state_est)
+        my_agent.policy_net.load_state_dict(torch.load(f"/mnt/cheng_results/rl_results/7-7/our/{args.model_maze_size}-norm-1/{args.model_maze_seed}/goal_ddqn_{args.model_maze_size}x{args.model_maze_size}_obs_maxdist_{args.model_dist}_add_terminal.pt", map_location=torch.device(args.device))
         )
-        #my_agent.policy_net.load_state_dict(
-        #     torch.load(f"/mnt/cheng_results/results_RL/6-20/15-50-imagine/goal_ddqn_{15}x{15}_obs_50_imagine_seed_{1}.pt",
-        #                map_location=torch.device('cpu'))
-        #)
-        #my_agent.policy_net.load_state_dict(
-        #    torch.load(f"./results/6-20/goal_ddqn_{15}x{15}_obs_50_imagine_seed_{1}.pt",
-        #               map_location=torch.device('cpu'))
-        #)
-        
         my_agent.policy_net.eval()
         # run the agent
         myVis = EvalPolicy(env=my_lab,
@@ -1083,16 +1074,13 @@ if __name__ == '__main__':
                            res_path=save_path,
                            res_name=file_name,
                            args=args)
-        # myVis.eval_her_policy()
-        # myVis.eval_navigate_with_local_policy()
-        # myVis.eval_navigate_with_local_policy_loop_entire()
-        myVis.eval_navigate_with_hybrid_local_policy_using_dynamic_behavior_map()
-        # myVis.test_distance_estimation()
+        myVis.eval_navigate_with_dynamic_topological_map()
     elif eval_mode == 'her-policy':
-        my_agent = GoalDQNAgent(use_true_state=args.use_true_state, use_small_obs=True, device=device)
+        my_agent = GoalDQNAgent(use_true_state=args.use_true_state,
+                                use_small_obs=True,
+                                device=device)
         my_agent.policy_net.load_state_dict(
-            torch.load(f"/mnt/cheng_results/rl_results/7-7/{args.model_maze_size}-{args.model_maze_size}/{args.model_maze_seed}/goal_ddqn_HER_{args.model_maze_size}x{args.model_maze_size}_obs.pt",
-                       map_location=args.device)
+            torch.load(f"/mnt/cheng_results/rl_results/7-7/{args.model_maze_size}-{args.model_maze_size}/{args.model_maze_seed}/goal_ddqn_HER_{args.model_maze_size}x{args.model_maze_size}_obs.pt", map_location=args.device)
         )
         my_agent.policy_net.eval()
         # run the agent
@@ -1105,5 +1093,3 @@ if __name__ == '__main__':
                            res_name=file_name,
                            args=args)
         myVis.eval_her_policy()
-
-

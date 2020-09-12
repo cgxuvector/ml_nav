@@ -14,8 +14,8 @@ def _action(*entries):
 
 
 ACTION_LIST = [
-    _action(-20, 0, 0, 0, 0, 0, 0),  # look_left
-    _action(20, 0, 0, 0, 0, 0, 0),  # look_right
+    _action(0, 0, -1, 0, 0, 0, 0),  # left
+    _action(0, 0, 1, 0, 0, 0, 0),  # right
     _action(0, 0, 0, 1, 0, 0, 0),  # forward
     _action(0, 0, 0, -1, 0, 0, 0),  # backward
     _action(0, 0, 0, 0, 0, 0, 0)
@@ -60,7 +60,7 @@ class RandomMaze(object):
         self._lab = deepmind_lab.Lab(self._level_name,
                                      self._observation_names,
                                      self._level_configs,
-                                     renderer='software'
+                                     renderer='hardware'
                                      )
 
         """ 
@@ -82,7 +82,9 @@ class RandomMaze(object):
         self._trans = None
         # orientation info
         self._rots = None
-
+        # velocity
+        self._trans_vel = None
+        self._rots_vel = None
         """ 
             Default configuration parameters for the maze on the txt map.
         """
@@ -178,9 +180,9 @@ class RandomMaze(object):
         if configs['goal_pos']:
             self.goal_pos_map = configs['goal_pos'] if configs['goal_pos'] else self.goal_pos_map
             self.goal_pos_maze = self.position_map2maze(self.goal_pos_map, self.maze_size)
-            self._lab.write_property("params.goal_pos.x", str(self.goal_pos_maze[0]))
-            self._lab.write_property("params.goal_pos.y", str(self.goal_pos_maze[1]))
-            self._lab.write_property("params.goal_pos.yaw", str(self.goal_pos_maze[2]))
+            #self._lab.write_property("params.goal_pos.x", str(self.goal_pos_maze[0]))
+            #self._lab.write_property("params.goal_pos.y", str(self.goal_pos_maze[1]))
+            #self._lab.write_property("params.goal_pos.yaw", str(self.goal_pos_maze[2]))
 
         """ update the environment """
         if configs['update']:
@@ -206,14 +208,16 @@ class RandomMaze(object):
         # initialize the positions and orientations
         self._trans = init_state['DEBUG.POS.TRANS'].tolist()
         self._rots = init_state['DEBUG.POS.ROT'].tolist()
+        self._trans_vel = init_state['VEL.TRANS'].tolist()
+        self._rots_vel = init_state['VEL.ROT'].tolist()
         # initialize the distance to be infinite
         self._current_distance = np.inf
 
         # return observation or state based on configuration
         if self._use_state:
-            return self._current_state, self._goal_state, self._trans, self._rots
+            return self._current_state, self._goal_state, self._trans, self._rots, self._trans_vel, self._rots_vel
         else:
-            return self._current_observation, self._goal_observation, self._trans, self._rots
+            return self._current_observation, self._goal_observation, self._trans, self._rots, self._trans_vel, self._rots_vel
 
     # step function
     def step(self, act):
@@ -229,6 +233,8 @@ class RandomMaze(object):
             # get the next state
             self._trans = current_state['DEBUG.POS.TRANS'].tolist()
             self._rots = current_state['DEBUG.POS.ROT'].tolist()
+            self._trans_vel = current_state['VEL.TRANS'].tolist()
+            self._rots_vel = current_state['VEL.ROT'].tolist()
             self._current_state = self._trans[0:2] + [self._rots[1]]
             # check if the agent reaches the goal given the current position and orientation
             terminal, dist = self.reach_goal(self._current_state)
@@ -250,13 +256,15 @@ class RandomMaze(object):
             # set the position and orientations
             self._trans = np.copy(self._trans)
             self._rots = np.copy(self._rots)
+            self._trans_vel = np.copy(self._trans_vel)
+            self._rots_vel = np.copy(self._rots_vel)
             # set the distance
             self._current_distance = np.copy(self._current_distance)
 
         if self._use_state:
-            return self._current_state, reward, terminal, self._current_distance, self._trans, self._rots, dict()
+            return self._current_state, reward, terminal, self._current_distance, self._trans, self._rots, self._trans_vel, self._rots_vel, dict()
         else:
-            return self._current_observation, reward, terminal, self._current_distance, self._trans, self._rots, dict()
+            return self._current_observation, reward, terminal, self._current_distance, self._trans, self._rots, self._trans_vel, self._rots_vel, dict()
 
     # render function
     def render(self, mode='rgb_array', close=False):
