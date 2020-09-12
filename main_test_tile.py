@@ -65,6 +65,8 @@ def parse_input():
     parser.add_argument("--use_rescale", action='store_true', default=False, help='whether rescale the value to [0,1]')
     parser.add_argument("--use_state_est", action='store_true', default=False, help='whether estimate the state')
     parser.add_argument("--alpha", type=float, default=1.0, help='hyperparameter for the two head case')
+    # add n steps
+    parser.add_argument("--n_step_num", type=int, default=1, help='Number of n step return')
     return parser.parse_args()
 
 
@@ -120,7 +122,7 @@ def make_agent(inputs):
                          use_target_soft_update=inputs.soft_target_update,
                          use_gradient_clip=inputs.dqn_gradient_clip,
                          gamma=inputs.gamma,
-                         device=inputs.device,
+                         device=inputs.device
                          )
     elif inputs.agent == 'goal-dqn':
         agent = GoalDQNAgent(dqn_mode=inputs.dqn_mode,
@@ -134,7 +136,8 @@ def make_agent(inputs):
                              device=inputs.device,
                              use_rescale=inputs.use_rescale,
                              use_state_est=inputs.use_state_est,
-                             alpha=inputs.alpha
+                             alpha=inputs.alpha,
+                             n_step_num=inputs.n_step_num
                              )
     else:
         raise Exception(f"{inputs.agent} is not defined. Please try the valid agent (random, dqn, actor-critic)")
@@ -185,14 +188,16 @@ def run_experiment(inputs):
         model_name=inputs.model_name,
         use_imagine=inputs.use_imagine,
         device=inputs.device,
-        use_state_est=inputs.use_state_est
+        use_state_est=inputs.use_state_est,
+        n_step_num=inputs.n_step_num
     )
     
     # run the experiments
     if inputs.use_goal:
         # train a global goal-conditioned policy
         if not inputs.train_random_policy:
-            my_experiment.run_goal_dqn()
+            # my_experiment.run_goal_dqn()
+            my_experiment.run_goal_n_step_dqn()
         else:  # train a local goal-conditioned policy
             if not inputs.use_her:
                 my_experiment.run_random_local_goal_dqn()
