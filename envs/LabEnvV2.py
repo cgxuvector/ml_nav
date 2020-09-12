@@ -57,7 +57,7 @@ class RandomMazeTileRaw(object):
         self._lab = deepmind_lab.Lab(self._level_name,
                                      self._observation_names,
                                      self._level_configs,
-                                     renderer='software'
+                                     renderer='hardware'
                                      )
 
         """ observations from the maze """
