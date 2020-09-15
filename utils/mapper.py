@@ -569,7 +569,7 @@ class RoughMap(object):
         print(self.map2d_grid)
         print(self.map2d_imprecise)
 
-
+#
 # env_map = RoughMap(7, 0, 3)
 #
 # plt.imshow(env_map.map2d_bw)

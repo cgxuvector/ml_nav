@@ -60,7 +60,7 @@ class RandomMaze(object):
         self._lab = deepmind_lab.Lab(self._level_name,
                                      self._observation_names,
                                      self._level_configs,
-                                     renderer='hardware'
+                                     renderer='software'
                                      )
 
         """ 
@@ -348,7 +348,7 @@ class RandomMaze(object):
 
         # init or update data
         if time_step is None:
-            self.fig, self.arrays = plt.subplots(3, 3, figsize=(6, 6))
+            self.fig, self.arrays = plt.subplots(3, 3)
             self.arrays[0, 1].set_title("Front view")
             self.arrays[0, 1].axis("off")
             self.img_artists.append(self.arrays[0, 1].imshow(observations[0]))
