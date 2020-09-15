@@ -32,11 +32,3 @@ class LinearSchedule(Schedule):
 
     def get_value(self, time):
         return self._start_value + self._schedule_amount * min(1.0, time * 1.0 / self._duration)
-
-
-# # schedule test
-#
-# con_schedule = ConstantSchedule(10)
-# linear_schedule = LinearSchedule(0, 1, 100)
-# for ep in range(100):
-#     print("Epoch = {} : value = {}".format(ep, linear_schedule.get_value(ep)))

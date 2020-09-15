@@ -20,7 +20,7 @@ from model import VAE
 from test.GoalDQNAgent import GoalDQNAgent
 from utils import mapper
 from collections import defaultdict
-from envs.LabEnvV2 import RandomMazeTileRaw
+from envs.LabEnvV4 import RandomMaze
 import numpy as np
 import pickle
 from utils import searchAlg
@@ -28,7 +28,7 @@ import IPython.terminal.debugger as Debug
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import dijkstra
 
-ACTION_LIST = ['up', 'down', 'left', 'right']
+ACTION_LIST = ['up', 'down', 'right', 'left']
 
 
 class EvalPolicy(object):
@@ -69,7 +69,8 @@ class EvalPolicy(object):
                              torch.tensor([0, 0, 0, 0, 0, 0, 0, 1])]
         # load the vae model
         self.cvae = VAE.CVAE(64, use_small_obs=True)
-        self.cvae.load_state_dict(torch.load("/mnt/cheng_results/VAE/models/small_obs_L64_B8.pt", map_location=torch.device('cuda:0'))) 
+        # self.cvae.load_state_dict(torch.load("/mnt/cheng_results/VAE/models/small_obs_L64_B8.pt", map_location=torch.device('cuda:0')))
+        self.cvae.load_state_dict(torch.load("./results/vae/model/small_obs_L64_B8.pt", map_location=torch.device('cpu')))
         self.cvae.eval()
         self.cvae = self.cvae.to(self.device)
         # save parameters
@@ -456,6 +457,86 @@ class EvalPolicy(object):
                                     done,
                                     act_list)) 
     """
+    def eval_map_1_step_navigation(self):
+        # find all size and seed
+        for m_size in self.maze_size_list:
+            for m_seed in self.maze_seed_list:
+                print(f"size={m_size}, seed={m_seed}")
+                # load total pairs
+                total_pairs_dict = self.load_pair_data(m_size, m_seed)
+                pairs_dict = {'start': [], 'goal': []}
+                self.update_map2d_and_maze3d(set_new_maze=True, maze_size=m_size, maze_seed=m_seed, dist=-1)
+                print(f"{self.goal_dist}")
+                # extract particular distance
+                for g_dist in self.goal_dist:
+                    pairs_dict['start'] = total_pairs_dict[str(g_dist)][0]
+                    pairs_dict['goal'] = total_pairs_dict[str(g_dist)][1]
+                    # success count
+                    success_run = 0
+                    # total count 
+                    total_run = 0
+                    # success flag
+                    success_flag = False
+                    # loop all possible pairs
+                    for s_pos, g_pos in zip(pairs_dict['start'], pairs_dict['goal']):
+                        state, goal, start_pos, goal_pos = self.update_maze_from_pos(s_pos, g_pos)
+                        max_time_steps = 50
+                        state_pos_maze = self.env.position_map2maze(start_pos + [0], [m_size, m_size])
+                        goal_pos_maze = self.env.position_map2maze(goal_pos + [0], [m_size, m_size])
+                        # whether use the real observation or the fake
+                        if not self.use_true_state and self.use_imagine:
+                            goal_loc_map = self.env_map.cropper(self.env_map.map2d_roughPadded, goal_pos)
+                            goal = self.imagine_goal_obs(goal_loc_map)
+                        # test one pair
+                        for t in range(max_time_steps):
+                            # get the action
+                            action = self.agent.get_action(state, goal, 0)
+                            # take the next step
+                            next_state, reward, done, dist, next_trans, _, _, _, _ = self.env.step(action)
+                            
+                            print(f"state={state_pos_maze}, act={ACTION_LIST[action]}, next_state={next_trans}, goal={goal_pos_maze}, dist={dist}, done={done}")
+
+                            if done:
+                                success_run += 1
+                                success_flag = True
+                                break
+                            else:
+                                state = next_state
+                                state_pos_maze = next_trans
+                        total_run += 1
+                        print(f"run idx={total_run}: start={s_pos}, goal={g_pos}, done={done}, success={success_flag}")
+                        success_flag = False
+
+                        state, goal, start_pos, goal_pos = self.update_maze_from_pos(g_pos, s_pos)
+                        max_time_steps = 50
+                        state_pos_maze = self.env.position_map2maze(start_pos + [0], [m_size, m_size])
+                        goal_pos_maze = self.env.position_map2maze(goal_pos + [0], [m_size, m_size])
+                        # whether use the real observation or the fake
+                        if not self.use_true_state and self.use_imagine:
+                            goal_loc_map = self.env_map.cropper(self.env_map.map2d_roughPadded, goal_pos)
+                            goal = self.imagine_goal_obs(goal_loc_map)
+                        # test one pair
+                        for t in range(max_time_steps):
+                            # get the action
+                            action = self.agent.get_action(state, goal, 0)
+                            # take the next step
+                            next_state, reward, done, dist, next_trans, _, _, _, _ = self.env.step(action)
+
+                            print(
+                                f"state={state_pos_maze}, act={ACTION_LIST[action]}, next_state={next_trans}, goal={goal_pos_maze}, dist={dist}, done={done}")
+                            if done:
+                                success_run += 1
+                                success_flag = True
+                                break
+                            else:
+                                state = next_state
+                                state_pos_maze = next_trans
+                        total_run += 1
+                        print(f"run idx={total_run}: start={g_pos}, goal={s_pos}, done={done}, success={success_flag}")
+                        success_flag = False
+                        print('--------------------------------------------------------------------------------------')
+                    print(f"Total pairs={total_run}, Success pairs={success_run}, Success rate={success_run/total_run}")
+
     def eval_navigate_with_dynamic_topological_map(self):
         # store the evaluation results in a dictionary
         eval_results = defaultdict()
@@ -613,15 +694,16 @@ class EvalPolicy(object):
             next_landmark_pos_maze = self.env.position_map2maze(next_landmark_pos_map + [0], [self.maze_size, self.maze_size])
             
             # way point navigation budget
-            max_steps_per_goal = 1 # steps for each landmark
+            max_steps_per_goal = 20 # steps for each landmark
             sub_nav_done = False
             sub_action_list = []
             last_landmark_obs = state_obs
+            Debug.set_trace()
             while max_steps_per_goal > 0:
                 # get the action
                 action = self.agent.get_action(state_obs, next_landmark_obs, 0)
                 # agent take that action
-                next_state, reward, done, dist, next_trans, _, _ = my_lab.step(action) 
+                next_state, reward, done, dist, next_trans, _, _, _, _ = my_lab.step(action) 
                 # record the feedback
                 sub_action_list.append(action)
                 act_idx_list.append(action)
@@ -684,7 +766,7 @@ class EvalPolicy(object):
                     reversed_act = self.agent.get_action(state_obs, last_landmark_obs, 0)
                     act_idx_list.append(reversed_act)
                     # take the step
-                    next_state, reward, _, dist, next_trans, _, _ = my_lab.step(reversed_act)
+                    next_state, reward, _, dist, next_trans, _, _, _, _ = my_lab.step(reversed_act)
                    
                     # print information
                     #print(f"Return: state={self.env.position_maze2map(state_pos_maze, [self.maze_size, self.maze_size])}, Action={ACTION_LIST[reversed_act]}, next state={self.env.position_maze2map(next_trans, [self.maze_size, self.maze_size])}, goal = {self.env.position_maze2map(target_position_maze, [self.maze_size, self.maze_size])}")
@@ -746,7 +828,6 @@ class EvalPolicy(object):
                 print("Wrong waypoint reaching estimation")
                 break
         return success_flag
-
 
     def test_distance_estimation(self):
         state, goal, state_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=True, dist=self.goal_dist)
@@ -874,9 +955,9 @@ class EvalPolicy(object):
                 mlb_sparse_matrix[i, j] = len(tmp_path) - 1
         return mlb_sparse_matrix
 
-    
     def load_pair_data(self, m_size, m_seed):
-        path = f'/mnt/cheng_results/map/maze_{m_size}_{m_seed}.pkl'
+        # path = f'/mnt/cheng_results/map/maze_{m_size}_{m_seed}.pkl'
+        path = f'./map/maze_{m_size}_{m_seed}.pkl'
         f = open(path, 'rb')
         return pickle.load(f)
 
@@ -945,7 +1026,7 @@ class EvalPolicy(object):
             maze_configs['update'] = False
 
         # obtain the state and goal observation
-        state_obs, goal_obs, _, _ = self.env.reset(maze_configs)
+        state_obs, goal_obs, _, _, _, _ = self.env.reset(maze_configs)
         # return states and goals
         return state_obs, goal_obs, init_map_pos, goal_map_pos
 
@@ -960,7 +1041,7 @@ class EvalPolicy(object):
         maze_configs["maze_seed"] = '1234'  # string type number
         maze_configs['update'] = False
         # obtain the state and goal observation
-        state_obs, goal_obs, _, _ = self.env.reset(maze_configs)
+        state_obs, goal_obs, _, _, _, _ = self.env.reset(maze_configs)
         # return states and goals
         return state_obs, goal_obs, start_pos, goal_pos
 
@@ -990,6 +1071,7 @@ def parse_input():
     parser.add_argument("--use_oracle", action='store_true', default=False, help='whether use the orcale to decide waypoint')
     parser.add_argument("--random_seed", type=int, default='1234', help="random seed")
     parser.add_argument("--imprecise_rate", type=float, default=-1, help="imprecise rate of the 2d map")
+    parser.add_argument("--terminal_dist", type=float, default=4, help='terminal distance')
     
     return parser.parse_args() 
 
@@ -1024,7 +1106,12 @@ if __name__ == '__main__':
     # necessary observations (correct: this is the egocentric observations (following the counter clock direction))
     observation_list = [
         'RGB.LOOK_RANDOM_PANORAMA_VIEW',
-        'RGB.LOOK_TOP_DOWN_VIEW'
+        'RGB.LOOK_TOP_DOWN_VIEW',
+        'RGB.LOOK_PANORAMA_VIEW',
+        'DEBUG.POS.TRANS',
+        'DEBUG.POS.ROT',
+        'VEL.TRANS',
+        'VEL.ROT'
     ]
     observation_width = 32
     observation_height = 32
@@ -1036,12 +1123,12 @@ if __name__ == '__main__':
         'fps': str(observation_fps)
     }
     # create the environment
-    my_lab = RandomMazeTileRaw(level_name,
-                               observation_list,
-                               configurations,
-                               use_true_state=args.use_true_state,
-                               reward_type="sparse-1",
-                               dist_epsilon=1e-3)
+    my_lab = RandomMaze(level_name,
+                        observation_list,
+                        configurations,
+                        use_true_state=args.use_true_state,
+                        reward_type="sparse-1",
+                        dist_epsilon=args.terminal_dist)
 
     """ Run different evaluation mode
     """
@@ -1062,7 +1149,14 @@ if __name__ == '__main__':
                                 use_rescale=args.use_rescale,
                                 device=device,
                                 use_state_est=args.use_state_est)
-        my_agent.policy_net.load_state_dict(torch.load(f"/mnt/cheng_results/rl_results/7-7/our/{args.model_maze_size}-norm-1/{args.model_maze_seed}/goal_ddqn_{args.model_maze_size}x{args.model_maze_size}_obs_maxdist_{args.model_dist}_add_terminal.pt", map_location=torch.device(args.device))
+        # my_agent.policy_net.load_state_dict(torch.load(f"/mnt/cheng_results/rl_results/corl/one_shot/{args.model_maze_size}-1/{args.model_maze_seed}/goal_dqn_vanilla_soft_local_obs_{args.model_maze_size}x{args.model_maze_size}_obs_dist_{args.model_dist}_68001.pt", map_location=torch.device(args.device))
+        # )
+        # print(f"/mnt/cheng_results/rl_results/corl/one_shot/{args.model_maze_size}-1/{args.model_maze_seed}/goal_dqn_vanilla_soft_local_obs_{args.model_maze_size}x{args.model_maze_size}_obs_dist_{args.model_dist}.pt")
+        # my_agent.policy_net.load_state_dict(torch.load(f"./results/9-12/{args.model_maze_size}-1/{args.model_maze_seed}/goal_dqn_vanilla_soft_local_obs_{args.model_maze_size}x{args.model_maze_size}_obs_dist_{args.model_dist}.pt", map_location=torch.device(args.device))
+        # )
+        my_agent.policy_net.load_state_dict(torch.load(
+            f"./results/9-15/goal_ddqn_obs_{args.model_maze_size}x{args.model_maze_size}.pt",
+            map_location=torch.device(args.device))
         )
         my_agent.policy_net.eval()
         # run the agent
@@ -1074,7 +1168,8 @@ if __name__ == '__main__':
                            res_path=save_path,
                            res_name=file_name,
                            args=args)
-        myVis.eval_navigate_with_dynamic_topological_map()
+        #myVis.eval_navigate_with_dynamic_topological_map()
+        myVis.eval_map_1_step_navigation()
     elif eval_mode == 'her-policy':
         my_agent = GoalDQNAgent(use_true_state=args.use_true_state,
                                 use_small_obs=True,

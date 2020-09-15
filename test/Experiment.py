@@ -88,7 +88,7 @@ class Experiment(object):
                              torch.tensor([0, 0, 0, 0, 0, 0, 0, 1])]
         if self.use_imagine:
             self.thinker = VAE.CVAE(64, use_small_obs=True)
-            self.thinker.load_state_dict(torch.load("/mnt/sda/dataset/ml_nav/VAE/model/small_obs_L64_B8.pt",
+            self.thinker.load_state_dict(torch.load("/mnt/cheng_results/VAE/models/small_obs_L64_B8.pt",
                                                      map_location=self.device))
             self.thinker.eval()
         # training configurations
@@ -121,6 +121,7 @@ class Experiment(object):
         self.returns = []
         self.lengths = []
         self.policy_returns = []
+        self.policy_eval = 0
         # saving settings
         self.model_name = model_name
         self.save_dir = save_dir
@@ -339,14 +340,14 @@ class Experiment(object):
                     f'GT: {len(self.env_map.path) - 1}|'
                     f'Buffer: {len(self.replay_buffer)}|'
                     f'Loss: {self.agent.current_total_loss:.4f}|'
-                    f'Pred Loss: {self.agent.current_state_loss:.4f}'
+                    f'Eval: {self.policy_eval:.3f}'
                 ) 
                 # evaluate the current policy
-                #if (episode_idx - 1) % self.eval_policy_freq == 0:
+                if (episode_idx - 1) % self.eval_policy_freq == 0:
                     # evaluate the current policy by interaction
-                #    model_save_path = os.path.join(self.save_dir, self.model_name) + f"_{episode_idx}.pt"
-                #    torch.save(self.agent.policy_net.state_dict(), model_save_path)
-                #    self.eval_policy_novel() 
+                    model_save_path = os.path.join(self.save_dir, self.model_name) + f"_{episode_idx}.pt"
+                    torch.save(self.agent.policy_net.state_dict(), model_save_path)
+                    self.eval_policy_novel() 
 
                 # reset the environments
                 rewards = []
@@ -757,52 +758,52 @@ class Experiment(object):
         # return states and goals
         return state_obs, goal_obs, init_pos, goal_pos
 
-    # def eval_policy_novel(self):
-    #     # loop all the testing mazes
-    #     for m_size in self.maze_size_list:
-    #         for m_seed in self.maze_seed_list:
-    #             # print the current maze info
-    #             # print(f'Evaluating maze - {m_size} - {m_seed}')
-    #             self.eval_dist_pairs = self.load_pair_data(m_size, m_seed)
-    #             self.maze_size = m_size
-    #             self.maze_seed = m_seed
-    #             self.update_map2d_and_maze3d(set_new_maze=True)
-    #             # load the model
-    #             # loop all the distance
-    #             pairs_dict = {'start': self.eval_dist_pairs['1'][0], 'goal': self.eval_dist_pairs['1'][1]}
-    #             # sample number
-    #             eval_total_num = 10 if len(pairs_dict['start']) > 10 else len(pairs_dict['start'])
-    #             eval_success_num = 0
-    #             # obtain all the pairs
-    #             pairs_idx = random.sample(range(len(pairs_dict['start'])), eval_total_num)
-    #             # loop all the pairs
-    #             for r, idx in enumerate(pairs_idx):
-    #                 # obtain the start-goal pair
-    #                 s_pos, g_pos = pairs_dict['start'][idx], pairs_dict['goal'][idx]
-    #                 # update the maze
-    #                 state, goal, start_pos, goal_pos = self.update_maze_from_pos(s_pos, g_pos)
-    #                 # obtain the fake observation
-    #                 if not self.use_true_state:
-    #                     goal_loc_map = self.env_map.cropper(self.env_map.map2d_roughPadded, self.env_map.path[-1])
-    #                     goal = self.imagine_goal_observation(goal_loc_map)
-    #                 max_time_steps = 3
-    #                 act_list = []
-    #                 for t in range(max_time_steps):
-    #                     # get action
-    #                     action = self.agent.get_action(state, goal, 0)
-    #                     act_list.append(DEFAULT_ACTION_LIST[action])
-    #                     # step in the environment
-    #                     next_state, reward, done, dist, next_trans, _, _ = self.env.step(action)
-    #                     if done:
-    #                         eval_success_num += 1
-    #                         break
-    #                     else:
-    #                         state = next_state
-    #                 #print(f"run = {r}: start = {s_pos}, goal = {g_pos}, act = {act_list}, done = {done}")
-    #                 #print("-----------------------------------------------")
-    #             self.policy_returns.append(eval_success_num / eval_total_num)
-    #             #print(f"Success rate = {eval_success_num / eval_total_num}")
-    #             #print('********************************************')
+    def eval_policy_novel(self):
+         # loop all the testing mazes
+         for m_size in self.maze_size_list:
+             for m_seed in self.maze_seed_list:
+                 # print the current maze info 
+                 self.eval_dist_pairs = self.load_pair_data(m_size, m_seed)
+                 self.maze_size = m_size
+                 self.maze_seed = m_seed
+                 self.update_map2d_and_maze3d(set_new_maze=True)
+                 # load the model
+                 # loop all the distance
+                 pairs_dict = {'start': self.eval_dist_pairs['1'][0], 'goal': self.eval_dist_pairs['1'][1]}
+                 # sample number
+                 eval_total_num = 20 if len(pairs_dict['start']) > 20 else len(pairs_dict['start'])
+                 eval_success_num = 0
+                 # obtain all the pairs
+                 pairs_idx = random.sample(range(len(pairs_dict['start'])), eval_total_num)
+                 # loop all the pairs
+                 for r, idx in enumerate(pairs_idx):
+                     # obtain the start-goal pair
+                     s_pos, g_pos = pairs_dict['start'][idx], pairs_dict['goal'][idx]
+                     # update the maze
+                     state, goal, start_pos, goal_pos = self.update_maze_from_pos(s_pos, g_pos)
+                     # obtain the fake observation
+                     if not self.use_true_state:
+                         goal_loc_map = self.env_map.cropper(self.env_map.map2d_roughPadded, self.env_map.path[-1])
+                         goal = self.imagine_goal_observation(goal_loc_map)
+                     max_time_steps = 20
+                     act_list = []
+                     for t in range(max_time_steps):
+                         # get action
+                         action = self.agent.get_action(state, goal, 0)
+                         act_list.append(DEFAULT_ACTION_LIST[action])
+                         # step in the environment
+                         next_state, reward, done, dist, next_trans, _, _, _, _ = self.env.step(action)
+                         if done:
+                             eval_success_num += 1
+                             break
+                         else:
+                             state = next_state
+                     #print(f"run = {r}: start = {s_pos}, goal = {g_pos}, act = {act_list}, done = {done}")
+                     #print("-----------------------------------------------")
+                 self.policy_eval = eval_success_num / eval_total_num
+                 self.policy_returns.append(eval_success_num / eval_total_num)
+                 #print(f"Success rate = {eval_success_num / eval_total_num}")
+                 #print('********************************************')
 
     # save the results
     def save_results(self):

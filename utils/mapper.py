@@ -569,12 +569,16 @@ class RoughMap(object):
         print(self.map2d_grid)
         print(self.map2d_imprecise)
 
-
-# env_map = RoughMap(7, 21, 3)
+#
+# env_map = RoughMap(7, 0, 3)
 #
 # plt.imshow(env_map.map2d_bw)
 # plt.axis('off')
 # plt.show()
+#
+# for lm in env_map.local_maps:
+#     plt.imshow(lm)
+#     plt.show()
 
 # path_1 = [np.array([1, 11]), np.array([1, 10]), np.array([1, 9]), np.array([2, 9]), np.array([3, 9]),
 #           np.array([16, 3]), np.array([17, 3]), np.array([17, 3]), np.array([17, 4]), np.array([17, 5]),

@@ -194,7 +194,8 @@ class GoalDQNAgent(object):
                  learning_rate=1e-3,
                  device="cpu",
                  use_state_est=False,
-                 alpha=1.0
+                 alpha=1.0,
+                 n_step_num=1
                  ):
         """
         Init the DQN agent
@@ -222,6 +223,7 @@ class GoalDQNAgent(object):
         self.dqn_mode = dqn_mode
         """ Training configurations """
         self.gamma = gamma
+        self.n_step_num = n_step_num
         self.alpha = alpha
         self.tau = 0.05  # parameters for soft target update
         self.use_true_state = use_true_state
@@ -294,7 +296,7 @@ class GoalDQNAgent(object):
             terminal_mask = (torch.ones(done.size(), device=self.device) - done)
             max_next_sa_goal_values = max_next_sa_goal_values * terminal_mask
             # compute the r + gamma * max_a' Q_target(s', a')
-            td_target = reward + self.gamma * max_next_sa_goal_values
+            td_target = reward + (self.gamma ** self.n_step_num) * max_next_sa_goal_values
         else:  # update the policy network using double DQN
             # select the maximal actions using greedy policy network: argmax_a Q_policy(S_t+1)
             if not self.use_state_est:
@@ -312,7 +314,7 @@ class GoalDQNAgent(object):
             terminal_mask = (torch.ones(done.size(), device=self.device) - done)
             max_next_state_goal_q_values = next_sa_goal_values * terminal_mask
             # compute the TD target
-            td_target = reward + self.gamma * max_next_state_goal_q_values
+            td_target = reward + (self.gamma ** self.n_step_num) * max_next_state_goal_q_values
 
         if not self.use_state_est:
             # compute the loss using MSE error: TD error

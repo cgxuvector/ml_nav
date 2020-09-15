@@ -1,5 +1,5 @@
 from utils import mapper
-from collections import namedtuple, defaultdict
+from collections import namedtuple, defaultdict, deque
 import tqdm
 from model import VAE
 from utils import memory
@@ -51,7 +51,8 @@ class Experiment(object):
                  model_name=None,
                  use_imagine=0,  # imagination flag
                  device='cpu',
-                 use_state_est=False
+                 use_state_est=False,
+                 n_step_num=1
                  ):
         self.device = torch.device(device)
         # environment
@@ -105,6 +106,9 @@ class Experiment(object):
             self.TRANSITION = transition
         self.batch_size = batch_size
         self.use_replay_buffer = use_replay
+        # use n-step update
+        self.n_step_num = n_step_num
+        self.n_step_buffer = deque(maxlen=n_step_num)
         # HER configurations
         self.use_her = use_her
         self.her_future_k = future_k  # future strategy
@@ -268,6 +272,104 @@ class Experiment(object):
 
         # save the results
         self.save_results()
+
+    def run_goal_n_step_dqn(self):
+        """
+            Function is used to train the globally goal-conditioned double DQN.
+        """
+        print("Experiment: Run n step goal-conditioned DQN")
+        # set the training statistics
+        rewards = []  # list of rewards for one episode
+        episode_t = 0  # time step for one episode
+
+        # update the start-goal positions
+        state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=True)
+
+        # start the training
+        pbar = tqdm.trange(self.max_time_steps)
+        for t in pbar:
+            # compute the epsilon
+            eps = self.schedule.get_value(t)
+
+            # get action
+            action = self.agent.get_action(state, goal, eps)
+
+            # step in the environment
+            next_state, reward, done, dist, trans, _, _ = self.env.step(action)
+
+            # store the replay buffer and convert the data to tensor
+            if self.use_replay_buffer:
+                # # construct the transition
+                # trans = self.toTransition(state, action, next_state, reward, goal, done)
+                # # add the transition into the buffer
+                # self.replay_buffer.add(trans)
+                self.add_n_step_transition(state, action, next_state, reward, goal, done)
+
+            # increment
+            state = next_state
+            episode_t += 1
+            rewards.append(reward)
+
+            # check terminal
+            if done or (episode_t == self.max_steps_per_episode):
+                # compute the discounted return for each time step
+                G = 0
+                for r in reversed(rewards):
+                    G = r + self.gamma * G
+
+                # store the return, episode length, and final distance for current episode
+                self.returns.append(G)
+                # compute the episode number
+                episode_idx = len(self.returns)
+
+                pbar.set_description(
+                    f'Episode: {episode_idx} | '
+                    f'Steps: {episode_t} | '
+                    f'Return: {G:2f} | '
+                    f'Dist: {dist:.2f} | '
+                    f'Init: {self.env.start_pos} | '
+                    f'Goal: {self.env.goal_pos} | '
+                    f'Eps: {eps:.3f} | '
+                    f'Buffer: {len(self.replay_buffer)}'
+                )
+
+                # reset the environments
+                rewards = []
+                episode_t = 0
+                self.n_step_buffer.clear()
+                state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=False)
+
+            # start training the agent
+            if t > self.start_train_step:
+                sampled_batch = self.replay_buffer.sample(self.batch_size)
+                self.agent.train_one_batch(t, sampled_batch)
+
+        # save the results
+        self.save_results()
+
+    def add_n_step_transition(self, s, a, next_s, r, g, d):
+        # store the transition into the n step buffer
+        self.n_step_buffer.append([s, a, next_s, r, g, d])
+        # check if the number of transition
+        if len(self.n_step_buffer) < self.n_step_num:
+            return None
+
+        # compute the n step reward
+        n_step_reward = 0
+        for n in range(self.n_step_num):
+            n_step_reward += self.n_step_buffer[n][3] * self.gamma ** n
+
+        # get the start transition
+        trans_left = self.n_step_buffer[0]
+        trans_right = self.n_step_buffer[-1]
+        trans = self.toTransition(trans_left[0],
+                                  trans_right[1],
+                                  trans_right[2],
+                                  n_step_reward,
+                                  trans_right[4],
+                                  trans_right[5])
+        # add into buffer
+        self.replay_buffer.add(trans)
 
     def run_random_local_goal_dqn(self):
         """
@@ -689,7 +791,7 @@ class Experiment(object):
         else:
             return self.TRANSITION(state=self.toTensor(state),
                                    action=torch.tensor(action, dtype=torch.int8).view(-1, 1),
-                                   reward=torch.tensor(reward, dtype=torch.int8).view(-1, 1),
+                                   reward=torch.tensor(reward, dtype=torch.float).view(-1, 1),
                                    next_state=self.toTensor(next_state),
                                    goal=self.toTensor(goal),
                                    done=torch.tensor(done, dtype=torch.int8).view(-1, 1))
