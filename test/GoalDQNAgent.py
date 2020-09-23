@@ -166,8 +166,8 @@ class GoalDeepQNet(nn.Module):
                 est_x = self.fcEstNet(state_goal_fea)
         else:
             # convert the dimension
-            state = state.view(-1, 3)
-            goal = goal.view(-1, 3)
+            state = state.view(-1, 4)
+            goal = goal.view(-1, 2) 
             state_goal_fea = torch.cat([state, goal], dim=1)
             val_x = self.fcNet(state_goal_fea)
             # if use state estimation, one more head

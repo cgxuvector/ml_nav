@@ -60,7 +60,7 @@ class RandomMaze(object):
         self._lab = deepmind_lab.Lab(self._level_name,
                                      self._observation_names,
                                      self._level_configs,
-                                     renderer='software'
+                                     renderer='hardware'
                                      )
 
         """ 
@@ -197,13 +197,13 @@ class RandomMaze(object):
         """ initialize the 3D maze"""
         init_state = self._lab.observations()
         # initialize the current state
-        self._current_state = self.start_pos_maze
+        self._current_state = init_state['DEBUG.POS.TRANS'].tolist()[0:2] + init_state['VEL.TRANS'].tolist()[0:2] 
         # initialize the current observations
         self._current_observation = init_state['RGB.LOOK_PANORAMA_VIEW']
         # initialize the top down view
         self._top_down_observation = init_state['RGB.LOOK_TOP_DOWN_VIEW']
         # initialize the goal observations
-        self._goal_state = self.goal_pos_maze
+        self._goal_state = self.goal_pos_maze[0:2]
         self._goal_observation = self.get_random_observations_tile(self.goal_pos_map)
         # initialize the positions and orientations
         self._trans = init_state['DEBUG.POS.TRANS'].tolist()
@@ -235,7 +235,7 @@ class RandomMaze(object):
             self._rots = current_state['DEBUG.POS.ROT'].tolist()
             self._trans_vel = current_state['VEL.TRANS'].tolist()
             self._rots_vel = current_state['VEL.ROT'].tolist()
-            self._current_state = self._trans[0:2] + [self._rots[1]]
+            self._current_state = self._trans[0:2] + self._trans_vel[0:2]
             # check if the agent reaches the goal given the current position and orientation
             terminal, dist = self.reach_goal(self._current_state)
             # update the current distance between the agent and the goal
