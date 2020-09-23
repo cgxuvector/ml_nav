@@ -88,8 +88,9 @@ class Experiment(object):
                              torch.tensor([0, 0, 0, 0, 0, 0, 0, 1])]
         if self.use_imagine:
             self.thinker = VAE.CVAE(64, use_small_obs=True)
-            self.thinker.load_state_dict(torch.load("/mnt/cheng_results/VAE/models/small_obs_L64_B8.pt",
-                                                     map_location=self.device))
+            #self.thinker.load_state_dict(torch.load("/mnt/cheng_results/VAE/models/small_obs_L64_B8.pt",
+            #                                         map_location=self.device))
+            self.thinker.load_state_dict(torch.load("/mnt/sda/dataset/ml_nav/VAE/model/small_obs_L64_B8.pt"))
             self.thinker.eval()
         # training configurations
         self.train_random_policy = train_random_policy
@@ -213,7 +214,9 @@ class Experiment(object):
 
         # update the start-goal positions
         state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=True)
-
+        
+        #goal = goal + [0]
+        #state = state[0:2] + [0]
         # start the training
         pbar = tqdm.trange(self.max_time_steps)
         for t in pbar:
@@ -224,10 +227,16 @@ class Experiment(object):
             action = self.agent.get_action(state, goal, eps)
 
             # step in the environment
+            #action = 1
             next_state, reward, done, dist, trans, _, _, _, _ = self.env.step(action)
-            
+            #print(f'ep id={t}, s = {state}, a = {DEFAULT_ACTION_RAW[action]}, next_s={next_state}, g={goal}, dist={dist}, done={done}, reward={reward}')
+
+            #Debug.set_trace()
             # store the replay buffer and convert the data to tensor
             if self.use_replay_buffer:
+                # only use to explain the old state is infeasible to learn behavior
+                #state = state[0:2] + [0]
+                #next_state = next_state[0:2] + [0]
                 # construct the transition
                 trans = self.toTransition(state, action, next_state, reward, goal, done)
                 # add the transition into the buffer
@@ -265,7 +274,9 @@ class Experiment(object):
                 rewards = []
                 episode_t = 0
                 state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=False)
-
+                # only used to show the old state is infeasible
+                #state = state[0:2] + [0]
+                #goal = goal + [0]
             # start training the agent
             if t > self.start_train_step:
                 sampled_batch = self.replay_buffer.sample(self.batch_size)
@@ -302,10 +313,11 @@ class Experiment(object):
   
             # get action
             action = self.agent.get_action(state, goal, eps)
-
+            
             # step in the environment
             next_state, reward, done, dist, trans, _, _, _, _ = self.env.step(action)
-            #Debug.set_trace()
+            print(f'ep id={t}, s = {state}, a = {DEFAULT_ACTION_RAW[action]}, next_s={next_state}, g={goal}, dist={dist}, done={done}, reward={reward}')
+            Debug.set_trace()
             # store the replay buffer and convert the data to tensor
             if self.use_replay_buffer:
                 # construct the transition
@@ -337,17 +349,15 @@ class Experiment(object):
                     f'Init: {self.env.start_pos_map[0:2]}|'
                     f'Goal: {self.env.goal_pos_map[0:2]}|'
                     f'Eps: {eps:.3f}|'
-                    f'GT: {len(self.env_map.path) - 1}|'
                     f'Buffer: {len(self.replay_buffer)}|'
-                    f'Loss: {self.agent.current_total_loss:.4f}|'
-                    f'Eval: {self.policy_eval:.3f}'
+                    f'Eval: {self.policy_eval:.2f}'
                 ) 
                 # evaluate the current policy
-                if (episode_idx - 1) % self.eval_policy_freq == 0:
+                #if (episode_idx - 1) % self.eval_policy_freq == 0:
                     # evaluate the current policy by interaction
-                    model_save_path = os.path.join(self.save_dir, self.model_name) + f"_{episode_idx}.pt"
-                    torch.save(self.agent.policy_net.state_dict(), model_save_path)
-                    self.eval_policy_novel() 
+                #    model_save_path = os.path.join(self.save_dir, self.model_name) + f"_{episode_idx}.pt"
+                #    torch.save(self.agent.policy_net.state_dict(), model_save_path)
+                #    self.eval_policy_novel() 
 
                 # reset the environments
                 rewards = []
@@ -384,7 +394,7 @@ class Experiment(object):
                 self.agent.train_one_batch(t, sampled_batch)
 
         # save results
-        self.save_results()
+        # self.save_results()
 
     def run_random_local_goal_dqn_her_our(self):
         """
@@ -583,8 +593,8 @@ class Experiment(object):
                     f'Steps: {episode_t} | '
                     f'Return: {G:2f} | '
                     f'Dist: {dist:.2f} | '
-                    f'Init: {self.env.start_pos} | '
-                    f'Goal: {self.env.goal_pos} | '
+                    f'Init: {self.env.start_pos_map[0:2]} | '
+                    f'Goal: {self.env.goal_pos_map[0:2]} | '
                     f'Eps: {eps:.3f} | '
                     f'Buffer: {len(self.replay_buffer)}'
                 )
@@ -669,7 +679,7 @@ class Experiment(object):
             # relabel the current transition
             for idx in sampled_goals:
                 # get the new goal
-                new_goal = s_list[idx]
+                new_goal = s_list[idx][0:2]
                 new_goal_pos = t_list[idx - 1]
                 # compute the new reward
                 distance = self.env.compute_distance(next_state_pos, new_goal_pos)
@@ -725,8 +735,11 @@ class Experiment(object):
             # initialize the map 2D
             self.env_map = mapper.RoughMap(self.maze_size, self.maze_seed, 3)
             self.env_map.sample_random_start_goal_pos(self.fix_start, self.fix_goal, self.goal_dist)
-            init_pos = self.env_map.init_pos
-            goal_pos = self.env_map.goal_pos
+            #init_pos = self.env_map.init_pos
+            #goal_pos = self.env_map.goal_pos
+            init_pos = [1, 1]
+            goal_pos = [2, 1]
+            self.env_map.update_mapper(init_pos, goal_pos)
             # initialize the maze 3D
             maze_configs["maze_name"] = f"maze_{self.maze_size}_{self.maze_seed}"  # string type name
             maze_configs["maze_size"] = [self.maze_size, self.maze_size]  # [int, int] list
@@ -746,15 +759,18 @@ class Experiment(object):
             else:
                 init_pos, goal_pos = self.env_map.sample_random_start_goal_pos(self.fix_start, self.fix_goal,
                                                                                self.goal_dist)
-            # self.env_map.update_mapper(init_pos, goal_pos)
+            init_pos = [1, 1]
+            goal_pos = [2, 1]
+            self.env_map.update_mapper(init_pos, goal_pos)
             maze_configs['start_pos'] = init_pos + [0]
             maze_configs['goal_pos'] = goal_pos + [0]
             maze_configs['maze_valid_pos'] = self.env_map.valid_pos
             maze_configs['update'] = False
 
+        #Debug.set_trace() 
         # obtain the state and goal observation
         state_obs, goal_obs, _, _, _, _ = self.env.reset(maze_configs)
-        
+          
         # return states and goals
         return state_obs, goal_obs, init_pos, goal_pos
 
@@ -820,7 +836,8 @@ class Experiment(object):
     # load the pre-extract pairs
     @staticmethod
     def load_pair_data(m_size, m_seed):
-        path = f'/mnt/cheng_results/map/maze_{m_size}_{m_seed}.pkl'
+        #path = f'/mnt/cheng_results/map/maze_{m_size}_{m_seed}.pkl'
+        path = f'/mnt/sda/map/maze_{m_size}_{m_seed}.pkl'
         f = open(path, 'rb')
         return pickle.load(f)
 
