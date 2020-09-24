@@ -70,8 +70,8 @@ class EvalPolicy(object):
         # load the vae model
         self.cvae = VAE.CVAE(64, use_small_obs=True)
         # self.cvae.load_state_dict(torch.load("/mnt/cheng_results/VAE/models/small_obs_L64_B8.pt", map_location=torch.device('cuda:0')))
-        #self.cvae.load_state_dict(torch.load("./results/vae/model/small_obs_L64_B8.pt", map_location=torch.device('cpu')))
-        self.cvae.load_state_dict(torch.load("/mnt/sda/dataset/ml_nav/VAE/model/small_obs_L64_B8.pt", map_location=torch.device('cpu')))
+        self.cvae.load_state_dict(torch.load("./results/vae/model/small_obs_L64_B8.pt", map_location=torch.device('cpu')))
+        # self.cvae.load_state_dict(torch.load("/mnt/sda/dataset/ml_nav/VAE/model/small_obs_L64_B8.pt", map_location=torch.device('cpu')))
         self.cvae.eval()
         self.cvae = self.cvae.to(self.device)
         # save parameters
@@ -314,7 +314,7 @@ class EvalPolicy(object):
                     init_mlb_map = self.build_mlb_from_2d_imprecise_map(max_edge_len=1)
                 else:
                     init_mlb_map = self.build_mlb_from_2d_map(max_edge_len=1)
-                    np.save(f"/mnt/sda/mlb_map_{m_size}_{m_seed}.npy", init_mlb_map)
+                    np.save(f"./mlb_map_{m_size}_{m_seed}.npy", init_mlb_map)
                     # build the map using rough 2-D map
                     # init_mlb_map = np.load(f'/mnt/cheng_results/mlb_map_{m_size}_{m_seed}.npy')
                     # init_mlb_map = np.load(f'/mnt/sda/mlb_map_{m_size}_{m_seed}.npy')
@@ -380,7 +380,7 @@ class EvalPolicy(object):
                                     mlb_graph = csr_matrix(mlb_map)
                         run += 1 
                         print(f"{m_size}-{m_seed}: Run {run}: Start = {s_pos}, Goal = {g_pos}, Dist = {len(self.env_map.path)}, Done = {success_flag_forward}")  
-                        
+                        # Debug.set_trace()
 
                         # backward
                         success_flag_backward = self.run_single_pair(g_pos, s_pos, mlb_map, mlb_graph)
@@ -462,7 +462,7 @@ class EvalPolicy(object):
                 # get the action
                 action = self.agent.get_action(state_obs, next_landmark_obs, 0)
                 # agent take that action
-                next_state, reward, done, dist, next_trans, _, _, _, _ = my_lab.step(action) 
+                next_state, reward, done, dist, next_trans, _, _, _, _ = my_lab.step(action)
                 # record the feedback
                 sub_action_list.append(action)
                 act_idx_list.append(action)
@@ -474,7 +474,7 @@ class EvalPolicy(object):
                 #    _, state_pred = self.agent.policy_net(current_state, target_goal) 
                 #    reach_sub_goal = state_pred.view(1, -1).max(dim=1)[1].item()
                 print(f"State={state_pos_maze}, Action={ACTION_LIST[action]}, Next state={next_trans}, Reward={reward}, Goal={next_landmark_pos_maze}, dist={dist:.2f}, Done={done}")
-                # Debug.set_trace() 
+                #Debug.set_trace()
                 # update the current state
                 nav_done = done
                 state_obs = next_state
@@ -502,6 +502,7 @@ class EvalPolicy(object):
             # if agent fail to reach the way point
             if not sub_nav_done:
                 print(f"Fail to reach the way point {next_landmark_pos_map}")
+                # Debug.set_trace()
                 fail_count += 1
                 target_position_maze = self.env.position_map2maze(state_pos + [0], [self.maze_size, self.maze_size])
                 for action in range(len(sub_action_list)):
@@ -522,7 +523,7 @@ class EvalPolicy(object):
                     #        sub_nav_done = True
                     #        break
 
-                    
+                    # Debug.set_trace()
                     #reversed_act = reversed_actions[action]
                     reversed_act = self.agent.get_action(state_obs, last_landmark_obs, 0)
                     act_idx_list.append(reversed_act)
@@ -719,8 +720,8 @@ class EvalPolicy(object):
 
     def load_pair_data(self, m_size, m_seed):
         # path = f'/mnt/cheng_results/map/maze_{m_size}_{m_seed}.pkl'
-        # path = f'./map/maze_{m_size}_{m_seed}.pkl'
-        path = f'/mnt/sda/map/maze_{m_size}_{m_seed}.pkl'
+        path = f'./map/maze_{m_size}_{m_seed}.pkl'
+        # path = f'/mnt/sda/map/maze_{m_size}_{m_seed}.pkl'
         f = open(path, 'rb')
         return pickle.load(f)
 
@@ -919,15 +920,15 @@ if __name__ == '__main__':
         # my_agent.policy_net.load_state_dict(torch.load(f"/mnt/cheng_results/rl_results/corl/one_shot/{args.model_maze_size}-1/{args.model_maze_seed}/goal_dqn_vanilla_soft_local_obs_{args.model_maze_size}x{args.model_maze_size}_obs_dist_{args.model_dist}_68001.pt", map_location=torch.device(args.device))
         # )
         # print(f"/mnt/cheng_results/rl_results/corl/one_shot/{args.model_maze_size}-1/{args.model_maze_seed}/goal_dqn_vanilla_soft_local_obs_{args.model_maze_size}x{args.model_maze_size}_obs_dist_{args.model_dist}.pt")
-        #my_agent.policy_net.load_state_dict(torch.load(f"./results/9-12/{args.model_maze_size}-1/{args.model_maze_seed}/goal_dqn_vanilla_soft_local_obs_{args.model_maze_size}x{args.model_maze_size}_obs_dist_{args.model_dist}.pt", map_location=torch.device(args.device))
-        # )
+        my_agent.policy_net.load_state_dict(torch.load(f"./results/9-23/goal_ddqn_obs_{args.model_maze_size}x{args.model_maze_size}_obs_dist_{args.model_dist}.pt", map_location=torch.device(args.device))
+        )
         #my_agent.policy_net.load_state_dict(torch.load(
         #    f"./one_shot/{args.model_maze_size}--1/{args.model_maze_seed}/true_state_test_ep_100_{args.model_maze_size}x{args.model_maze_size}_obs_dist_-1.pt",
         #    map_location=torch.device(args.device))
         #)
-        my_agent.policy_net.load_state_dict(
-                torch.load(f'/mnt/sda/rl_results/corl/one_shot/{args.model_maze_size}-1/{args.model_maze_seed}/goal_ddqn_obs_{args.model_maze_size}x{args.model_maze_size}_obs_dist_1.pt', map_location=torch.device(args.device))
-        )
+        # my_agent.policy_net.load_state_dict(
+        #         torch.load(f'/mnt/sda/rl_results/corl/one_shot/{args.model_maze_size}-1/{args.model_maze_seed}/goal_ddqn_obs_{args.model_maze_size}x{args.model_maze_size}_obs_dist_1.pt', map_location=torch.device(args.device))
+        # )
         my_agent.policy_net.eval()
         # run the agent
         myVis = EvalPolicy(env=my_lab,

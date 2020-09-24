@@ -10,12 +10,14 @@ import os
 import numpy as np
 import pickle
 import IPython.terminal.debugger as Debug
+import matplotlib.pyplot as plt
 
 
 # define the global default parameters
 DEFAULT_TRANSITION = namedtuple("transition", ["state", "action", "next_state", "reward", "goal", "done"])
 DEFAULT_ACTION_LIST = ['up', 'down', 'left', 'right']
 DEFAULT_ACTION_RAW = ['up', 'down', 'right', 'left']
+
 
 class Experiment(object):
     def __init__(self,
@@ -194,6 +196,80 @@ class Experiment(object):
                 rewards = []
                 episode_t = 0
                 state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=False)
+
+            # start training the agent
+            if t > self.start_train_step:
+                sampled_batch = self.replay_buffer.sample(self.batch_size)
+                self.agent.train_one_batch(t, sampled_batch)
+
+        # save the results
+        self.save_results()
+
+    def run_goal_dqn_map_guide_explore(self):
+        """
+               Function is used to train the globally goal-conditioned double DQN.
+        """
+        print("Experiment: Run goal-conditioned DQN")
+        # set the training statistics
+        rewards = []  # list of rewards for one episode
+        episode_t = 0  # time step for one episode
+
+        state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=True)
+
+        # start the training
+        pbar = tqdm.trange(self.max_time_steps)
+        for t in pbar:
+            # compute the epsilon
+            eps = self.schedule.get_value(t)
+
+            # get action
+            action = self.explore_using_map_info(state, goal, eps)
+
+            # step in the environment
+            next_state, reward, done, dist, trans, _, _, _, _ = self.env.step(action)
+            # print(f'ep id={t}, s = {state}, a = {DEFAULT_ACTION_RAW[action]}, next_s={next_state}, g={goal}, dist={dist}, done={done}, reward={reward}')
+
+            # store the replay buffer and convert the data to tensor
+            if self.use_replay_buffer:
+                # only use to explain the old state is infeasible to learn behavior
+                # construct the transition
+                trans = self.toTransition(state, action, next_state, reward, goal, done)
+                # add the transition into the buffer
+                self.replay_buffer.add(trans)
+
+            # increment
+            state = next_state
+            episode_t += 1
+            rewards.append(reward)
+
+            # check terminal
+            if done or (episode_t == self.max_steps_per_episode):
+                # compute the discounted return for each time step
+                G = 0
+                for r in reversed(rewards):
+                    G = r + self.gamma * G
+
+                # store the return, episode length, and final distance for current episode
+                self.returns.append(G)
+                # compute the episode number
+                episode_idx = len(self.returns)
+
+                pbar.set_description(
+                    f'Episode: {episode_idx} | '
+                    f'Steps: {episode_t} | '
+                    f'Return: {G:2f} | '
+                    f'Dist: {dist:.2f} | '
+                    f'Init: {self.env.start_pos_map} | '
+                    f'Goal: {self.env.goal_pos_map} | '
+                    f'Eps: {eps:.3f} | '
+                    f'Buffer: {len(self.replay_buffer)}'
+                )
+
+                # reset the environments
+                rewards = []
+                episode_t = 0
+                state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=False)
+                # only used to show the old state is infeasible
 
             # start training the agent
             if t > self.start_train_step:
@@ -737,9 +813,10 @@ class Experiment(object):
             self.env_map.sample_random_start_goal_pos(self.fix_start, self.fix_goal, self.goal_dist)
             init_pos = self.env_map.init_pos
             goal_pos = self.env_map.goal_pos
-            #init_pos = [1, 1]
-            #goal_pos = [2, 1]
-            #self.env_map.update_mapper(init_pos, goal_pos)
+
+            # init_pos = [1, 1]
+            # goal_pos = [2, 1]
+            # self.env_map.update_mapper(init_pos, goal_pos)
             # initialize the maze 3D
             maze_configs["maze_name"] = f"maze_{self.maze_size}_{self.maze_seed}"  # string type name
             maze_configs["maze_size"] = [self.maze_size, self.maze_size]  # [int, int] list
@@ -759,9 +836,9 @@ class Experiment(object):
             else:
                 init_pos, goal_pos = self.env_map.sample_random_start_goal_pos(self.fix_start, self.fix_goal,
                                                                                self.goal_dist)
-            #init_pos = [1, 1]
-            #goal_pos = [2, 1]
-            #self.env_map.update_mapper(init_pos, goal_pos)
+            # init_pos = [1, 1]
+            # goal_pos = [2, 1]
+            # self.env_map.update_mapper(init_pos, goal_pos)
             maze_configs['start_pos'] = init_pos + [0]
             maze_configs['goal_pos'] = goal_pos + [0]
             maze_configs['maze_valid_pos'] = self.env_map.valid_pos
@@ -853,3 +930,11 @@ class Experiment(object):
         state_obs, goal_obs, _, _, _, _ = self.env.reset(maze_configs)
         # return states and goals
         return state_obs, goal_obs, start_pos, goal_pos
+
+    def explore_using_map_info(self, state, goal, eps):
+        if random.uniform(0, 1) < eps:  # with probability epsilon, the agent selects a random action
+            action = DEFAULT_ACTION_RAW.index(self.env_map.map_act[0])
+            Debug.set_trace()
+        else:  # with probability 1 - epsilon, the agent selects the greedy action
+            action = self.agent.get_action(state, goal, 0)
+        return action

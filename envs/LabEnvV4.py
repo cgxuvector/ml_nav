@@ -35,7 +35,7 @@ VALID_OBS = ['RGBD_INTERLEAVED',
 
 # Deepmind domain for random mazes with random start and goal positions
 class RandomMaze(object):
-    def __init__(self, level, observations, configs, use_true_state=False, reward_type='sparse-0', dist_epsilon=1e-3):
+    def __init__(self, level, observations, configs, args, use_true_state=False, reward_type='sparse-0', dist_epsilon=1e-3):
         """
         Create gym-like domain interface: This is the original tile version
         :param level: name of the level (currently we only support one name "nav_random_nav")
@@ -60,7 +60,7 @@ class RandomMaze(object):
         self._lab = deepmind_lab.Lab(self._level_name,
                                      self._observation_names,
                                      self._level_configs,
-                                     renderer='hardware'
+                                     renderer='software'
                                      )
 
         """ 
@@ -123,6 +123,10 @@ class RandomMaze(object):
         self.fig, self.arrays = None, None
         self.img_artists = []
 
+        # parameters for sampling start positions
+        self.args = args
+        self.start_radius = args.start_radius
+
     # reset function
     def reset(self, configs):
         """ Check configurations validation """
@@ -172,7 +176,12 @@ class RandomMaze(object):
         # send start position in 3-D maze
         if configs['start_pos']:
             self.start_pos_map = configs['start_pos'] if configs['start_pos'] else self.start_pos_map
+            # compute the true position in 3-D maze
             self.start_pos_maze = self.position_map2maze(self.start_pos_map, self.maze_size)
+            # sampling around the start position
+            # Debug.set_trace()
+            self.start_pos_maze = self.sampling_around(self.start_pos_maze, self.start_radius)
+            # send the position
             self._lab.write_property("params.start_pos.x", str(self.start_pos_maze[0]))
             self._lab.write_property("params.start_pos.y", str(self.start_pos_maze[1]))
             self._lab.write_property("params.start_pos.yaw", str(self.start_pos_maze[2]))
@@ -412,7 +421,6 @@ class RandomMaze(object):
             self.arrays[1, 1].set_title("Top-down view")
             self.arrays[1, 1].axis("off")
             self.img_artists.append(self.arrays[1, 1].imshow(ndimage.rotate(self._top_down_observation, -90)))
-            self.img_artists.append([])
             self.arrays[2, 0].set_title("Southwest view")
             self.arrays[2, 0].axis("off")
             self.img_artists.append(self.arrays[2, 0].imshow(observations[3]))
@@ -476,3 +484,21 @@ class RandomMaze(object):
         map_row = size[1] - (pos[1] // 100) - 1
         map_col = pos[0] // 100
         return [map_row, map_col, 0]
+
+    @staticmethod
+    def sampling_around(pos, radius):
+        # store the sampled position
+        sampled_pos = [0, 0, 0]
+        # sample a length
+        length = radius * np.random.uniform(0, 1)
+        # sample an angle
+        angle = np.pi * np.random.uniform(0, 2)
+        # compute the offset
+        x_offset = length * np.cos(angle)
+        y_offset = length * np.sin(angle)
+        # add the sampled pos
+        sampled_pos[0] = pos[0] + x_offset
+        sampled_pos[1] = pos[1] + y_offset
+        sampled_pos[2] = pos[2]
+
+        return sampled_pos

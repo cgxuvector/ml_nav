@@ -569,12 +569,21 @@ class RoughMap(object):
         print(self.map2d_grid)
         print(self.map2d_imprecise)
 
-#
+
 # env_map = RoughMap(7, 0, 3)
-#
-# plt.imshow(env_map.map2d_bw)
-# plt.axis('off')
+# env_map.update_mapper([1, 1], [2, 1])
+# print(env_map.map_act)
+# plt.imshow(env_map.map2d_rough)
+# print(len(env_map.path))
 # plt.show()
+
+
+# for seed in range(20):
+#     env_map = RoughMap(13, seed, 3)
+#     plt.title(f"9-{seed}")
+#     plt.imshow(env_map.map2d_rough)
+#     plt.axis('off')
+#     plt.show()
 #
 # for lm in env_map.local_maps:
 #     plt.imshow(lm)
