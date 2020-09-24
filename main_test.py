@@ -64,6 +64,10 @@ def parse_input():
     parser.add_argument("--use_rescale", action='store_true', default=False, help='whether rescale the value to [0,1]')
     parser.add_argument("--use_state_est", action='store_true', default=False, help='whether estimate the state')
     parser.add_argument("--alpha", type=float, default=1.0, help='hyperparameter for the two head case')
+
+    # parameters related to new training paradigm
+    parser.add_argument("--start_radius", type=float, default=0, help="Radius for sampling the start position.")
+
     return parser.parse_args()
 
 
@@ -106,6 +110,7 @@ def make_env(inputs):
     lab = RandomMaze(level_name,
                      observation_list,
                      configurations,
+                     args=inputs,
                      use_true_state=inputs.use_true_state,
                      reward_type="sparse-1",
                      dist_epsilon=inputs.terminal_dist)
@@ -138,7 +143,7 @@ def make_agent(inputs):
                              device=inputs.device,
                              use_rescale=inputs.use_rescale,
                              use_state_est=inputs.use_state_est,
-                             alpha=inputs.alpha
+                             alpha=inputs.alpha,
                              )
     else:
         raise Exception(f"{inputs.agent} is not defined. Please try the valid agent (random, dqn, actor-critic)")
@@ -196,7 +201,8 @@ def run_experiment(inputs):
     if inputs.use_goal:
         # train a global goal-conditioned policy
         if not inputs.train_random_policy:
-            my_experiment.run_goal_dqn()
+            # my_experiment.run_goal_dqn()
+            my_experiment.run_goal_dqn_map_guide_explore()
         else:
             if not inputs.use_her:
                 my_experiment.run_random_local_goal_dqn()
