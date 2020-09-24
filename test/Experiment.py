@@ -316,8 +316,8 @@ class Experiment(object):
             
             # step in the environment
             next_state, reward, done, dist, trans, _, _, _, _ = self.env.step(action)
-            print(f'ep id={t}, s = {state}, a = {DEFAULT_ACTION_RAW[action]}, next_s={next_state}, g={goal}, dist={dist}, done={done}, reward={reward}')
-            Debug.set_trace()
+            #print(f'ep id={t}, s = {state}, a = {DEFAULT_ACTION_RAW[action]}, next_s={next_state}, g={goal}, dist={dist}, done={done}, reward={reward}')
+            #Debug.set_trace()
             # store the replay buffer and convert the data to tensor
             if self.use_replay_buffer:
                 # construct the transition
@@ -353,11 +353,11 @@ class Experiment(object):
                     f'Eval: {self.policy_eval:.2f}'
                 ) 
                 # evaluate the current policy
-                #if (episode_idx - 1) % self.eval_policy_freq == 0:
+                if (episode_idx - 1) % self.eval_policy_freq == 0:
                     # evaluate the current policy by interaction
-                #    model_save_path = os.path.join(self.save_dir, self.model_name) + f"_{episode_idx}.pt"
-                #    torch.save(self.agent.policy_net.state_dict(), model_save_path)
-                #    self.eval_policy_novel() 
+                    model_save_path = os.path.join(self.save_dir, self.model_name) + f"_{episode_idx}.pt"
+                    torch.save(self.agent.policy_net.state_dict(), model_save_path)
+                    self.eval_policy_novel() 
 
                 # reset the environments
                 rewards = []
@@ -394,7 +394,7 @@ class Experiment(object):
                 self.agent.train_one_batch(t, sampled_batch)
 
         # save results
-        # self.save_results()
+        self.save_results()
 
     def run_random_local_goal_dqn_her_our(self):
         """
@@ -735,11 +735,11 @@ class Experiment(object):
             # initialize the map 2D
             self.env_map = mapper.RoughMap(self.maze_size, self.maze_seed, 3)
             self.env_map.sample_random_start_goal_pos(self.fix_start, self.fix_goal, self.goal_dist)
-            #init_pos = self.env_map.init_pos
-            #goal_pos = self.env_map.goal_pos
-            init_pos = [1, 1]
-            goal_pos = [2, 1]
-            self.env_map.update_mapper(init_pos, goal_pos)
+            init_pos = self.env_map.init_pos
+            goal_pos = self.env_map.goal_pos
+            #init_pos = [1, 1]
+            #goal_pos = [2, 1]
+            #self.env_map.update_mapper(init_pos, goal_pos)
             # initialize the maze 3D
             maze_configs["maze_name"] = f"maze_{self.maze_size}_{self.maze_seed}"  # string type name
             maze_configs["maze_size"] = [self.maze_size, self.maze_size]  # [int, int] list
@@ -759,15 +759,14 @@ class Experiment(object):
             else:
                 init_pos, goal_pos = self.env_map.sample_random_start_goal_pos(self.fix_start, self.fix_goal,
                                                                                self.goal_dist)
-            init_pos = [1, 1]
-            goal_pos = [2, 1]
-            self.env_map.update_mapper(init_pos, goal_pos)
+            #init_pos = [1, 1]
+            #goal_pos = [2, 1]
+            #self.env_map.update_mapper(init_pos, goal_pos)
             maze_configs['start_pos'] = init_pos + [0]
             maze_configs['goal_pos'] = goal_pos + [0]
             maze_configs['maze_valid_pos'] = self.env_map.valid_pos
             maze_configs['update'] = False
-
-        #Debug.set_trace() 
+ 
         # obtain the state and goal observation
         state_obs, goal_obs, _, _, _, _ = self.env.reset(maze_configs)
           
