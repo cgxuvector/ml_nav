@@ -25,6 +25,7 @@ class Experiment(object):
                  agent,
                  maze_list,
                  seed_list,
+                 args,
                  decal_freq=0.1,
                  fix_maze=True,
                  fix_start=True,
@@ -55,6 +56,7 @@ class Experiment(object):
                  device='cpu',
                  use_state_est=False
                  ):
+        self.args = args
         self.device = torch.device(device)
         # environment
         self.env = env
@@ -388,8 +390,11 @@ class Experiment(object):
                     goal = self.imagine_goal_observation(loc_goal_map)
   
             # get action
-            action = self.agent.get_action(state, goal, eps)
-            
+            if not self.args.explore_use_map: 
+                action = self.agent.get_action(state, goal, eps) 
+            else:
+                action = self.explore_using_map_info(state, goal, eps)
+
             # step in the environment
             next_state, reward, done, dist, trans, _, _, _, _ = self.env.step(action)
             #print(f'ep id={t}, s = {state}, a = {DEFAULT_ACTION_RAW[action]}, next_s={next_state}, g={goal}, dist={dist}, done={done}, reward={reward}')
@@ -934,7 +939,6 @@ class Experiment(object):
     def explore_using_map_info(self, state, goal, eps):
         if random.uniform(0, 1) < eps:  # with probability epsilon, the agent selects a random action
             action = DEFAULT_ACTION_RAW.index(self.env_map.map_act[0])
-            Debug.set_trace()
         else:  # with probability 1 - epsilon, the agent selects the greedy action
             action = self.agent.get_action(state, goal, 0)
         return action
