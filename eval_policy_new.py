@@ -937,7 +937,8 @@ if __name__ == '__main__':
                         args=args,
                         use_true_state=args.use_true_state,
                         reward_type="sparse-1",
-                        dist_epsilon=args.terminal_dist)
+                        dist_epsilon=args.terminal_dist,
+                        args=args)
 
     """ Run different evaluation mode
     """

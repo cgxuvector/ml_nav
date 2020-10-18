@@ -180,6 +180,11 @@ class RandomMaze(object):
             
             # compute the true position in 3-D maze
             self.start_pos_maze = self.position_map2maze(self.start_pos_map, self.maze_size)
+
+            if self.start_radius > 0:  # sample start positions
+                # sample a start position around it
+                self.start_pos_maze = self.sampling_around(self.start_pos_maze, self.start_radius)
+
             # sampling around the start position
             self.start_pos_maze = self.sampling_around(self.start_pos_maze, self.start_radius)
            
