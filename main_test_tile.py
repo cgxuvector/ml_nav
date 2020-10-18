@@ -196,8 +196,8 @@ def run_experiment(inputs):
     if inputs.use_goal:
         # train a global goal-conditioned policy
         if not inputs.train_random_policy:
-            # my_experiment.run_goal_dqn()
-            my_experiment.run_goal_n_step_dqn()
+            my_experiment.run_goal_dqn()
+            # my_experiment.run_goal_n_step_dqn()
         else:  # train a local goal-conditioned policy
             if not inputs.use_her:
                 my_experiment.run_random_local_goal_dqn()

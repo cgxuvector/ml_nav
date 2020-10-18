@@ -126,6 +126,7 @@ class RandomMaze(object):
         # parameters for sampling start positions
         self.args = args
         self.start_radius = args.start_radius
+        #self.sample_repeat_count = args.sample_repeat_count
 
     # reset function
     def reset(self, configs):
@@ -176,11 +177,12 @@ class RandomMaze(object):
         # send start position in 3-D maze
         if configs['start_pos']:
             self.start_pos_map = configs['start_pos'] if configs['start_pos'] else self.start_pos_map
+            
             # compute the true position in 3-D maze
             self.start_pos_maze = self.position_map2maze(self.start_pos_map, self.maze_size)
             # sampling around the start position
-            # Debug.set_trace()
             self.start_pos_maze = self.sampling_around(self.start_pos_maze, self.start_radius)
+           
             # send the position
             self._lab.write_property("params.start_pos.x", str(self.start_pos_maze[0]))
             self._lab.write_property("params.start_pos.y", str(self.start_pos_maze[1]))

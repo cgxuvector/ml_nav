@@ -378,7 +378,7 @@ class RoughMap(object):
         return pos_params
 
     # sample the init and goal positions from the valid positions
-    def sample_global_start_goal_pos(self, fix_init, fix_goal):
+    def sample_start_goal_pos_with_random_dist(self, fix_init, fix_goal):
         """
         Function is used to sample a global pair of init and goal positions from the valid positions.
         :param fix_init: If it is True, the init position is fixed.
@@ -425,7 +425,7 @@ class RoughMap(object):
         goal_pos = valid_path_pos[dist] if dist < len(valid_path_pos) else valid_path_pos[-1] 
         return goal_pos
 
-    def sample_random_start_goal_pos(self, fix_init, fix_goal, dist):
+    def sample_start_goal_pos_with_maximal_dist(self, fix_init, fix_goal, dist):
         """
         Function is used to sample a random pair init and goal positions from the valid positions.
         :param fix_init: If it is True, the init position is fixed.

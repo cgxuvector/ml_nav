@@ -123,6 +123,7 @@ class Experiment(object):
         # results statistics
         self.distance = []
         self.returns = []
+        self.steps = []
         self.lengths = []
         self.policy_returns = []
         # saving settings
@@ -174,6 +175,7 @@ class Experiment(object):
 
                 # store the return, episode length, and final distance for current episode
                 self.returns.append(G)
+                self.steps.append(t)
                 episode_idx = len(self.returns)
 
                 # tdqm bar display function
@@ -246,6 +248,7 @@ class Experiment(object):
 
                 # store the return, episode length, and final distance for current episode
                 self.returns.append(G)
+                self.steps.append(t)
                 # compute the episode number
                 episode_idx = len(self.returns)
 
@@ -909,11 +912,13 @@ class Experiment(object):
         # obtain the saving names
         model_save_path = os.path.join(self.save_dir, self.model_name) + ".pt"
         returns_save_path = os.path.join(self.save_dir, self.model_name + "_return.npy")
+        steps_save_path = os.path.join(self.save_dir, self.model_name + "_step.npy")
         policy_returns_save_path = os.path.join(self.save_dir, self.model_name + "_policy_eval.npy")
 
         # save the results
         torch.save(self.agent.policy_net.state_dict(), model_save_path)
         np.save(returns_save_path, self.returns)
+        np.save(steps_save_path, self.steps)
         np.save(policy_returns_save_path, self.policy_returns)
 
     # load the pre-extract pairs

@@ -1,4 +1,4 @@
-from test.Experiment import Experiment
+from test.Experiment_test import Experiment
 from test.GoalDQNAgent import GoalDQNAgent
 from test.DQNAgent import DQNAgent
 from envs.LabEnvV4 import RandomMaze
@@ -68,6 +68,7 @@ def parse_input():
     # parameters related to new training paradigm
     parser.add_argument("--start_radius", type=float, default=0, help="Radius for sampling the start position.")
     parser.add_argument("--explore_use_map", action="store_true", default=False, help="whether use the map information to help exploration.")
+    parser.add_argument("--sample_repeat_count", type=int, default=1, help="Number of repeatation of sampled pair.")
 
     return parser.parse_args()
 
@@ -203,8 +204,8 @@ def run_experiment(inputs):
     if inputs.use_goal:
         # train a global goal-conditioned policy
         if not inputs.train_random_policy:
-            # my_experiment.run_goal_dqn()
-            my_experiment.run_goal_dqn_map_guide_explore()
+            my_experiment.run_goal_dqn_dual_replay()
+            # my_experiment.run_goal_dqn_map_guide_explore()
         else:
             if not inputs.use_her:
                 my_experiment.run_random_local_goal_dqn()
