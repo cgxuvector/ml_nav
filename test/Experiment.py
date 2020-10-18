@@ -25,6 +25,7 @@ class Experiment(object):
                  agent,
                  maze_list,
                  seed_list,
+                 args,
                  decal_freq=0.1,
                  fix_maze=True,
                  fix_start=True,
@@ -55,6 +56,7 @@ class Experiment(object):
                  device='cpu',
                  use_state_est=False
                  ):
+        self.args = args
         self.device = torch.device(device)
         # environment
         self.env = env
@@ -388,12 +390,15 @@ class Experiment(object):
                     goal = self.imagine_goal_observation(loc_goal_map)
   
             # get action
-            action = self.agent.get_action(state, goal, eps)
-            
+            if not self.args.explore_use_map: 
+                action = self.agent.get_action(state, goal, eps) 
+            else:
+                action = self.explore_using_map_info(state, goal, eps)
+
             # step in the environment
             next_state, reward, done, dist, trans, _, _, _, _ = self.env.step(action)
-            print(f'ep id={t}, s = {state}, a = {DEFAULT_ACTION_RAW[action]}, next_s={next_state}, g={goal}, dist={dist}, done={done}, reward={reward}')
-            Debug.set_trace()
+            #print(f'ep id={t}, s = {state}, a = {DEFAULT_ACTION_RAW[action]}, next_s={next_state}, g={goal}, dist={dist}, done={done}, reward={reward}')
+            #Debug.set_trace()
             # store the replay buffer and convert the data to tensor
             if self.use_replay_buffer:
                 # construct the transition
@@ -429,11 +434,11 @@ class Experiment(object):
                     f'Eval: {self.policy_eval:.2f}'
                 ) 
                 # evaluate the current policy
-                #if (episode_idx - 1) % self.eval_policy_freq == 0:
+                if (episode_idx - 1) % self.eval_policy_freq == 0:
                     # evaluate the current policy by interaction
-                #    model_save_path = os.path.join(self.save_dir, self.model_name) + f"_{episode_idx}.pt"
-                #    torch.save(self.agent.policy_net.state_dict(), model_save_path)
-                #    self.eval_policy_novel() 
+                    model_save_path = os.path.join(self.save_dir, self.model_name) + f"_{episode_idx}.pt"
+                    torch.save(self.agent.policy_net.state_dict(), model_save_path)
+                    self.eval_policy_novel() 
 
                 # reset the environments
                 rewards = []
@@ -470,7 +475,7 @@ class Experiment(object):
                 self.agent.train_one_batch(t, sampled_batch)
 
         # save results
-        # self.save_results()
+        self.save_results()
 
     def run_random_local_goal_dqn_her_our(self):
         """
@@ -813,6 +818,7 @@ class Experiment(object):
             self.env_map.sample_random_start_goal_pos(self.fix_start, self.fix_goal, self.goal_dist)
             init_pos = self.env_map.init_pos
             goal_pos = self.env_map.goal_pos
+
             # init_pos = [1, 1]
             # goal_pos = [2, 1]
             # self.env_map.update_mapper(init_pos, goal_pos)
@@ -842,8 +848,7 @@ class Experiment(object):
             maze_configs['goal_pos'] = goal_pos + [0]
             maze_configs['maze_valid_pos'] = self.env_map.valid_pos
             maze_configs['update'] = False
-
-        #Debug.set_trace() 
+ 
         # obtain the state and goal observation
         state_obs, goal_obs, _, _, _, _ = self.env.reset(maze_configs)
           
@@ -934,7 +939,6 @@ class Experiment(object):
     def explore_using_map_info(self, state, goal, eps):
         if random.uniform(0, 1) < eps:  # with probability epsilon, the agent selects a random action
             action = DEFAULT_ACTION_RAW.index(self.env_map.map_act[0])
-            Debug.set_trace()
         else:  # with probability 1 - epsilon, the agent selects the greedy action
             action = self.agent.get_action(state, goal, 0)
         return action

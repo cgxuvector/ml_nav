@@ -67,6 +67,7 @@ def parse_input():
 
     # parameters related to new training paradigm
     parser.add_argument("--start_radius", type=float, default=0, help="Radius for sampling the start position.")
+    parser.add_argument("--explore_use_map", action="store_true", default=False, help="whether use the map information to help exploration.")
 
     return parser.parse_args()
 
@@ -168,6 +169,7 @@ def run_experiment(inputs):
         agent=my_agent,
         maze_list=size_list,
         seed_list=seed_list,
+        args=inputs,
         decal_freq=inputs.decal_freq,
         fix_maze=inputs.fix_maze,
         fix_start=inputs.fix_start,
