@@ -98,7 +98,8 @@ class Experiment(object):
             self.thinker = VAE.CVAE(64, use_small_obs=True)
             #self.thinker.load_state_dict(torch.load("/mnt/cheng_results/VAE/models/small_obs_L64_B8.pt",
             #                                         map_location=self.device))
-            self.thinker.load_state_dict(torch.load("/mnt/sda/dataset/ml_nav/VAE/model/small_obs_L64_B8.pt"))
+            #self.thinker.load_state_dict(torch.load("/mnt/sda/dataset/ml_nav/VAE/model/small_obs_L64_B8.pt"))
+            self.thinker.load_state_dict(torch.load("./results/vae/model/small_obs_L64_B8.pt", map_location=self.device))
             self.thinker.eval()
         # training configurations
         self.train_random_policy = train_random_policy
@@ -526,7 +527,8 @@ class Experiment(object):
                     # relabel the goal with true observation
                     goal = real_goal
 
-            # get action 
+            # get action
+            eps = 1
             if not self.args.explore_use_map: 
                 action = self.agent.get_action(state, goal, eps) 
             else:
@@ -535,7 +537,8 @@ class Experiment(object):
              
             # step in the environment
             next_state, reward, done, dist, state_trans, _, _, _, _ = self.env.step(action)
-            print(f'ep id={t}, s = {state}, a = {DEFAULT_ACTION_RAW[action]}, next_s={next_state}, g={goal}, dist={dist}, done={done}, reward={reward}')  # for debug
+            # print(f'ep id={t}, s = {state}, a = {DEFAULT_ACTION_RAW[action]}, next_s={next_state}, g={goal}, dist={dist}, done={done}, reward={reward}')  # for debug
+
             # store the replay buffer and convert the data to tensor
             if self.use_replay_buffer:
                 # construct the transition
@@ -549,10 +552,9 @@ class Experiment(object):
             episode_t += 1
 
             # check terminal
-            if done or (episode_t == self.max_steps_per_episode): 
-                print(done, episode_t)
-                Debug.set_trace()
-                if episode_t > 100:
+            if done or (episode_t == self.max_steps_per_episode):
+                if episode_t > 5:
+                    print(done, episode_t)
                     Debug.set_trace()
                 # compute the discounted return for each time step
                 G = 0
@@ -575,12 +577,12 @@ class Experiment(object):
                     f'Buffer: {len(self.replay_buffer)}|'
                     f'Eval: {self.policy_eval:.2f}'
                 ) 
-                # evaluate the current policy
-                if (episode_idx - 1) % self.eval_policy_freq == 0:
-                    # evaluate the current policy by interaction
-                    model_save_path = os.path.join(self.save_dir, self.model_name) + f"_{episode_idx}.pt"
-                    torch.save(self.agent.policy_net.state_dict(), model_save_path)
-                    self.eval_policy_novel() 
+                # # evaluate the current policy
+                # if (episode_idx - 1) % self.eval_policy_freq == 0:
+                #     # evaluate the current policy by interaction
+                #     model_save_path = os.path.join(self.save_dir, self.model_name) + f"_{episode_idx}.pt"
+                #     torch.save(self.agent.policy_net.state_dict(), model_save_path)
+                #     self.eval_policy_novel()
 
                 # reset the environments
                 rewards = []
@@ -588,6 +590,7 @@ class Experiment(object):
                 fake_goal = None
                 real_goal = None
                 # train a pair of start and goal with fixed number of episodes
+                print(f"SN = {sample_start_goal_num}, TN={train_episode_num}")
                 if sample_start_goal_num > 0:
                     if train_episode_num > 0:
                         # keep the same start and goal
@@ -704,12 +707,12 @@ class Experiment(object):
                     f'Pred Loss: {self.agent.current_state_loss:.4f}'
                 )
 
-                # evaluate the current policy
-                if (episode_idx - 1) % self.eval_policy_freq == 0:
-                    # evaluate the current policy by interaction
-                    model_save_path = os.path.join(self.save_dir, self.model_name) + f"_{episode_idx}.pt"
-                    torch.save(self.agent.policy_net.state_dict(), model_save_path)
-                    self.eval_policy()
+                # # evaluate the current policy
+                # if (episode_idx - 1) % self.eval_policy_freq == 0:
+                #     # evaluate the current policy by interaction
+                #     model_save_path = os.path.join(self.save_dir, self.model_name) + f"_{episode_idx}.pt"
+                #     torch.save(self.agent.policy_net.state_dict(), model_save_path)
+                #     self.eval_policy()
 
                 # reset the environments
                 states = []
@@ -1003,7 +1006,10 @@ class Experiment(object):
  
         # obtain the state and goal observation
         state_obs, goal_obs, _, _, _, _ = self.env.reset(maze_configs)
-        
+
+        if self.env_map.goal_pos == [2, 3]:
+            Debug.set_trace()
+
         return state_obs, goal_obs, self.env_map.init_pos, self.env_map.goal_pos
 
     def eval_policy_novel(self):
@@ -1102,7 +1108,6 @@ class Experiment(object):
         self.policy_eval = success_num / test_num
         self.policy_returns.append(self.policy_eval)
 
-
     # save the results
     def save_results(self):
         # obtain the saving names
@@ -1110,7 +1115,6 @@ class Experiment(object):
         returns_save_path = os.path.join(self.save_dir, self.model_name + "_return.npy")
         steps_save_path = os.path.join(self.save_dir, self.model_name + "_steps.npy")
         policy_returns_save_path = os.path.join(self.save_dir, self.model_name + "_policy_eval.npy")
-        
 
         # save the results
         torch.save(self.agent.policy_net.state_dict(), model_save_path)
@@ -1122,7 +1126,8 @@ class Experiment(object):
     @staticmethod
     def load_pair_data(m_size, m_seed):
         #path = f'/mnt/cheng_results/map/maze_{m_size}_{m_seed}.pkl'
-        path = f'/mnt/sda/map/maze_{m_size}_{m_seed}.pkl'
+        #path = f'/mnt/sda/map/maze_{m_size}_{m_seed}.pkl'
+        path = f'./map/maze_{m_size}_{m_size}.pkl'
         f = open(path, 'rb')
         return pickle.load(f)
 

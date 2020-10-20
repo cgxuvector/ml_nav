@@ -185,15 +185,12 @@ class RandomMaze(object):
             
             # compute the true position in 3-D maze
             self.start_pos_maze = self.position_map2maze(self.start_pos_map, self.maze_size)
-
             if self.start_radius > 0:  # sample start positions
                 # sample a start position around it
                 if self.sample_repeat_count == 0:
                     self.start_pos_maze = self.sampling_around(self.start_pos_maze, self.start_radius)
                     self.sample_repeat_count = self.args.sample_repeat_count
-            # sampling around the start position
-            self.start_pos_maze = self.sampling_around(self.start_pos_maze, self.start_radius)
-           
+
             # send the position
             self._lab.write_property("params.start_pos.x", str(self.start_pos_maze[0]))
             self._lab.write_property("params.start_pos.y", str(self.start_pos_maze[1]))
@@ -202,9 +199,6 @@ class RandomMaze(object):
         if configs['goal_pos']:
             self.goal_pos_map = configs['goal_pos'] if configs['goal_pos'] else self.goal_pos_map
             self.goal_pos_maze = self.position_map2maze(self.goal_pos_map, self.maze_size)
-            #self._lab.write_property("params.goal_pos.x", str(self.goal_pos_maze[0]))
-            #self._lab.write_property("params.goal_pos.y", str(self.goal_pos_maze[1]))
-            #self._lab.write_property("params.goal_pos.yaw", str(self.goal_pos_maze[2]))
 
         """ update the environment """
         if configs['update']:
@@ -213,7 +207,7 @@ class RandomMaze(object):
             self._lab.reset()
 
         # avoid the laser cylinder when the agent is initialized
-        for i in range(5):
+        for i in range(7):
             self._lab.step(ACTION_LIST[4], num_steps=4)
 
         """ initialize the 3D maze"""
@@ -335,6 +329,7 @@ class RandomMaze(object):
         # send the parameters
         self._lab.write_property("params.view_pos.x", str(pos[0]))
         self._lab.write_property("params.view_pos.y", str(pos[1]))
+        self._lab.write_property("params.view_pos.z", str(42))
         # store observations
         ego_observations = self._lab.observations()["RGB.LOOK_RANDOM_PANORAMA_VIEW"]
         return np.array(ego_observations, dtype=np.uint8)
