@@ -10,6 +10,7 @@ import random
 import os
 import numpy as np
 import pickle
+import time
 import IPython.terminal.debugger as Debug
 import matplotlib.pyplot as plt
 
@@ -504,29 +505,37 @@ class Experiment(object):
 
         # initialize the state and goal
         state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=self.fix_maze)
+        fake_goal = None 
+        real_goal = goal
 
         # start the training
-        pbar = tqdm.trange(self.max_time_steps)
+        pbar = tqdm.trange(self.max_time_steps) 
         for t in pbar:
             # compute the epsilon
             eps = self.schedule.get_value(t)
-
-            # relabel the true goal observation with the fake goal with a fixed percentage
+            
+            # relabel the true goal observation with the fake goal with a fixed percentage 
             if self.use_imagine:
                 if random.uniform(0, 1) <= self.use_imagine:
-                    loc_goal_map = self.env_map.cropper(self.env_map.map2d_roughPadded, goal_pos)
-                    goal = self.imagine_goal_observation(loc_goal_map)
-  
+                    if fake_goal is None: # if the fake observation is NOT generated
+                        loc_goal_map = self.env_map.cropper(self.env_map.map2d_roughPadded, goal_pos)
+                        fake_goal = self.imagine_goal_observation(loc_goal_map)
+                    # relabel the goal with the fake observation
+                    goal = fake_goal
+                else:
+                    # relabel the goal with true observation
+                    goal = real_goal
+
             # get action 
             if not self.args.explore_use_map: 
                 action = self.agent.get_action(state, goal, eps) 
             else:
                 action = self.explore_using_map_info(state, goal, eps)
-
+            print(f"{episode_t}: Map action = {self.env_map.map_act[0]}, Action = {DEFAULT_ACTION_RAW[action]}, Init = {self.env.start_pos_map[0:2]}, Goal = {self.env.goal_pos_map[0:2]}")
+             
             # step in the environment
-            next_state, reward, done, dist, trans, _, _, _, _ = self.env.step(action)
-            print(f'ep id={t}, s = {state}, a = {DEFAULT_ACTION_RAW[action]}, next_s={next_state}, g={goal}, dist={dist}, done={done}, reward={reward}')
-            #Debug.set_trace()
+            next_state, reward, done, dist, state_trans, _, _, _, _ = self.env.step(action)
+            print(f'ep id={t}, s = {state}, a = {DEFAULT_ACTION_RAW[action]}, next_s={next_state}, g={goal}, dist={dist}, done={done}, reward={reward}')  # for debug
             # store the replay buffer and convert the data to tensor
             if self.use_replay_buffer:
                 # construct the transition
@@ -541,7 +550,10 @@ class Experiment(object):
 
             # check terminal
             if done or (episode_t == self.max_steps_per_episode): 
+                print(done, episode_t)
                 Debug.set_trace()
+                if episode_t > 100:
+                    Debug.set_trace()
                 # compute the discounted return for each time step
                 G = 0
                 for r in reversed(rewards):
@@ -573,6 +585,8 @@ class Experiment(object):
                 # reset the environments
                 rewards = []
                 episode_t = 0
+                fake_goal = None
+                real_goal = None
                 # train a pair of start and goal with fixed number of episodes
                 if sample_start_goal_num > 0:
                     if train_episode_num > 0:
@@ -589,7 +603,7 @@ class Experiment(object):
                         # sample a valid distance 
                         state, goal, start_pos, goal_pos = self.update_map2d_and_maze3d(set_new_maze=False)
                         train_episode_num = self.train_episode_num
-                        sample_start_goal_num -= 1
+                        sample_start_goal_num -= 1 
                 else:
                     # sample a new maze
                     self.fix_start = False
@@ -599,12 +613,11 @@ class Experiment(object):
                     # reset the training control
                     train_episode_num = self.train_episode_num
                     sample_start_goal_num = self.sample_start_goal_num
-
+                real_goal = goal
             # train the agent
-            if t > self.start_train_step:
+            if t > self.start_train_step: 
                 sampled_batch = self.replay_buffer.sample(self.batch_size)
                 self.agent.train_one_batch(t, sampled_batch)
-
         # save results
         self.save_results()
 
@@ -849,21 +862,30 @@ class Experiment(object):
                 self.agent.train_one_batch(t, sampled_batch)
 
         # save results
-        self.save_results()
+        self.save_results() 
 
     # generate the goal imagination
     def imagine_goal_observation(self, pos_loc_map):
+        #time_start = time.time()
         with torch.no_grad():
             imagined_obs = []
             loc_map = torch.from_numpy(pos_loc_map).flatten().view(1, -1).float()
             for ori in self.orientations:
+                # sample the z
                 z = torch.randn(1, 64)
+                # concatenate the conditioned z
                 tmp_map = torch.cat(2 * [loc_map], dim=1)
                 tmp_ori = torch.cat(2 * [ori.view(-1, 1 * 1 * 8).float()], dim=1)
                 conditioned_z = torch.cat((z, tmp_map, tmp_ori), dim=1)
+                # feed forward
                 obs_reconstructed, _ = self.thinker.decoder(conditioned_z)
+                # forward
                 obs_reconstructed = obs_reconstructed.detach().squeeze(0).numpy().transpose(1, 2, 0) * 255
                 imagined_obs.append(obs_reconstructed)
+                #print("Reshape obs: ", time.time() - time_start)
+            #print("Time get panoramic obs: ", time.time() - time_start)
+
+            # the return might be slow. How to update this function?!!!!
             return np.array(imagined_obs, dtype=np.uint8)
 
     # HER
@@ -946,12 +968,12 @@ class Experiment(object):
             self.maze_seed = random.sample(self.maze_seed_list, 1)[0]
             # initialize the map 2D
             self.env_map = mapper.RoughMap(self.maze_size, self.maze_seed, 3)
-            self.env_map.sample_random_start_goal_pos(self.fix_start, self.fix_goal, self.goal_dist)
-            init_pos = self.env_map.init_pos
-            goal_pos = self.env_map.goal_pos
-
-            #init_pos = [1, 2]
-            #goal_pos = [2, 1]
+            if not self.train_random_policy:
+                self.env_map.sample_start_goal_pos_with_random_dist(self.fix_start, self.fix_goal)
+            else:
+                self.env_map.sample_start_goal_pos_with_maximal_dist(self.fix_start, self.fix_goal, self.goal_dist)
+            #init_pos = [1, 1]
+            #goal_pos = [3, 3]
             #self.env_map.update_mapper(init_pos, goal_pos)
             # initialize the maze 3D
             maze_configs["maze_name"] = f"maze_{self.maze_size}_{self.maze_seed}"  # string type name
@@ -968,23 +990,21 @@ class Experiment(object):
             maze_configs["update"] = True  # update flag
         else:
             if not self.train_random_policy:
-                init_pos, goal_pos = self.env_map.sample_global_start_goal_pos(self.fix_start, self.fix_goal)
+                self.env_map.sample_start_goal_pos_with_random_dist(self.fix_start, self.fix_goal)
             else:
-                init_pos, goal_pos = self.env_map.sample_random_start_goal_pos(self.fix_start, self.fix_goal,
-                                                                               self.goal_dist)
-            #init_pos = [1, 2]
-            #goal_pos = [2, 1]
+                self.env_map.sample_start_goal_pos_with_maximal_dist(self.fix_start, self.fix_goal, self.goal_dist)
+            #init_pos = [1, 1]
+            #goal_pos = [3, 3]
             #self.env_map.update_mapper(init_pos, goal_pos)
-            maze_configs['start_pos'] = init_pos + [0]
-            maze_configs['goal_pos'] = goal_pos + [0]
+            maze_configs['start_pos'] = self.env_map.init_pos + [0]
+            maze_configs['goal_pos'] = self.env_map.goal_pos + [0]
             maze_configs['maze_valid_pos'] = self.env_map.valid_pos
             maze_configs['update'] = False
  
         # obtain the state and goal observation
         state_obs, goal_obs, _, _, _, _ = self.env.reset(maze_configs)
-          
-        # return states and goals
-        return state_obs, goal_obs, init_pos, goal_pos
+        
+        return state_obs, goal_obs, self.env_map.init_pos, self.env_map.goal_pos
 
     def eval_policy_novel(self):
          # loop all the testing mazes
@@ -1118,7 +1138,7 @@ class Experiment(object):
         # obtain the state and goal observation
         state_obs, goal_obs, _, _, _, _ = self.env.reset(maze_configs)
         # return states and goals
-        return state_obs, goal_obs, start_pos, goal_pos
+        return state_obs, goal_obs, self.env_map.init_pos, self.env_map.goal_pos
 
     def explore_using_map_info(self, state, goal, eps):
         if random.uniform(0, 1) < eps:  # with probability epsilon, the agent selects a random action

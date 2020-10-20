@@ -5,6 +5,7 @@
         - For hard update target network, we have to update it every fix number of steps. (defaul 2000)
         - For soft update target network, we have to update it every step.
 """
+import time
 import torch
 from torch import nn
 import numpy as np
@@ -277,7 +278,7 @@ class GoalDQNAgent(object):
 
     # update the policy network
     def update_policy_net(self, batch_data):
-        # convert the batch from numpy to tensor
+        # convert the batch from numpy to tensor 
         state, action, next_state, reward, goal, done = self.convert2tensor(batch_data)
         
         # compute the Q_policy(s, a)

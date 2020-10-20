@@ -45,6 +45,8 @@ class RandomMaze(object):
         """ 
             set up the 3D maze using default settings
         """
+        # run mode 
+        self.run_mode = args.env_run_mode
         # flag variable for using the true state. e.g. a tuple of (x, y, z, pitch, yaw, roll) = (x, y, 0, 0, yaw, 0)
         self._use_state = use_true_state
         # set the level name
@@ -55,12 +57,15 @@ class RandomMaze(object):
         assert set(observations) <= set(VALID_OBS), f"Observations contain invalid observations. Please check the " \
                                                     f"valid list here {VALID_OBS}."
         self._observation_names = observations + ['RGB.LOOK_RANDOM_VIEW']
+        if self.run_mode == "train":
+            self._observation_names.remove('RGB.LOOK_TOP_DOWN_VIEW')
+        
         # create the lab maze environment with default settings
         # note set renderer = 'hardware' can use the GPU
         self._lab = deepmind_lab.Lab(self._level_name,
                                      self._observation_names,
                                      self._level_configs,
-                                     renderer='hardware'
+                                     renderer=args.env_render
                                      )
 
         """ 
@@ -126,7 +131,7 @@ class RandomMaze(object):
         # parameters for sampling start positions
         self.args = args
         self.start_radius = args.start_radius
-        #self.sample_repeat_count = args.sample_repeat_count
+        self.sample_repeat_count = args.sample_repeat_count 
 
     # reset function
     def reset(self, configs):
@@ -183,8 +188,9 @@ class RandomMaze(object):
 
             if self.start_radius > 0:  # sample start positions
                 # sample a start position around it
-                self.start_pos_maze = self.sampling_around(self.start_pos_maze, self.start_radius)
-
+                if self.sample_repeat_count == 0:
+                    self.start_pos_maze = self.sampling_around(self.start_pos_maze, self.start_radius)
+                    self.sample_repeat_count = self.args.sample_repeat_count
             # sampling around the start position
             self.start_pos_maze = self.sampling_around(self.start_pos_maze, self.start_radius)
            
@@ -207,7 +213,7 @@ class RandomMaze(object):
             self._lab.reset()
 
         # avoid the laser cylinder when the agent is initialized
-        for i in range(10):
+        for i in range(5):
             self._lab.step(ACTION_LIST[4], num_steps=4)
 
         """ initialize the 3D maze"""
@@ -217,7 +223,8 @@ class RandomMaze(object):
         # initialize the current observations
         self._current_observation = init_state['RGB.LOOK_PANORAMA_VIEW']
         # initialize the top down view
-        self._top_down_observation = init_state['RGB.LOOK_TOP_DOWN_VIEW']
+        if self.run_mode == "eval":
+            self._top_down_observation = init_state['RGB.LOOK_TOP_DOWN_VIEW']
         # initialize the goal observations
         self._goal_state = self.goal_pos_maze[0:2]
         self._goal_observation = self.get_random_observations_tile(self.goal_pos_map)
@@ -245,7 +252,8 @@ class RandomMaze(object):
         if self._lab.is_running():
             # get the next observations
             self._current_observation = current_state['RGB.LOOK_PANORAMA_VIEW']
-            self._top_down_observation = current_state['RGB.LOOK_TOP_DOWN_VIEW']
+            if self.run_mode == "eval":
+                self._top_down_observation = current_state['RGB.LOOK_TOP_DOWN_VIEW']
             # get the next state
             self._trans = current_state['DEBUG.POS.TRANS'].tolist()
             self._rots = current_state['DEBUG.POS.ROT'].tolist()
