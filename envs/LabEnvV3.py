@@ -34,17 +34,17 @@ VALID_OBS = ['RGBD_INTERLEAVED',
 
 
 # Deepmind domain for random mazes with random start and goal positions
-class RandomMazeTileRaw(object):
-    def __init__(self, level, observations, configs, use_true_state=False, reward_type='sparse-0', dist_epsilon=1e-3):
+class RandomMazeTileRatio(object):
+    def __init__(self, level, observations, configs, args, reward_type='sparse-0', dist_epsilon=1e-3):
         """
-        Create gym-like domain interface: This is the second tile version with smaller step size
+        Create gym-like domain interface: This is the second tile version with a action step a ratio of a tile [0.2, 0.4]
         :param level: name of the level (currently we only support one name "nav_random_nav")
         :param observations: list of observations [front view, panoramic view, top down view]
         :param configs: configuration of the lab [width, height, fps]
         """
         """ set up the 3D maze using default settings"""
         # set the state type
-        self._use_state = use_true_state
+        self._use_state = args.use_true_state
         # set the level name
         self._level_name = level
         # set the level configuration
@@ -56,7 +56,8 @@ class RandomMazeTileRaw(object):
         # create the lab maze environment with default settings
         self._lab = deepmind_lab.Lab(self._level_name,
                                      self._observation_names,
-                                     self._level_configs)
+                                     self._level_configs,
+                                     renderer=args.env_render)
 
         """ observations from the maze """
         # last observation
@@ -100,6 +101,9 @@ class RandomMazeTileRaw(object):
         self.reward_type = reward_type
         # terminal conditions
         self.dist_epsilon = dist_epsilon
+        # tile ratio per action
+        # it should be smaller than 0.4
+        self.tile_ratio = args.tile_ratio
 
         # plotting objects
         self.fig, self.arrays = None, None
@@ -197,6 +201,9 @@ class RandomMazeTileRaw(object):
         self._last_observation = self.get_random_observations_tile(self.start_trans) if not self._use_state else self.start_trans
         # initialize the goal observations
         self._goal_observation = self.get_random_observations_tile(self.goal_trans) if not self._use_state else self.goal_trans
+        # get the top down observation
+        if not self._use_state:
+            self._top_down_obs = self._lab.observations()["RGB.LOOK_TOP_DOWN_VIEW"]
         # initialize the positions and orientations
         self._trans = self.start_trans
         self._rots = [0, 0, 0]
@@ -209,15 +216,21 @@ class RandomMazeTileRaw(object):
     def step(self, act):
         """ step #(num_steps) in Deepmind Lab """
         # compute the next position
-        step_size_list = [np.array([0,  100/3, 0]),
-                          np.array([0, -100/3, 0]),
-                          np.array([-100/3, 0, 0]),
-                          np.array([100/3,  0, 0])]
+        # up
+        # down
+        # left
+        # right
+        step_size_list = [np.array([0,  100 * self.tile_ratio, 0]),
+                          np.array([0, -100 * self.tile_ratio, 0]),
+                          np.array([-100 * self.tile_ratio, 0, 0]),
+                          np.array([100 * self.tile_ratio,  0, 0])]
+
         # compute the next positions in the 3D maze
         next_maze_trans = np.array(self._trans) + step_size_list[act]
 
         # estimate the position on the map
         next_map_pos = self.position_maze2map(next_maze_trans, self.maze_size)
+
         # update the next position in the 3D maze and 2D map
         if next_map_pos[0:2] in self.maze_valid_positions:
             self._trans = next_maze_trans
@@ -350,74 +363,8 @@ class RandomMazeTileRaw(object):
             self.img_artists[7].set_data(observations[6])
             self.img_artists[8].set_data(observations[7])
         self.fig.canvas.draw()
-        plt.pause(0.0001)
+        plt.pause(0.001)
         return self.fig
-
-        # show the panoramic view
-
-    def show_panorama_view_test(self, flag, state):
-        observations = state
-        # init or update data
-        if flag is None:
-            self.fig, self.arrays = plt.subplots(3, 3)
-            self.arrays[0, 1].set_title("Front view")
-            self.arrays[0, 1].axis("off")
-            self.img_artists.append(self.arrays[0, 1].imshow(observations[0]))
-            self.arrays[0, 0].set_title("Front-left view")
-            self.arrays[0, 0].axis("off")
-            self.img_artists.append(self.arrays[0, 0].imshow(observations[1]))
-            self.arrays[1, 0].set_title("Left view")
-            self.arrays[1, 0].axis("off")
-            self.img_artists.append(self.arrays[1, 0].imshow(observations[2]))
-            self.arrays[1, 1].set_title("Top-down view")
-            self.arrays[1, 1].axis("off")
-            # self.img_artists.append(self.arrays[1, 1].imshow(ndimage.rotate(self._top_down_obs, -90)))
-            self.img_artists.append(None)
-            self.arrays[2, 0].set_title("Back-left view")
-            self.arrays[2, 0].axis("off")
-            self.img_artists.append(self.arrays[2, 0].imshow(observations[3]))
-            self.arrays[2, 1].set_title("Back view")
-            self.arrays[2, 1].axis("off")
-            self.img_artists.append(self.arrays[2, 1].imshow(observations[4]))
-            self.arrays[2, 2].set_title("Back-right view")
-            self.arrays[2, 2].axis("off")
-            self.img_artists.append(self.arrays[2, 2].imshow(observations[5]))
-            self.arrays[1, 2].set_title("Right view")
-            self.arrays[1, 2].axis("off")
-            self.img_artists.append(self.arrays[1, 2].imshow(observations[6]))
-            self.arrays[0, 2].set_title("Front-right view")
-            self.arrays[0, 2].axis("off")
-            self.img_artists.append(self.arrays[0, 2].imshow(observations[7]))
-        else:
-            self.img_artists[0].set_data(observations[0])
-            self.img_artists[1].set_data(observations[1])
-            self.img_artists[2].set_data(observations[2])
-            # self.img_artists[3].set_data(ndimage.rotate(self._top_down_obs, -90))
-            self.img_artists[4].set_data(observations[3])
-            self.img_artists[5].set_data(observations[4])
-            self.img_artists[6].set_data(observations[5])
-            self.img_artists[7].set_data(observations[6])
-            self.img_artists[8].set_data(observations[7])
-        self.fig.canvas.draw()
-        plt.pause(1)
-        return self.fig
-
-    # show the front view
-    def show_front_view(self, time_step=None):
-        assert len(self._last_observation.shape) == 3, f"Invalid observation, expected observation should be " \
-                                                       f"RGBD_INTERLEAVED, but get {self._observation_names[0]}." \
-                                                       f" Please check the observation list. The first one should be" \
-                                                       f" RGBD_INTERLEAVED."
-        # init or update data
-        if time_step is None:
-            self.fig, self.arrays = plt.subplots(1, 2)
-            self.img_artists.append(self.arrays[0].imshow(self._last_observation[0]))
-            self.img_artists.append(self.arrays[1].imshow(ndimage.rotate(self._top_down_obs, -90)))
-        else:
-            self.img_artists[0].set_data(self._last_observation[0])
-            self.img_artists[1].set_data(ndimage.rotate(self._top_down_obs, -90))
-        self.fig.canvas.draw()
-        plt.pause(0.0001)
 
     @staticmethod
     def compute_distance(pos_1, pos_2):
