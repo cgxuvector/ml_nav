@@ -272,7 +272,7 @@ class RandomMazeTileRatio(object):
         if mode == 'rgb_array':
             return self._lab.observations()
         else:
-            super(RandomMazeTileRaw, self).render(mode=mode)  # just raise an exception
+            super(RandomMazeTileRatio, self).render(mode=mode)  # just raise an exception
 
     # close the deepmind
     def close(self):
